@@ -11,7 +11,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/actions/typescript-action.git"
+    "url": "git+https://github.com/cardinalby/webext-buildtools-chrome-crx-action.git"
   },
   "keywords": [
     "webext-buildtools",
@@ -38,6 +38,6 @@
     "webext-buildtools-builder-types": "^1.0.8",
     "@types/node": "^12.7.12",
     "@zeit/ncc": "^0.20.5",
-    "typescript": "^3.9.5"
+    "typescript": "^3.6.4"
   }
 }
