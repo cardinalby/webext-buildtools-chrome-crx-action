@@ -11,17 +11,17 @@ Based on [ChromeCrxBuilder](https://www.npmjs.com/package/webext-buildtools-chro
 ## Inputs
 
 * `extensionDir`
-**Required** Path to WebExtension directory.
+**Required** Path to WebExtension directory (relative to repository)
 
 * `crxFilePath`
-**Required** Path to save result crx file.
+**Required** Path to save result crx file ((relative to repository))
 
 * `privateKey`
 **Required** Contents of private key used to sign crx file. Save it to Secrets!
 
 * `updateXmlPath`
-Optional: path to save update.xml file for extensions hosted not on Chrome Web Store. This xml is used as 
-response at url, specified in manifest''s `update_url` key file.
+Optional: path to save update.xml file (relative to repository) for extensions hosted not on Chrome Web Store. 
+This xml is used as response at url, specified in manifest''s `update_url` key file.
 
 * `updateXmlCodebaseUrl`
 Required, if you specified updateXmlPath. URL to the .crx file for clients.

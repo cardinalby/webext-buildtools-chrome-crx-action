@@ -1,14 +1,15 @@
+import { getPathInput, getRequiredPathInput } from './ghActionUtils';
 import * as ghActions from '@actions/core';
 
 export const actionInputs = {
-    extensionDir: ghActions.getInput('extensionDir', { required: true }),
+    extensionDir: getRequiredPathInput('extensionDir'),
     zipGlobPattern: ghActions.getInput('zipGlobPattern', { required: false }),
     zipIgnore: ghActions.getInput('zipIgnore', { required: false }).split('|'),
 
-    crxFilePath: ghActions.getInput('crxFilePath', { required: true }),
+    crxFilePath: getRequiredPathInput('crxFilePath'),
     privateKey: ghActions.getInput('privateKey', { required: true }),
 
-    updateXmlPath: ghActions.getInput('updateXmlPath', { required: false }),
+    updateXmlPath: getPathInput('updateXmlPath'),
     updateXmlCodebaseUrl: ghActions.getInput('updateXmlCodebaseUrl', { required: false }),
     updateXmlAppId: ghActions.getInput('updateXmlAppId', { required: false }),
 }
