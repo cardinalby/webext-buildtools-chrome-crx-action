@@ -10,33 +10,33 @@ Based on [ChromeCrxBuilder](https://www.npmjs.com/package/webext-buildtools-chro
 
 ## Inputs
 
-### `extensionDir`
+* `extensionDir`
 **Required** Path to WebExtension directory.
 
-### `crxFilePath`
+* `crxFilePath`
 **Required** Path to save result crx file.
 
-### `privateKey`
+* `privateKey`
 **Required** Contents of private key used to sign crx file. Save it to Secrets!
 
-### `updateXmlPath`
+* `updateXmlPath`
 Optional: path to save update.xml file for extensions hosted not on Chrome Web Store. This xml is used as 
 response at url, specified in manifest''s `update_url` key file.
 
-### `updateXmlCodebaseUrl`
+* `updateXmlCodebaseUrl`
 Required, if you specified updateXmlPath. URL to the .crx file for clients.
 
-### `updateXmlAppId`
+* `updateXmlAppId`
 App Id to use in update.xml file. Generated from private key by default.
 
-### `updateXmlAppId`
+* `updateXmlAppId`
 App Id to use in update.xml file. Generated from private key by default.
 
-### `zipGlobPattern`
+* `zipGlobPattern`
 Include files according to the pattern while packing crx. 
 Default: `**`
 
-### `zipIgnore`
+* `zipIgnore`
 Patterns of files which will be excluded from the zip, separated by `|`. 
 Default: `*.pem|.git|*.crx`
 
