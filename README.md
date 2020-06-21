@@ -1,101 +1,51 @@
-<p align="center">
-  <a href="https://github.com/actions/typescript-action/actions"><img alt="typescript-action status" src="https://github.com/actions/typescript-action/workflows/build-test/badge.svg"></a>
-</p>
+![Node.js CI](https://github.com/cardinalby/webext-buildtools-chrome-crx-action/workflows/build-test/badge.svg)
 
-# Create a JavaScript Action using TypeScript
+# Build signed crx file for your WebExtension
 
-Use this template to bootstrap the creation of a JavaScript action.:rocket:
+The action allows you to build and sign your Web Extension for offline distribution. 
+Read more details at [Alternative Extension Distribution Options](https://developer.chrome.com/apps/external_extensions).
 
-This template includes compilication support, tests, a validation workflow, publishing, and versioning guidance.  
+Based on [ChromeCrxBuilder](https://www.npmjs.com/package/webext-buildtools-chrome-crx-builder) and 
+[DirReaderBuilder](https://www.npmjs.com/package/webext-buildtools-dir-reader-mw) packages.
 
-If you are new, there's also a simpler introduction.  See the [Hello World JavaScript Action](https://github.com/actions/hello-world-javascript-action)
+## Inputs
 
-## Create an action from this template
+### `extensionDir`
+**Required** Path to WebExtension directory.
 
-Click the `Use this Template` and provide the new repo details for your action
+### `crxFilePath`
+**Required** Path to save result crx file.
 
-## Code in Master
+### `privateKey`
+**Required** Contents of private key used to sign crx file. Save it to Secrets!
 
-Install the dependencies  
-```bash
-$ npm install
-```
+### `updateXmlPath`
+Optional: path to save update.xml file for extensions hosted not on Chrome Web Store. This xml is used as 
+response at url, specified in manifest''s `update_url` key file.
 
-Build the typescript and package it for distribution
-```bash
-$ npm run build && npm run pack
-```
+### `updateXmlCodebaseUrl`
+Required, if you specified updateXmlPath. URL to the .crx file for clients.
 
-Run the tests :heavy_check_mark:  
-```bash
-$ npm test
+### `updateXmlAppId`
+App Id to use in update.xml file. Generated from private key by default.
 
- PASS  ./index.test.js
-  ✓ throws invalid number (3ms)
-  ✓ wait 500 ms (504ms)
-  ✓ test runs (95ms)
+### `updateXmlAppId`
+App Id to use in update.xml file. Generated from private key by default.
 
-...
-```
+### `zipGlobPattern`
+Include files according to the pattern while packing crx. 
+Default: `**`
 
-## Change action.yml
+### `zipIgnore`
+Patterns of files which will be excluded from the zip, separated by `|`. 
+Default: `*.pem|.git|*.crx`
 
-The action.yml contains defines the inputs and output for your action.
-
-Update the action.yml with your name, description, inputs and outputs for your action.
-
-See the [documentation](https://help.github.com/en/articles/metadata-syntax-for-github-actions)
-
-## Change the Code
-
-Most toolkit and CI/CD operations involve async operations so the action is run in an async function.
-
-```javascript
-import * as core from '@actions/core';
-...
-
-async function run() {
-  try { 
-      ...
-  } 
-  catch (error) {
-    core.setFailed(error.message);
-  }
-}
-
-run()
-```
-
-See the [toolkit documentation](https://github.com/actions/toolkit/blob/master/README.md#packages) for the various packages.
-
-## Publish to a distribution branch
-
-Actions are run from GitHub repos so we will checkin the packed dist folder. 
-
-Then run [ncc](https://github.com/zeit/ncc) and push the results:
-```bash
-$ npm run pack
-$ git add dist
-$ git commit -a -m "prod dependencies"
-$ git push origin releases/v1
-```
-
-Your action is now published! :rocket: 
-
-See the [versioning documentation](https://github.com/actions/toolkit/blob/master/docs/action-versioning.md)
-
-## Validate
-
-You can now validate the action by referencing `./` in a workflow in your repo (see [test.yml](.github/workflows/test.yml)])
+## Example usage
 
 ```yaml
-uses: ./
+uses: cardinalby/webext-buildtools-chrome-crx-action@v1
 with:
-  milliseconds: 1000
+  extensionDir: 'extension'
+  crxFilePath: 'build/extension.crx'
+  privateKey: ${{ secrets.CHROME_CRX_PRIVATE_KEY }}
 ```
-
-See the [actions tab](https://github.com/actions/javascript-action/actions) for runs of this action! :rocket:
-
-## Usage:
-
-After testing you can [create a v1 tag](https://github.com/actions/toolkit/blob/master/docs/action-versioning.md) to reference the stable and latest V1 action
