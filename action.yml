@@ -28,6 +28,15 @@ inputs:
   updateXmlAppId:
     description: 'App Id to use in update.xml file. Generated from private key by default'
     required: false
+outputs:
+  extensionName:
+    description: 'extension name from manifest'
+  extensionVersion:
+    description: 'extension version from manifest'
+  crxFilePath:
+    description: 'the absolute path to built crx file'
+  updateXmlFilePath:
+    description: 'the absolute path to built update.xml file'
 runs:
   using: 'node12'
   main: 'dist/index.js'
