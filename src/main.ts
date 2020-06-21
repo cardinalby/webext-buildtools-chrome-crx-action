@@ -33,11 +33,11 @@ async function runImpl() {
     );
     const crxFileAsset = crxResult.getAssets().crxFile;
     if (crxFileAsset) {
-        logger('info', 'Crx file built: ' + crxFileAsset.getValue());
+        ghActions.info('Crx file built: ' + crxFileAsset.getValue());
     }
     const updateXmlFileAsset = crxResult.getAssets().updateXmlFile;
     if (updateXmlFileAsset) {
-        logger('info', 'update.xml file built: ' + updateXmlFileAsset.getValue());
+        ghActions.info('update.xml file built: ' + updateXmlFileAsset.getValue());
     }
 }
 
@@ -52,7 +52,7 @@ async function runDirBuilder(logger: LogMethod): Promise<DirReaderBuildResult> {
     dirBuilder.setInputDirPath(actionInputs.extensionDir);
     dirBuilder.requireZipBuffer();
     dirBuilder.requireManifest();
-    logger('debug', 'Reading and packing to zip ' + actionInputs.extensionDir);
+    ghActions.info('Reading and packing to zip ' + actionInputs.extensionDir);
     return dirBuilder.build();
 }
 
@@ -78,7 +78,7 @@ async function runCrxBuilder(
         }
     }
 
-    logger('debug', 'Signing ' + manifest.name + ' v.' + manifest.version + ' crx');
+    ghActions.info('Signing ' + manifest.name + ' v.' + manifest.version + ' crx');
     const crxBuilder = new ChromeCrxBuilder(options, logger);
 
     crxBuilder.setInputManifest(manifest)
