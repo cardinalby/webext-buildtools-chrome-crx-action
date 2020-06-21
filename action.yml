@@ -1,0 +1,35 @@
+name: 'webext-buildtools-chrome-crx-action'
+description: 'Build signed crx file for your WebExtension'
+author: 'cardinalby'
+inputs:
+  extensionDir:
+    description: 'Path to WebExtension directory'
+    required: true
+  zipGlobPattern:
+    description: 'Include files according to the pattern'
+    required: false
+    default: '**'
+  zipIgnore:
+    description: 'Patterns of files which will be excluded from the zip, separated by |'
+    required: false
+    default: '*.pem|.git|*.crx'
+  crxFilePath:
+    description: 'Path to save result crx file'
+    required: true
+  privateKey:
+    description: 'Contents of private key used to sign crx file'
+    required: true
+  updateXmlPath:
+    description: 'Path to save update.xml file for extensions hosted not on Chrome Web Store. This xml is used as response at url, specified in manifest''s `update_url` key file'
+    required: false
+  updateXmlCodebaseUrl:
+    description: 'Required, if you specified updateXmlPath. URL to the .crx file'
+    required: false
+  updateXmlAppId:
+    description: 'App Id to use in update.xml file. Generated from private key by default'
+    required: false
+runs:
+  using: 'node12'
+  main: 'dist/index.js'
+branding:
+  icon: 'package'
