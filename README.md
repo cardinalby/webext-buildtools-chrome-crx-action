@@ -40,6 +40,12 @@ Default: `**`
 Patterns of files which will be excluded from the zip, separated by `|`. 
 Default: `*.pem|.git|*.crx`
 
+## Outputs
+* `extensionName` from extension's manifest
+* `extensionVersion` from extension's manifest
+* `crxFilePath` the absolute path to built crx file
+* `updateXmlFilePath` the absolute path to built update.xml file
+
 ## Example usage
 
 ```yaml

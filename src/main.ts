@@ -26,6 +26,9 @@ async function runImpl() {
     if (!dirReaderAssets.zipBuffer || !dirReaderAssets.manifest) {
         throw new Error('Dir reader assets are empty');
     }
+    ghActions.setOutput('extensionName', dirReaderAssets.manifest.getValue().name);
+    ghActions.setOutput('extensionVersion', dirReaderAssets.manifest.getValue().version);
+
     const crxResult = await runCrxBuilder(
         logger,
         dirReaderAssets.zipBuffer.getValue(),
@@ -33,10 +36,12 @@ async function runImpl() {
     );
     const crxFileAsset = crxResult.getAssets().crxFile;
     if (crxFileAsset) {
+        ghActions.setOutput('crxFilePath', crxFileAsset.getValue());
         ghActions.info('Crx file built: ' + crxFileAsset.getValue());
     }
     const updateXmlFileAsset = crxResult.getAssets().updateXmlFile;
     if (updateXmlFileAsset) {
+        ghActions.setOutput('updateXmlFilePath', updateXmlFileAsset.getValue());
         ghActions.info('update.xml file built: ' + updateXmlFileAsset.getValue());
     }
 }

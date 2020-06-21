@@ -9117,7 +9117,7 @@ const ghActions = __importStar(__webpack_require__(470));
 const webext_buildtools_chrome_crx_builder_1 = __importDefault(__webpack_require__(904));
 const webext_buildtools_dir_reader_mw_1 = __importDefault(__webpack_require__(23));
 const winston_1 = __importDefault(__webpack_require__(264));
-const ghActionUtils_1 = __webpack_require__(361);
+const actionInputs_1 = __webpack_require__(638);
 // noinspection JSUnusedLocalSymbols
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
@@ -9136,14 +9136,18 @@ function runImpl() {
         if (!dirReaderAssets.zipBuffer || !dirReaderAssets.manifest) {
             throw new Error('Dir reader assets are empty');
         }
+        ghActions.setOutput('extensionName', dirReaderAssets.manifest.getValue().name);
+        ghActions.setOutput('extensionVersion', dirReaderAssets.manifest.getValue().version);
         const crxResult = yield runCrxBuilder(logger, dirReaderAssets.zipBuffer.getValue(), dirReaderAssets.manifest.getValue());
         const crxFileAsset = crxResult.getAssets().crxFile;
         if (crxFileAsset) {
-            logger('info', 'Crx file built: ' + crxFileAsset.getValue());
+            ghActions.setOutput('crxFilePath', crxFileAsset.getValue());
+            ghActions.info('Crx file built: ' + crxFileAsset.getValue());
         }
         const updateXmlFileAsset = crxResult.getAssets().updateXmlFile;
         if (updateXmlFileAsset) {
-            logger('info', 'update.xml file built: ' + updateXmlFileAsset.getValue());
+            ghActions.setOutput('updateXmlFilePath', updateXmlFileAsset.getValue());
+            ghActions.info('update.xml file built: ' + updateXmlFileAsset.getValue());
         }
     });
 }
@@ -9151,42 +9155,42 @@ function runDirBuilder(logger) {
     return __awaiter(this, void 0, void 0, function* () {
         const options = {
             zipOptions: {
-                globPattern: ghActionUtils_1.actionInputs.zipGlobPattern,
-                ignore: ghActionUtils_1.actionInputs.zipIgnore
+                globPattern: actionInputs_1.actionInputs.zipGlobPattern,
+                ignore: actionInputs_1.actionInputs.zipIgnore
             }
         };
         const dirBuilder = new webext_buildtools_dir_reader_mw_1.default(options, logger);
-        dirBuilder.setInputDirPath(ghActionUtils_1.actionInputs.extensionDir);
+        dirBuilder.setInputDirPath(actionInputs_1.actionInputs.extensionDir);
         dirBuilder.requireZipBuffer();
         dirBuilder.requireManifest();
-        logger('debug', 'Reading and packing to zip ' + ghActionUtils_1.actionInputs.extensionDir);
+        ghActions.info('Reading and packing to zip ' + actionInputs_1.actionInputs.extensionDir);
         return dirBuilder.build();
     });
 }
 function runCrxBuilder(logger, zipBuffer, manifest) {
     return __awaiter(this, void 0, void 0, function* () {
         const options = {
-            crxFilePath: ghActionUtils_1.actionInputs.crxFilePath,
-            privateKey: Buffer.from(ghActionUtils_1.actionInputs.privateKey)
+            crxFilePath: actionInputs_1.actionInputs.crxFilePath,
+            privateKey: Buffer.from(actionInputs_1.actionInputs.privateKey)
         };
-        if (ghActionUtils_1.actionInputs.updateXmlPath) {
-            if (!ghActionUtils_1.actionInputs.updateXmlCodebaseUrl) {
+        if (actionInputs_1.actionInputs.updateXmlPath) {
+            if (!actionInputs_1.actionInputs.updateXmlCodebaseUrl) {
                 throw new Error('updateXmlCodebaseUrl input required if you specified updateXmlPath');
             }
             options.updateXml = {
-                outFilePath: ghActionUtils_1.actionInputs.updateXmlPath,
-                codebaseUrl: ghActionUtils_1.actionInputs.updateXmlCodebaseUrl
+                outFilePath: actionInputs_1.actionInputs.updateXmlPath,
+                codebaseUrl: actionInputs_1.actionInputs.updateXmlCodebaseUrl
             };
-            if (ghActionUtils_1.actionInputs.updateXmlAppId) {
-                options.updateXml.appId = ghActionUtils_1.actionInputs.updateXmlAppId;
+            if (actionInputs_1.actionInputs.updateXmlAppId) {
+                options.updateXml.appId = actionInputs_1.actionInputs.updateXmlAppId;
             }
         }
-        logger('debug', 'Signing ' + manifest.name + ' v.' + manifest.version + ' crx');
+        ghActions.info('Signing ' + manifest.name + ' v.' + manifest.version + ' crx');
         const crxBuilder = new webext_buildtools_chrome_crx_builder_1.default(options, logger);
         crxBuilder.setInputManifest(manifest);
         crxBuilder.setInputZipBuffer(zipBuffer);
         crxBuilder.requireCrxFile();
-        if (ghActionUtils_1.actionInputs.updateXmlPath) {
+        if (actionInputs_1.actionInputs.updateXmlPath) {
             crxBuilder.requireUpdateXmlFile();
         }
         return crxBuilder.build();
@@ -24941,7 +24945,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.actionInputs = exports.getWorkspacePath = void 0;
+exports.getRequiredPathInput = exports.getPathInput = exports.getWorkspacePath = void 0;
 const ghActions = __importStar(__webpack_require__(470));
 const path = __importStar(__webpack_require__(622));
 const workspaceDir = process.env[`GITHUB_WORKSPACE`];
@@ -24949,27 +24953,16 @@ if (workspaceDir === undefined) {
     throw new Error('GITHUB_WORKSPACE env variable is not set. Did you perform checkout action?');
 }
 exports.getWorkspacePath = (relativePath) => path.join(workspaceDir, relativePath);
-const getPathInput = (inputName) => {
+exports.getPathInput = (inputName) => {
     const input = ghActions.getInput(inputName, { required: false });
     return input
         ? exports.getWorkspacePath(input)
         : undefined;
 };
-const getRequiredPathInput = (inputName) => {
+exports.getRequiredPathInput = (inputName) => {
     const input = ghActions.getInput(inputName, { required: true });
     return exports.getWorkspacePath(input);
 };
-exports.actionInputs = {
-    extensionDir: getRequiredPathInput('extensionDir'),
-    zipGlobPattern: ghActions.getInput('zipGlobPattern', { required: false }),
-    zipIgnore: ghActions.getInput('zipIgnore', { required: false }).split('|'),
-    crxFilePath: getRequiredPathInput('crxFilePath'),
-    privateKey: ghActions.getInput('privateKey', { required: true }),
-    updateXmlPath: getPathInput('updateXmlPath'),
-    updateXmlCodebaseUrl: ghActions.getInput('updateXmlCodebaseUrl', { required: false }),
-    updateXmlAppId: ghActions.getInput('updateXmlAppId', { required: false }),
-};
-ghActions.setSecret(exports.actionInputs.privateKey);
 
 
 /***/ }),
@@ -57109,7 +57102,48 @@ TransportStream.prototype._nop = function _nop() {
 
 /***/ }),
 /* 637 */,
-/* 638 */,
+/* 638 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.actionInputs = void 0;
+const ghActionUtils_1 = __webpack_require__(361);
+const ghActions = __importStar(__webpack_require__(470));
+exports.actionInputs = {
+    extensionDir: ghActionUtils_1.getRequiredPathInput('extensionDir'),
+    zipGlobPattern: ghActions.getInput('zipGlobPattern', { required: false }),
+    zipIgnore: ghActions.getInput('zipIgnore', { required: false }).split('|'),
+    crxFilePath: ghActionUtils_1.getRequiredPathInput('crxFilePath'),
+    privateKey: ghActions.getInput('privateKey', { required: true }),
+    updateXmlPath: ghActionUtils_1.getPathInput('updateXmlPath'),
+    updateXmlCodebaseUrl: ghActions.getInput('updateXmlCodebaseUrl', { required: false }),
+    updateXmlAppId: ghActions.getInput('updateXmlAppId', { required: false }),
+};
+ghActions.setSecret(exports.actionInputs.privateKey);
+
+
+/***/ }),
 /* 639 */,
 /* 640 */
 /***/ (function(module) {
