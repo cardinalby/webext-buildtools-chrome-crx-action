@@ -106,3 +106,5 @@ function getLogger(): LogMethod {
     });
     return logger.log.bind(logger);
 }
+
+run();
