@@ -21,4 +21,6 @@ jobs:
       - name: Install dependencies
         run: npm install
       - name: Build
-        run: npm run all
+        run: npm run build
+      - name: Pack
+        run: npm run pack
