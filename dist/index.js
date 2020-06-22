@@ -9204,6 +9204,7 @@ function getLogger() {
     });
     return logger.log.bind(logger);
 }
+run();
 
 
 /***/ }),
