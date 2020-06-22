@@ -9142,12 +9142,10 @@ function runImpl() {
         const crxFileAsset = crxResult.getAssets().crxFile;
         if (crxFileAsset) {
             ghActions.setOutput('crxFilePath', crxFileAsset.getValue());
-            ghActions.info('Crx file built: ' + crxFileAsset.getValue());
         }
         const updateXmlFileAsset = crxResult.getAssets().updateXmlFile;
         if (updateXmlFileAsset) {
             ghActions.setOutput('updateXmlFilePath', updateXmlFileAsset.getValue());
-            ghActions.info('update.xml file built: ' + updateXmlFileAsset.getValue());
         }
     });
 }
@@ -9163,7 +9161,6 @@ function runDirBuilder(logger) {
         dirBuilder.setInputDirPath(actionInputs_1.actionInputs.extensionDir);
         dirBuilder.requireZipBuffer();
         dirBuilder.requireManifest();
-        ghActions.info('Reading and packing to zip ' + actionInputs_1.actionInputs.extensionDir);
         return dirBuilder.build();
     });
 }
