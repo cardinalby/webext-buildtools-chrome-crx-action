@@ -1,17 +1,14 @@
-import { getPathInput, getRequiredPathInput } from './ghActionUtils';
-import * as ghActions from '@actions/core';
+import { actionInputs as inputs, transformIfSet } from 'github-actions-utils';
 
 export const actionInputs = {
-    extensionDir: getRequiredPathInput('extensionDir'),
-    zipGlobPattern: ghActions.getInput('zipGlobPattern', { required: false }),
-    zipIgnore: ghActions.getInput('zipIgnore', { required: false }).split('|'),
+    extensionDir: inputs.getWsPath('extensionDir', true),
+    zipGlobPattern: inputs.getString('zipGlobPattern', false),
+    zipIgnore: transformIfSet(inputs.getString('zipIgnore', false), s => s.split('|')),
 
-    crxFilePath: getRequiredPathInput('crxFilePath'),
-    privateKey: ghActions.getInput('privateKey', { required: true }),
+    crxFilePath: inputs.getWsPath('crxFilePath', true),
+    privateKey: inputs.getString('privateKey', true, true),
 
-    updateXmlPath: getPathInput('updateXmlPath'),
-    updateXmlCodebaseUrl: ghActions.getInput('updateXmlCodebaseUrl', { required: false }),
-    updateXmlAppId: ghActions.getInput('updateXmlAppId', { required: false }),
+    updateXmlPath: inputs.getWsPath('updateXmlPath', false),
+    updateXmlCodebaseUrl: inputs.getString('updateXmlCodebaseUrl', false),
+    updateXmlAppId: inputs.getString('updateXmlAppId', false)
 }
-
-ghActions.setSecret(actionInputs.privateKey);

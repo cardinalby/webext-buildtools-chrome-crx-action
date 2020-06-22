@@ -8,8 +8,9 @@ import DirReaderBuilder, {
     IManifestObject,
     IDirReaderOptions
 } from 'webext-buildtools-dir-reader-mw';
-import winston, { LogMethod } from 'winston';
+import { LogMethod } from 'winston';
 import { actionInputs } from './actionInputs';
+import { getLogger } from './logger';
 
 // noinspection JSUnusedLocalSymbols
 async function run(): Promise<void> {
@@ -90,18 +91,6 @@ async function runCrxBuilder(
         crxBuilder.requireUpdateXmlFile();
     }
     return crxBuilder.build();
-}
-
-function getLogger(): LogMethod {
-    const logger = winston.createLogger({
-        level: 'debug',
-        format: winston.format.combine(
-            winston.format.splat(),
-            winston.format.cli()
-        ),
-        transports: [new winston.transports.Console()]
-    });
-    return logger.log.bind(logger);
 }
 
 run();

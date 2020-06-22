@@ -7057,7 +7057,43 @@ module.exports = config => {
 /* 135 */,
 /* 136 */,
 /* 137 */,
-/* 138 */,
+/* 138 */
+/***/ (function(module, exports, __webpack_require__) {
+
+/* module decorator */ module = __webpack_require__.nmd(module);
+var freeGlobal = __webpack_require__(973);
+
+/** Detect free variable `exports`. */
+var freeExports =  true && exports && !exports.nodeType && exports;
+
+/** Detect free variable `module`. */
+var freeModule = freeExports && "object" == 'object' && module && !module.nodeType && module;
+
+/** Detect the popular CommonJS extension `module.exports`. */
+var moduleExports = freeModule && freeModule.exports === freeExports;
+
+/** Detect free variable `process` from Node.js. */
+var freeProcess = moduleExports && freeGlobal.process;
+
+/** Used to access faster Node.js helpers. */
+var nodeUtil = (function() {
+  try {
+    // Use `util.types` for Node.js 10+.
+    var types = freeModule && freeModule.require && freeModule.require('util').types;
+
+    if (types) {
+      return types;
+    }
+
+    // Legacy `process.binding('util')` for Node.js < 10.
+    return freeProcess && freeProcess.binding && freeProcess.binding('util');
+  } catch (e) {}
+}());
+
+module.exports = nodeUtil;
+
+
+/***/ }),
 /* 139 */,
 /* 140 */,
 /* 141 */
@@ -9116,8 +9152,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const ghActions = __importStar(__webpack_require__(470));
 const webext_buildtools_chrome_crx_builder_1 = __importDefault(__webpack_require__(904));
 const webext_buildtools_dir_reader_mw_1 = __importDefault(__webpack_require__(23));
-const winston_1 = __importDefault(__webpack_require__(264));
 const actionInputs_1 = __webpack_require__(638);
+const logger_1 = __webpack_require__(504);
 // noinspection JSUnusedLocalSymbols
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
@@ -9131,7 +9167,7 @@ function run() {
 }
 function runImpl() {
     return __awaiter(this, void 0, void 0, function* () {
-        const logger = getLogger();
+        const logger = logger_1.getLogger();
         const dirReaderAssets = (yield runDirBuilder(logger)).getAssets();
         if (!dirReaderAssets.zipBuffer || !dirReaderAssets.manifest) {
             throw new Error('Dir reader assets are empty');
@@ -9192,14 +9228,6 @@ function runCrxBuilder(logger, zipBuffer, manifest) {
         }
         return crxBuilder.build();
     });
-}
-function getLogger() {
-    const logger = winston_1.default.createLogger({
-        level: 'debug',
-        format: winston_1.default.format.combine(winston_1.default.format.splat(), winston_1.default.format.cli()),
-        transports: [new winston_1.default.transports.Console()]
-    });
-    return logger.log.bind(logger);
 }
 run();
 
@@ -24918,52 +24946,7 @@ module.exports = __webpack_require__(413);
 
 /***/ }),
 /* 360 */,
-/* 361 */
-/***/ (function(__unusedmodule, exports, __webpack_require__) {
-
-"use strict";
-
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.getRequiredPathInput = exports.getPathInput = exports.getWorkspacePath = void 0;
-const ghActions = __importStar(__webpack_require__(470));
-const path = __importStar(__webpack_require__(622));
-const workspaceDir = process.env[`GITHUB_WORKSPACE`];
-if (workspaceDir === undefined) {
-    throw new Error('GITHUB_WORKSPACE env variable is not set. Did you perform checkout action?');
-}
-exports.getWorkspacePath = (relativePath) => path.join(workspaceDir, relativePath);
-exports.getPathInput = (inputName) => {
-    const input = ghActions.getInput(inputName, { required: false });
-    return input
-        ? exports.getWorkspacePath(input)
-        : undefined;
-};
-exports.getRequiredPathInput = (inputName) => {
-    const input = ghActions.getInput(inputName, { required: true });
-    return exports.getWorkspacePath(input);
-};
-
-
-/***/ }),
+/* 361 */,
 /* 362 */
 /***/ (function(module) {
 
@@ -31376,7 +31359,29 @@ module.exports = __webpack_require__(747).constants || __webpack_require__(619)
 /***/ }),
 /* 502 */,
 /* 503 */,
-/* 504 */,
+/* 504 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getLogger = void 0;
+const winston_1 = __importDefault(__webpack_require__(264));
+function getLogger() {
+    const logger = winston_1.default.createLogger({
+        level: 'debug',
+        format: winston_1.default.format.combine(winston_1.default.format.splat(), winston_1.default.format.cli()),
+        transports: [new winston_1.default.transports.Console()]
+    });
+    return logger.log.bind(logger);
+}
+exports.getLogger = getLogger;
+
+
+/***/ }),
 /* 505 */,
 /* 506 */,
 /* 507 */,
@@ -34874,7 +34879,7 @@ module.exports = isBuffer;
 
 var baseIsTypedArray = __webpack_require__(412),
     baseUnary = __webpack_require__(157),
-    nodeUtil = __webpack_require__(616);
+    nodeUtil = __webpack_require__(138);
 
 /* Node.js helper references. */
 var nodeIsTypedArray = nodeUtil && nodeUtil.isTypedArray;
@@ -56379,40 +56384,101 @@ module.exports = {
 
 /***/ }),
 /* 616 */
-/***/ (function(module, exports, __webpack_require__) {
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
 
-/* module decorator */ module = __webpack_require__.nmd(module);
-var freeGlobal = __webpack_require__(973);
+"use strict";
 
-/** Detect free variable `exports`. */
-var freeExports =  true && exports && !exports.nodeType && exports;
-
-/** Detect free variable `module`. */
-var freeModule = freeExports && "object" == 'object' && module && !module.nodeType && module;
-
-/** Detect the popular CommonJS extension `module.exports`. */
-var moduleExports = freeModule && freeModule.exports === freeExports;
-
-/** Detect free variable `process` from Node.js. */
-var freeProcess = moduleExports && freeGlobal.process;
-
-/** Used to access faster Node.js helpers. */
-var nodeUtil = (function() {
-  try {
-    // Use `util.types` for Node.js 10+.
-    var types = freeModule && freeModule.require && freeModule.require('util').types;
-
-    if (types) {
-      return types;
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const os = __importStar(__webpack_require__(87));
+/**
+ * Commands
+ *
+ * Command Format:
+ *   ::name key=value,key=value::message
+ *
+ * Examples:
+ *   ::warning::This is the message
+ *   ::set-env name=MY_VAR::some value
+ */
+function issueCommand(command, properties, message) {
+    const cmd = new Command(command, properties, message);
+    process.stdout.write(cmd.toString() + os.EOL);
+}
+exports.issueCommand = issueCommand;
+function issue(name, message = '') {
+    issueCommand(name, {}, message);
+}
+exports.issue = issue;
+const CMD_STRING = '::';
+class Command {
+    constructor(command, properties, message) {
+        if (!command) {
+            command = 'missing.command';
+        }
+        this.command = command;
+        this.properties = properties;
+        this.message = message;
     }
-
-    // Legacy `process.binding('util')` for Node.js < 10.
-    return freeProcess && freeProcess.binding && freeProcess.binding('util');
-  } catch (e) {}
-}());
-
-module.exports = nodeUtil;
-
+    toString() {
+        let cmdStr = CMD_STRING + this.command;
+        if (this.properties && Object.keys(this.properties).length > 0) {
+            cmdStr += ' ';
+            let first = true;
+            for (const key in this.properties) {
+                if (this.properties.hasOwnProperty(key)) {
+                    const val = this.properties[key];
+                    if (val) {
+                        if (first) {
+                            first = false;
+                        }
+                        else {
+                            cmdStr += ',';
+                        }
+                        cmdStr += `${key}=${escapeProperty(val)}`;
+                    }
+                }
+            }
+        }
+        cmdStr += `${CMD_STRING}${escapeData(this.message)}`;
+        return cmdStr;
+    }
+}
+/**
+ * Sanitizes an input into a string so it can be passed into issueCommand safely
+ * @param input input to sanitize into a string
+ */
+function toCommandValue(input) {
+    if (input === null || input === undefined) {
+        return '';
+    }
+    else if (typeof input === 'string' || input instanceof String) {
+        return input;
+    }
+    return JSON.stringify(input);
+}
+exports.toCommandValue = toCommandValue;
+function escapeData(s) {
+    return toCommandValue(s)
+        .replace(/%/g, '%25')
+        .replace(/\r/g, '%0D')
+        .replace(/\n/g, '%0A');
+}
+function escapeProperty(s) {
+    return toCommandValue(s)
+        .replace(/%/g, '%25')
+        .replace(/\r/g, '%0D')
+        .replace(/\n/g, '%0A')
+        .replace(/:/g, '%3A')
+        .replace(/,/g, '%2C');
+}
+//# sourceMappingURL=command.js.map
 
 /***/ }),
 /* 617 */,
@@ -57105,40 +57171,19 @@ TransportStream.prototype._nop = function _nop() {
 
 "use strict";
 
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.actionInputs = void 0;
-const ghActionUtils_1 = __webpack_require__(361);
-const ghActions = __importStar(__webpack_require__(470));
+const github_actions_utils_1 = __webpack_require__(691);
 exports.actionInputs = {
-    extensionDir: ghActionUtils_1.getRequiredPathInput('extensionDir'),
-    zipGlobPattern: ghActions.getInput('zipGlobPattern', { required: false }),
-    zipIgnore: ghActions.getInput('zipIgnore', { required: false }).split('|'),
-    crxFilePath: ghActionUtils_1.getRequiredPathInput('crxFilePath'),
-    privateKey: ghActions.getInput('privateKey', { required: true }),
-    updateXmlPath: ghActionUtils_1.getPathInput('updateXmlPath'),
-    updateXmlCodebaseUrl: ghActions.getInput('updateXmlCodebaseUrl', { required: false }),
-    updateXmlAppId: ghActions.getInput('updateXmlAppId', { required: false }),
+    extensionDir: github_actions_utils_1.actionInputs.getWsPath('extensionDir', true),
+    zipGlobPattern: github_actions_utils_1.actionInputs.getString('zipGlobPattern', false),
+    zipIgnore: github_actions_utils_1.transformIfSet(github_actions_utils_1.actionInputs.getString('zipIgnore', false), s => s.split('|')),
+    crxFilePath: github_actions_utils_1.actionInputs.getWsPath('crxFilePath', true),
+    privateKey: github_actions_utils_1.actionInputs.getString('privateKey', true, true),
+    updateXmlPath: github_actions_utils_1.actionInputs.getWsPath('updateXmlPath', false),
+    updateXmlCodebaseUrl: github_actions_utils_1.actionInputs.getString('updateXmlCodebaseUrl', false),
+    updateXmlAppId: github_actions_utils_1.actionInputs.getString('updateXmlAppId', false)
 };
-ghActions.setSecret(exports.actionInputs.privateKey);
 
 
 /***/ }),
@@ -61128,7 +61173,120 @@ try {
 
 /***/ }),
 /* 690 */,
-/* 691 */,
+/* 691 */
+/***/ (function(__unusedmodule, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+
+// EXTERNAL MODULE: ./node_modules/github-actions-utils/node_modules/@actions/core/lib/core.js
+var core = __webpack_require__(846);
+
+// EXTERNAL MODULE: external "path"
+var external_path_ = __webpack_require__(622);
+var external_path_default = /*#__PURE__*/__webpack_require__.n(external_path_);
+
+// CONCATENATED MODULE: ./node_modules/github-actions-utils/dist/actionContext.js
+
+/**
+ * @param relativePath if undefined, workspace path will be returned
+ */
+function getWorkspacePath(relativePath = undefined) {
+    const workspaceDir = process.env[`GITHUB_WORKSPACE`];
+    if (workspaceDir === undefined) {
+        throw new Error('GITHUB_WORKSPACE env variable is not set. Did you perform checkout action?');
+    }
+    return relativePath
+        ? external_path_default().join(workspaceDir, relativePath)
+        : workspaceDir;
+}
+//# sourceMappingURL=actionContext.js.map
+// CONCATENATED MODULE: ./node_modules/github-actions-utils/dist/actionInputs.js
+
+
+function hasInteger(string) {
+    return /^[-+]?\d+$/.test(string);
+}
+function isNumeric(string) {
+    return isFinite(parseFloat(string));
+}
+function getPathInput(inputName, required) {
+    const input = Object(core.getInput)(inputName, { required });
+    if (required && !input) {
+        throw new Error(`Input ${inputName} is empty`);
+    }
+    return input
+        ? getWorkspacePath(input)
+        : undefined;
+}
+function getBoolInput(inputName, required) {
+    const input = Object(core.getInput)(inputName, { required }).toLowerCase();
+    if (input === '1' || input === 'true' || input === 'yes') {
+        return true;
+    }
+    if (input === '0' || input === 'false' || input === 'no') {
+        return false;
+    }
+    if (!required && input === '') {
+        return undefined;
+    }
+    throw new Error(`Input ${inputName} has invalid boolean value`);
+}
+function getIntInput(inputName, required) {
+    const input = Object(core.getInput)(inputName, { required });
+    if (hasInteger(input)) {
+        return parseInt(input, 10);
+    }
+    if (!required && input === '') {
+        return undefined;
+    }
+    throw new Error(`Input ${inputName} has invalid integer value`);
+}
+function getNumberInput(inputName, required) {
+    const input = Object(core.getInput)(inputName, { required });
+    if (isNumeric(input)) {
+        return parseFloat(input);
+    }
+    if (!required && input === '') {
+        return undefined;
+    }
+    throw new Error(`Input ${inputName} has invalid number value`);
+}
+function getStringInput(inputName, required, isSecret = false) {
+    const input = Object(core.getInput)(inputName, { required });
+    if (!required && input === '') {
+        return undefined;
+    }
+    if (isSecret) {
+        Object(core.setSecret)(input);
+    }
+    return input;
+}
+const actionInputs = {
+    getString: getStringInput,
+    getInt: getIntInput,
+    getFloat: getNumberInput,
+    getBool: getBoolInput,
+    getWsPath: getPathInput
+};
+//# sourceMappingURL=actionInputs.js.map
+// CONCATENATED MODULE: ./node_modules/github-actions-utils/dist/utils.js
+function transformIfSet(value, callback) {
+    return value === undefined
+        ? undefined
+        : callback(value);
+}
+//# sourceMappingURL=utils.js.map
+// CONCATENATED MODULE: ./node_modules/github-actions-utils/dist/index.js
+/* concated harmony reexport */ __webpack_require__.d(__webpack_exports__, "actionInputs", function() { return actionInputs; });
+/* concated harmony reexport */ __webpack_require__.d(__webpack_exports__, "getWorkspacePath", function() { return getWorkspacePath; });
+/* concated harmony reexport */ __webpack_require__.d(__webpack_exports__, "transformIfSet", function() { return transformIfSet; });
+
+
+
+//# sourceMappingURL=index.js.map
+
+/***/ }),
 /* 692 */,
 /* 693 */,
 /* 694 */,
@@ -66878,7 +67036,234 @@ function writeUtf8(buf, str, pos) {
 /* 843 */,
 /* 844 */,
 /* 845 */,
-/* 846 */,
+/* 846 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const command_1 = __webpack_require__(616);
+const os = __importStar(__webpack_require__(87));
+const path = __importStar(__webpack_require__(622));
+/**
+ * The code to exit an action
+ */
+var ExitCode;
+(function (ExitCode) {
+    /**
+     * A code indicating that the action was successful
+     */
+    ExitCode[ExitCode["Success"] = 0] = "Success";
+    /**
+     * A code indicating that the action was a failure
+     */
+    ExitCode[ExitCode["Failure"] = 1] = "Failure";
+})(ExitCode = exports.ExitCode || (exports.ExitCode = {}));
+//-----------------------------------------------------------------------
+// Variables
+//-----------------------------------------------------------------------
+/**
+ * Sets env variable for this action and future actions in the job
+ * @param name the name of the variable to set
+ * @param val the value of the variable. Non-string values will be converted to a string via JSON.stringify
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function exportVariable(name, val) {
+    const convertedVal = command_1.toCommandValue(val);
+    process.env[name] = convertedVal;
+    command_1.issueCommand('set-env', { name }, convertedVal);
+}
+exports.exportVariable = exportVariable;
+/**
+ * Registers a secret which will get masked from logs
+ * @param secret value of the secret
+ */
+function setSecret(secret) {
+    command_1.issueCommand('add-mask', {}, secret);
+}
+exports.setSecret = setSecret;
+/**
+ * Prepends inputPath to the PATH (for this action and future actions)
+ * @param inputPath
+ */
+function addPath(inputPath) {
+    command_1.issueCommand('add-path', {}, inputPath);
+    process.env['PATH'] = `${inputPath}${path.delimiter}${process.env['PATH']}`;
+}
+exports.addPath = addPath;
+/**
+ * Gets the value of an input.  The value is also trimmed.
+ *
+ * @param     name     name of the input to get
+ * @param     options  optional. See InputOptions.
+ * @returns   string
+ */
+function getInput(name, options) {
+    const val = process.env[`INPUT_${name.replace(/ /g, '_').toUpperCase()}`] || '';
+    if (options && options.required && !val) {
+        throw new Error(`Input required and not supplied: ${name}`);
+    }
+    return val.trim();
+}
+exports.getInput = getInput;
+/**
+ * Sets the value of an output.
+ *
+ * @param     name     name of the output to set
+ * @param     value    value to store. Non-string values will be converted to a string via JSON.stringify
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function setOutput(name, value) {
+    command_1.issueCommand('set-output', { name }, value);
+}
+exports.setOutput = setOutput;
+/**
+ * Enables or disables the echoing of commands into stdout for the rest of the step.
+ * Echoing is disabled by default if ACTIONS_STEP_DEBUG is not set.
+ *
+ */
+function setCommandEcho(enabled) {
+    command_1.issue('echo', enabled ? 'on' : 'off');
+}
+exports.setCommandEcho = setCommandEcho;
+//-----------------------------------------------------------------------
+// Results
+//-----------------------------------------------------------------------
+/**
+ * Sets the action status to failed.
+ * When the action exits it will be with an exit code of 1
+ * @param message add error issue message
+ */
+function setFailed(message) {
+    process.exitCode = ExitCode.Failure;
+    error(message);
+}
+exports.setFailed = setFailed;
+//-----------------------------------------------------------------------
+// Logging Commands
+//-----------------------------------------------------------------------
+/**
+ * Gets whether Actions Step Debug is on or not
+ */
+function isDebug() {
+    return process.env['RUNNER_DEBUG'] === '1';
+}
+exports.isDebug = isDebug;
+/**
+ * Writes debug message to user log
+ * @param message debug message
+ */
+function debug(message) {
+    command_1.issueCommand('debug', {}, message);
+}
+exports.debug = debug;
+/**
+ * Adds an error issue
+ * @param message error issue message. Errors will be converted to string via toString()
+ */
+function error(message) {
+    command_1.issue('error', message instanceof Error ? message.toString() : message);
+}
+exports.error = error;
+/**
+ * Adds an warning issue
+ * @param message warning issue message. Errors will be converted to string via toString()
+ */
+function warning(message) {
+    command_1.issue('warning', message instanceof Error ? message.toString() : message);
+}
+exports.warning = warning;
+/**
+ * Writes info to log with console.log.
+ * @param message info message
+ */
+function info(message) {
+    process.stdout.write(message + os.EOL);
+}
+exports.info = info;
+/**
+ * Begin an output group.
+ *
+ * Output until the next `groupEnd` will be foldable in this group
+ *
+ * @param name The name of the output group
+ */
+function startGroup(name) {
+    command_1.issue('group', name);
+}
+exports.startGroup = startGroup;
+/**
+ * End an output group.
+ */
+function endGroup() {
+    command_1.issue('endgroup');
+}
+exports.endGroup = endGroup;
+/**
+ * Wrap an asynchronous function call in a group.
+ *
+ * Returns the same type as the function itself.
+ *
+ * @param name The name of the group
+ * @param fn The function to wrap in the group
+ */
+function group(name, fn) {
+    return __awaiter(this, void 0, void 0, function* () {
+        startGroup(name);
+        let result;
+        try {
+            result = yield fn();
+        }
+        finally {
+            endGroup();
+        }
+        return result;
+    });
+}
+exports.group = group;
+//-----------------------------------------------------------------------
+// Wrapper action state
+//-----------------------------------------------------------------------
+/**
+ * Saves state for current action, the state can only be retrieved by this action's post job execution.
+ *
+ * @param     name     name of the state to store
+ * @param     value    value to store. Non-string values will be converted to a string via JSON.stringify
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function saveState(name, value) {
+    command_1.issueCommand('save-state', { name }, value);
+}
+exports.saveState = saveState;
+/**
+ * Gets the value of an state set by this action's main execution.
+ *
+ * @param     name     name of the state to get
+ * @returns   string
+ */
+function getState(name) {
+    return process.env[`STATE_${name}`] || '';
+}
+exports.getState = getState;
+//# sourceMappingURL=core.js.map
+
+/***/ }),
 /* 847 */,
 /* 848 */,
 /* 849 */
@@ -74131,6 +74516,59 @@ module.exports = Writer;
 /******/ 				get: function() { return module.i; }
 /******/ 			});
 /******/ 			return module;
+/******/ 		};
+/******/ 	}();
+/******/ 	
+/******/ 	/* webpack/runtime/make namespace object */
+/******/ 	!function() {
+/******/ 		// define __esModule on exports
+/******/ 		__webpack_require__.r = function(exports) {
+/******/ 			if(typeof Symbol !== 'undefined' && Symbol.toStringTag) {
+/******/ 				Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
+/******/ 			}
+/******/ 			Object.defineProperty(exports, '__esModule', { value: true });
+/******/ 		};
+/******/ 	}();
+/******/ 	
+/******/ 	/* webpack/runtime/define property getter */
+/******/ 	!function() {
+/******/ 		// define getter function for harmony exports
+/******/ 		var hasOwnProperty = Object.prototype.hasOwnProperty;
+/******/ 		__webpack_require__.d = function(exports, name, getter) {
+/******/ 			if(!hasOwnProperty.call(exports, name)) {
+/******/ 				Object.defineProperty(exports, name, { enumerable: true, get: getter });
+/******/ 			}
+/******/ 		};
+/******/ 	}();
+/******/ 	
+/******/ 	/* webpack/runtime/create fake namespace object */
+/******/ 	!function() {
+/******/ 		// create a fake namespace object
+/******/ 		// mode & 1: value is a module id, require it
+/******/ 		// mode & 2: merge all properties of value into the ns
+/******/ 		// mode & 4: return value when already ns object
+/******/ 		// mode & 8|1: behave like require
+/******/ 		__webpack_require__.t = function(value, mode) {
+/******/ 			if(mode & 1) value = this(value);
+/******/ 			if(mode & 8) return value;
+/******/ 			if((mode & 4) && typeof value === 'object' && value && value.__esModule) return value;
+/******/ 			var ns = Object.create(null);
+/******/ 			__webpack_require__.r(ns);
+/******/ 			Object.defineProperty(ns, 'default', { enumerable: true, value: value });
+/******/ 			if(mode & 2 && typeof value != 'string') for(var key in value) __webpack_require__.d(ns, key, function(key) { return value[key]; }.bind(null, key));
+/******/ 			return ns;
+/******/ 		};
+/******/ 	}();
+/******/ 	
+/******/ 	/* webpack/runtime/compat get default export */
+/******/ 	!function() {
+/******/ 		// getDefaultExport function for compatibility with non-harmony modules
+/******/ 		__webpack_require__.n = function(module) {
+/******/ 			var getter = module && module.__esModule ?
+/******/ 				function getDefault() { return module['default']; } :
+/******/ 				function getModuleExports() { return module; };
+/******/ 			__webpack_require__.d(getter, 'a', getter);
+/******/ 			return getter;
 /******/ 		};
 /******/ 	}();
 /******/ 	
