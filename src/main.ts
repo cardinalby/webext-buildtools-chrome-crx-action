@@ -10,6 +10,7 @@ import DirReaderBuilder, {
 } from 'webext-buildtools-dir-reader-mw';
 import { LogMethod } from 'winston';
 import { actionInputs } from './actionInputs';
+import { actionOutputs } from './actionOutputs';
 import { getLogger } from './logger';
 
 // noinspection JSUnusedLocalSymbols
@@ -27,8 +28,8 @@ async function runImpl() {
     if (!dirReaderAssets.zipBuffer || !dirReaderAssets.manifest) {
         throw new Error('Dir reader assets are empty');
     }
-    ghActions.setOutput('extensionName', dirReaderAssets.manifest.getValue().name);
-    ghActions.setOutput('extensionVersion', dirReaderAssets.manifest.getValue().version);
+    actionOutputs.extensionName.setValue(dirReaderAssets.manifest.getValue().name);
+    actionOutputs.extensionVersion.setValue(dirReaderAssets.manifest.getValue().version);
 
     const crxResult = await runCrxBuilder(
         logger,
@@ -37,11 +38,11 @@ async function runImpl() {
     );
     const crxFileAsset = crxResult.getAssets().crxFile;
     if (crxFileAsset) {
-        ghActions.setOutput('crxFilePath', crxFileAsset.getValue());
+        actionOutputs.crxFilePath.setValue(crxFileAsset.getValue());
     }
     const updateXmlFileAsset = crxResult.getAssets().updateXmlFile;
     if (updateXmlFileAsset) {
-        ghActions.setOutput('updateXmlFilePath', updateXmlFileAsset.getValue());
+        actionOutputs.updateXmlFilePath.setValue(updateXmlFileAsset.getValue());
     }
 }
 
@@ -93,4 +94,5 @@ async function runCrxBuilder(
     return crxBuilder.build();
 }
 
+// noinspection JSIgnoredPromiseFromCall
 run();

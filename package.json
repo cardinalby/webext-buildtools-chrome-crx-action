@@ -1,6 +1,6 @@
 {
   "name": "webext-buildtools-chrome-crx-action",
-  "version": "1.0.5",
+  "version": "1.0.7",
   "private": false,
   "description": "Build signed crx file for your WebExtension",
   "main": "lib/main.js",
@@ -29,7 +29,7 @@
   "license": "MIT",
   "dependencies": {
     "@actions/core": "^1.2.0",
-    "github-actions-utils": "^1.0.4",
+    "github-actions-utils": "^1.0.7",
     "webext-buildtools-dir-reader-mw": "^1.0.9",
     "webext-buildtools-chrome-crx-builder": "^1.0.8",
     "winston": "^3.2.1"
