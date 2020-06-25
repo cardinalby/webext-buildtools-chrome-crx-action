@@ -59,7 +59,102 @@ module.exports = function isArrayish(obj) {
 
 
 /***/ }),
-/* 1 */,
+/* 1 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.actionInputs = void 0;
+const ghActions = __importStar(__webpack_require__(846));
+const actionContext_1 = __webpack_require__(661);
+function hasInteger(string) {
+    return /^[-+]?\d+$/.test(string);
+}
+function isNumeric(string) {
+    return isFinite(parseFloat(string));
+}
+function getPathInput(inputName, required) {
+    const input = ghActions.getInput(inputName, { required });
+    if (required && !input) {
+        throw new Error(`Input ${inputName} is empty`);
+    }
+    return input
+        ? actionContext_1.getWorkspacePath(input)
+        : undefined;
+}
+function getBoolInput(inputName, required) {
+    const input = ghActions.getInput(inputName, { required }).toLowerCase();
+    if (input === '1' || input === 'true' || input === 'yes') {
+        return true;
+    }
+    if (input === '0' || input === 'false' || input === 'no') {
+        return false;
+    }
+    if (!required && input === '') {
+        return undefined;
+    }
+    throw new Error(`Input ${inputName} has invalid boolean value`);
+}
+function getIntInput(inputName, required) {
+    const input = ghActions.getInput(inputName, { required });
+    if (hasInteger(input)) {
+        return parseInt(input, 10);
+    }
+    if (!required && input === '') {
+        return undefined;
+    }
+    throw new Error(`Input ${inputName} has invalid integer value`);
+}
+function getNumberInput(inputName, required) {
+    const input = ghActions.getInput(inputName, { required });
+    if (isNumeric(input)) {
+        return parseFloat(input);
+    }
+    if (!required && input === '') {
+        return undefined;
+    }
+    throw new Error(`Input ${inputName} has invalid number value`);
+}
+function getStringInput(inputName, required, isSecret = false) {
+    const input = ghActions.getInput(inputName, { required });
+    if (!required && input === '') {
+        return undefined;
+    }
+    if (isSecret) {
+        ghActions.setSecret(input);
+    }
+    return input;
+}
+exports.actionInputs = {
+    getString: getStringInput,
+    getInt: getIntInput,
+    getFloat: getNumberInput,
+    getBool: getBoolInput,
+    getWsPath: getPathInput
+};
+//# sourceMappingURL=actionInputs.js.map
+
+/***/ }),
 /* 2 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -9153,6 +9248,7 @@ const ghActions = __importStar(__webpack_require__(470));
 const webext_buildtools_chrome_crx_builder_1 = __importDefault(__webpack_require__(904));
 const webext_buildtools_dir_reader_mw_1 = __importDefault(__webpack_require__(23));
 const actionInputs_1 = __webpack_require__(638);
+const actionOutputs_1 = __webpack_require__(668);
 const logger_1 = __webpack_require__(504);
 // noinspection JSUnusedLocalSymbols
 function run() {
@@ -9172,16 +9268,16 @@ function runImpl() {
         if (!dirReaderAssets.zipBuffer || !dirReaderAssets.manifest) {
             throw new Error('Dir reader assets are empty');
         }
-        ghActions.setOutput('extensionName', dirReaderAssets.manifest.getValue().name);
-        ghActions.setOutput('extensionVersion', dirReaderAssets.manifest.getValue().version);
+        actionOutputs_1.actionOutputs.extensionName.setValue(dirReaderAssets.manifest.getValue().name);
+        actionOutputs_1.actionOutputs.extensionVersion.setValue(dirReaderAssets.manifest.getValue().version);
         const crxResult = yield runCrxBuilder(logger, dirReaderAssets.zipBuffer.getValue(), dirReaderAssets.manifest.getValue());
         const crxFileAsset = crxResult.getAssets().crxFile;
         if (crxFileAsset) {
-            ghActions.setOutput('crxFilePath', crxFileAsset.getValue());
+            actionOutputs_1.actionOutputs.crxFilePath.setValue(crxFileAsset.getValue());
         }
         const updateXmlFileAsset = crxResult.getAssets().updateXmlFile;
         if (updateXmlFileAsset) {
-            ghActions.setOutput('updateXmlFilePath', updateXmlFileAsset.getValue());
+            actionOutputs_1.actionOutputs.updateXmlFilePath.setValue(updateXmlFileAsset.getValue());
         }
     });
 }
@@ -9229,6 +9325,7 @@ function runCrxBuilder(logger, zipBuffer, manifest) {
         return crxBuilder.build();
     });
 }
+// noinspection JSIgnoredPromiseFromCall
 run();
 
 
@@ -57173,7 +57270,7 @@ TransportStream.prototype._nop = function _nop() {
 
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.actionInputs = void 0;
-const github_actions_utils_1 = __webpack_require__(691);
+const github_actions_utils_1 = __webpack_require__(690);
 exports.actionInputs = {
     extensionDir: github_actions_utils_1.actionInputs.getWsPath('extensionDir', true),
     zipGlobPattern: github_actions_utils_1.actionInputs.getString('zipGlobPattern', false),
@@ -57684,12 +57781,119 @@ function Writable(fn, options) {
 
 /***/ }),
 /* 657 */,
-/* 658 */,
+/* 658 */
+/***/ (function(__unusedmodule, exports) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.transformIfSet = void 0;
+function transformIfSet(value, callback) {
+    return value === undefined
+        ? undefined
+        : callback(value);
+}
+exports.transformIfSet = transformIfSet;
+//# sourceMappingURL=utils.js.map
+
+/***/ }),
 /* 659 */,
 /* 660 */,
-/* 661 */,
+/* 661 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getWorkspacePath = void 0;
+const path_1 = __importDefault(__webpack_require__(622));
+/**
+ * @param relativePath if undefined, workspace path will be returned
+ */
+function getWorkspacePath(relativePath = undefined) {
+    const workspaceDir = process.env[`GITHUB_WORKSPACE`];
+    if (workspaceDir === undefined) {
+        throw new Error('GITHUB_WORKSPACE env variable is not set. Did you perform checkout action?');
+    }
+    return relativePath
+        ? path_1.default.join(workspaceDir, relativePath)
+        : workspaceDir;
+}
+exports.getWorkspacePath = getWorkspacePath;
+//# sourceMappingURL=actionContext.js.map
+
+/***/ }),
 /* 662 */,
-/* 663 */,
+/* 663 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ActionTrOutput = exports.ActionOutput = void 0;
+const ghActions = __importStar(__webpack_require__(846));
+class ActionOutput {
+    constructor(name) {
+        this._name = name;
+    }
+    getName() {
+        return this._name;
+    }
+    getValue() {
+        return this._value;
+    }
+    setValue(value) {
+        this._value = value;
+        ghActions.setOutput(this._name, value);
+    }
+}
+exports.ActionOutput = ActionOutput;
+class ActionTrOutput {
+    constructor(name, transform) {
+        this._name = name;
+        this._transform = transform;
+    }
+    getName() {
+        return this._name;
+    }
+    getValue() {
+        return this._value;
+    }
+    setValue(value) {
+        this._value = value;
+        this._stringValue = this._transform(value);
+        ghActions.setOutput(this._name, this._stringValue);
+    }
+    getStringValue() {
+        return this._stringValue;
+    }
+}
+exports.ActionTrOutput = ActionTrOutput;
+//# sourceMappingURL=actionOutput.js.map
+
+/***/ }),
 /* 664 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -57871,7 +58075,23 @@ module.exports = jsonfile
 
 /***/ }),
 /* 667 */,
-/* 668 */,
+/* 668 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.actionOutputs = void 0;
+const github_actions_utils_1 = __webpack_require__(690);
+exports.actionOutputs = {
+    extensionName: new github_actions_utils_1.ActionOutput('extensionName'),
+    extensionVersion: new github_actions_utils_1.ActionOutput('extensionVersion'),
+    crxFilePath: new github_actions_utils_1.ActionOutput('crxFilePath'),
+    updateXmlFilePath: new github_actions_utils_1.ActionOutput('updateXmlFilePath')
+};
+
+
+/***/ }),
 /* 669 */
 /***/ (function(module) {
 
@@ -61172,121 +61392,30 @@ try {
 
 
 /***/ }),
-/* 690 */,
-/* 691 */
-/***/ (function(__unusedmodule, __webpack_exports__, __webpack_require__) {
+/* 690 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
 
 "use strict";
-__webpack_require__.r(__webpack_exports__);
 
-// EXTERNAL MODULE: ./node_modules/github-actions-utils/node_modules/@actions/core/lib/core.js
-var core = __webpack_require__(846);
-
-// EXTERNAL MODULE: external "path"
-var external_path_ = __webpack_require__(622);
-var external_path_default = /*#__PURE__*/__webpack_require__.n(external_path_);
-
-// CONCATENATED MODULE: ./node_modules/github-actions-utils/dist/actionContext.js
-
-/**
- * @param relativePath if undefined, workspace path will be returned
- */
-function getWorkspacePath(relativePath = undefined) {
-    const workspaceDir = process.env[`GITHUB_WORKSPACE`];
-    if (workspaceDir === undefined) {
-        throw new Error('GITHUB_WORKSPACE env variable is not set. Did you perform checkout action?');
-    }
-    return relativePath
-        ? external_path_default().join(workspaceDir, relativePath)
-        : workspaceDir;
-}
-//# sourceMappingURL=actionContext.js.map
-// CONCATENATED MODULE: ./node_modules/github-actions-utils/dist/actionInputs.js
-
-
-function hasInteger(string) {
-    return /^[-+]?\d+$/.test(string);
-}
-function isNumeric(string) {
-    return isFinite(parseFloat(string));
-}
-function getPathInput(inputName, required) {
-    const input = Object(core.getInput)(inputName, { required });
-    if (required && !input) {
-        throw new Error(`Input ${inputName} is empty`);
-    }
-    return input
-        ? getWorkspacePath(input)
-        : undefined;
-}
-function getBoolInput(inputName, required) {
-    const input = Object(core.getInput)(inputName, { required }).toLowerCase();
-    if (input === '1' || input === 'true' || input === 'yes') {
-        return true;
-    }
-    if (input === '0' || input === 'false' || input === 'no') {
-        return false;
-    }
-    if (!required && input === '') {
-        return undefined;
-    }
-    throw new Error(`Input ${inputName} has invalid boolean value`);
-}
-function getIntInput(inputName, required) {
-    const input = Object(core.getInput)(inputName, { required });
-    if (hasInteger(input)) {
-        return parseInt(input, 10);
-    }
-    if (!required && input === '') {
-        return undefined;
-    }
-    throw new Error(`Input ${inputName} has invalid integer value`);
-}
-function getNumberInput(inputName, required) {
-    const input = Object(core.getInput)(inputName, { required });
-    if (isNumeric(input)) {
-        return parseFloat(input);
-    }
-    if (!required && input === '') {
-        return undefined;
-    }
-    throw new Error(`Input ${inputName} has invalid number value`);
-}
-function getStringInput(inputName, required, isSecret = false) {
-    const input = Object(core.getInput)(inputName, { required });
-    if (!required && input === '') {
-        return undefined;
-    }
-    if (isSecret) {
-        Object(core.setSecret)(input);
-    }
-    return input;
-}
-const actionInputs = {
-    getString: getStringInput,
-    getInt: getIntInput,
-    getFloat: getNumberInput,
-    getBool: getBoolInput,
-    getWsPath: getPathInput
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !exports.hasOwnProperty(p)) __createBinding(exports, m, p);
 };
-//# sourceMappingURL=actionInputs.js.map
-// CONCATENATED MODULE: ./node_modules/github-actions-utils/dist/utils.js
-function transformIfSet(value, callback) {
-    return value === undefined
-        ? undefined
-        : callback(value);
-}
-//# sourceMappingURL=utils.js.map
-// CONCATENATED MODULE: ./node_modules/github-actions-utils/dist/index.js
-/* concated harmony reexport */ __webpack_require__.d(__webpack_exports__, "actionInputs", function() { return actionInputs; });
-/* concated harmony reexport */ __webpack_require__.d(__webpack_exports__, "getWorkspacePath", function() { return getWorkspacePath; });
-/* concated harmony reexport */ __webpack_require__.d(__webpack_exports__, "transformIfSet", function() { return transformIfSet; });
-
-
-
+Object.defineProperty(exports, "__esModule", { value: true });
+__exportStar(__webpack_require__(1), exports);
+__exportStar(__webpack_require__(663), exports);
+__exportStar(__webpack_require__(661), exports);
+__exportStar(__webpack_require__(658), exports);
 //# sourceMappingURL=index.js.map
 
 /***/ }),
+/* 691 */,
 /* 692 */,
 /* 693 */,
 /* 694 */,
@@ -67939,7 +68068,7 @@ module.exports.Printf
 /* 875 */
 /***/ (function(module) {
 
-module.exports = {"_args":[["winston@3.2.1","C:\\Work\\nodejs\\webext-buildtools-chrome-crx-action"]],"_from":"winston@3.2.1","_id":"winston@3.2.1","_inBundle":false,"_integrity":"sha512-zU6vgnS9dAWCEKg/QYigd6cgMVVNwyTzKs81XZtTFuRwJOcDdBg7AU0mXVyNbs7O5RH2zdv+BdNZUlx7mXPuOw==","_location":"/winston","_phantomChildren":{},"_requested":{"type":"version","registry":true,"raw":"winston@3.2.1","name":"winston","escapedName":"winston","rawSpec":"3.2.1","saveSpec":null,"fetchSpec":"3.2.1"},"_requiredBy":["/"],"_resolved":"https://registry.npmjs.org/winston/-/winston-3.2.1.tgz","_spec":"3.2.1","_where":"C:\\Work\\nodejs\\webext-buildtools-chrome-crx-action","author":{"name":"Charlie Robbins","email":"charlie.robbins@gmail.com"},"browser":"./dist/winston","bugs":{"url":"https://github.com/winstonjs/winston/issues"},"dependencies":{"async":"^2.6.1","diagnostics":"^1.1.1","is-stream":"^1.1.0","logform":"^2.1.1","one-time":"0.0.4","readable-stream":"^3.1.1","stack-trace":"0.0.x","triple-beam":"^1.3.0","winston-transport":"^4.3.0"},"description":"A logger for just about everything.","devDependencies":{"@babel/cli":"^7.2.3","@babel/core":"^7.2.2","@babel/preset-env":"^7.3.1","@types/node":"^10.12.19","abstract-winston-transport":">= 0.5.1","assume":"^2.1.0","colors":"^1.3.3","cross-spawn-async":"^2.2.5","eslint-config-populist":"^4.2.0","hock":"^1.3.3","mocha":"^5.2.0","nyc":"^13.1.0","rimraf":"^2.6.3","split2":"^3.1.0","std-mocks":"^1.0.1","through2":"^3.0.0","winston-compat":"^0.1.4"},"engines":{"node":">= 6.4.0"},"homepage":"https://github.com/winstonjs/winston#readme","keywords":["winston","logger","logging","logs","sysadmin","bunyan","pino","loglevel","tools","json","stream"],"license":"MIT","main":"./lib/winston","maintainers":[{"name":"Jarrett Cruger","email":"jcrugzz@gmail.com"},{"name":"Chris Alderson","email":"chrisalderson@protonmail.com"},{"name":"David Hyde","email":"dabh@stanford.edu"}],"name":"winston","repository":{"type":"git","url":"git+https://github.com/winstonjs/winston.git"},"scripts":{"build":"rimraf dist && babel lib -d dist","lint":"populist lib/*.js lib/winston/*.js lib/winston/**/*.js","prepublishOnly":"npm run build","pretest":"npm run lint","test":"nyc --reporter=text --reporter lcov npm run test:mocha","test:mocha":"mocha test/*.test.js test/**/*.test.js --exit"},"types":"./index.d.ts","version":"3.2.1"};
+module.exports = {"_args":[["winston@3.2.1","/home/runner/work/webext-buildtools-chrome-crx-action/webext-buildtools-chrome-crx-action"]],"_from":"winston@3.2.1","_id":"winston@3.2.1","_inBundle":false,"_integrity":"sha512-zU6vgnS9dAWCEKg/QYigd6cgMVVNwyTzKs81XZtTFuRwJOcDdBg7AU0mXVyNbs7O5RH2zdv+BdNZUlx7mXPuOw==","_location":"/winston","_phantomChildren":{},"_requested":{"type":"version","registry":true,"raw":"winston@3.2.1","name":"winston","escapedName":"winston","rawSpec":"3.2.1","saveSpec":null,"fetchSpec":"3.2.1"},"_requiredBy":["/"],"_resolved":"https://registry.npmjs.org/winston/-/winston-3.2.1.tgz","_spec":"3.2.1","_where":"/home/runner/work/webext-buildtools-chrome-crx-action/webext-buildtools-chrome-crx-action","author":{"name":"Charlie Robbins","email":"charlie.robbins@gmail.com"},"browser":"./dist/winston","bugs":{"url":"https://github.com/winstonjs/winston/issues"},"dependencies":{"async":"^2.6.1","diagnostics":"^1.1.1","is-stream":"^1.1.0","logform":"^2.1.1","one-time":"0.0.4","readable-stream":"^3.1.1","stack-trace":"0.0.x","triple-beam":"^1.3.0","winston-transport":"^4.3.0"},"description":"A logger for just about everything.","devDependencies":{"@babel/cli":"^7.2.3","@babel/core":"^7.2.2","@babel/preset-env":"^7.3.1","@types/node":"^10.12.19","abstract-winston-transport":">= 0.5.1","assume":"^2.1.0","colors":"^1.3.3","cross-spawn-async":"^2.2.5","eslint-config-populist":"^4.2.0","hock":"^1.3.3","mocha":"^5.2.0","nyc":"^13.1.0","rimraf":"^2.6.3","split2":"^3.1.0","std-mocks":"^1.0.1","through2":"^3.0.0","winston-compat":"^0.1.4"},"engines":{"node":">= 6.4.0"},"homepage":"https://github.com/winstonjs/winston#readme","keywords":["winston","logger","logging","logs","sysadmin","bunyan","pino","loglevel","tools","json","stream"],"license":"MIT","main":"./lib/winston","maintainers":[{"name":"Jarrett Cruger","email":"jcrugzz@gmail.com"},{"name":"Chris Alderson","email":"chrisalderson@protonmail.com"},{"name":"David Hyde","email":"dabh@stanford.edu"}],"name":"winston","repository":{"type":"git","url":"git+https://github.com/winstonjs/winston.git"},"scripts":{"build":"rimraf dist && babel lib -d dist","lint":"populist lib/*.js lib/winston/*.js lib/winston/**/*.js","prepublishOnly":"npm run build","pretest":"npm run lint","test":"nyc --reporter=text --reporter lcov npm run test:mocha","test:mocha":"mocha test/*.test.js test/**/*.test.js --exit"},"types":"./index.d.ts","version":"3.2.1"};
 
 /***/ }),
 /* 876 */,
@@ -74516,59 +74645,6 @@ module.exports = Writer;
 /******/ 				get: function() { return module.i; }
 /******/ 			});
 /******/ 			return module;
-/******/ 		};
-/******/ 	}();
-/******/ 	
-/******/ 	/* webpack/runtime/make namespace object */
-/******/ 	!function() {
-/******/ 		// define __esModule on exports
-/******/ 		__webpack_require__.r = function(exports) {
-/******/ 			if(typeof Symbol !== 'undefined' && Symbol.toStringTag) {
-/******/ 				Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-/******/ 			}
-/******/ 			Object.defineProperty(exports, '__esModule', { value: true });
-/******/ 		};
-/******/ 	}();
-/******/ 	
-/******/ 	/* webpack/runtime/define property getter */
-/******/ 	!function() {
-/******/ 		// define getter function for harmony exports
-/******/ 		var hasOwnProperty = Object.prototype.hasOwnProperty;
-/******/ 		__webpack_require__.d = function(exports, name, getter) {
-/******/ 			if(!hasOwnProperty.call(exports, name)) {
-/******/ 				Object.defineProperty(exports, name, { enumerable: true, get: getter });
-/******/ 			}
-/******/ 		};
-/******/ 	}();
-/******/ 	
-/******/ 	/* webpack/runtime/create fake namespace object */
-/******/ 	!function() {
-/******/ 		// create a fake namespace object
-/******/ 		// mode & 1: value is a module id, require it
-/******/ 		// mode & 2: merge all properties of value into the ns
-/******/ 		// mode & 4: return value when already ns object
-/******/ 		// mode & 8|1: behave like require
-/******/ 		__webpack_require__.t = function(value, mode) {
-/******/ 			if(mode & 1) value = this(value);
-/******/ 			if(mode & 8) return value;
-/******/ 			if((mode & 4) && typeof value === 'object' && value && value.__esModule) return value;
-/******/ 			var ns = Object.create(null);
-/******/ 			__webpack_require__.r(ns);
-/******/ 			Object.defineProperty(ns, 'default', { enumerable: true, value: value });
-/******/ 			if(mode & 2 && typeof value != 'string') for(var key in value) __webpack_require__.d(ns, key, function(key) { return value[key]; }.bind(null, key));
-/******/ 			return ns;
-/******/ 		};
-/******/ 	}();
-/******/ 	
-/******/ 	/* webpack/runtime/compat get default export */
-/******/ 	!function() {
-/******/ 		// getDefaultExport function for compatibility with non-harmony modules
-/******/ 		__webpack_require__.n = function(module) {
-/******/ 			var getter = module && module.__esModule ?
-/******/ 				function getDefault() { return module['default']; } :
-/******/ 				function getModuleExports() { return module; };
-/******/ 			__webpack_require__.d(getter, 'a', getter);
-/******/ 			return getter;
 /******/ 		};
 /******/ 	}();
 /******/ 	
