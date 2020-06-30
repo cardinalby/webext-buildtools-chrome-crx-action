@@ -2,17 +2,9 @@ name: 'webext-buildtools-chrome-crx-action'
 description: 'Build signed crx file for your WebExtension'
 author: 'cardinalby'
 inputs:
-  extensionDir:
+  zipFilePath:
     description: 'Path to WebExtension directory'
     required: true
-  zipGlobPattern:
-    description: 'Include files according to the pattern'
-    required: false
-    default: '**'
-  zipIgnore:
-    description: 'Patterns of files which will be excluded from the zip, separated by |'
-    required: false
-    default: '*.pem|.git|*.crx'
   crxFilePath:
     description: 'Path to save result crx file'
     required: true
@@ -29,10 +21,6 @@ inputs:
     description: 'App Id to use in update.xml file. Generated from private key by default'
     required: false
 outputs:
-  extensionName:
-    description: 'extension name from manifest'
-  extensionVersion:
-    description: 'extension version from manifest'
   crxFilePath:
     description: 'the absolute path to built crx file'
   updateXmlFilePath:

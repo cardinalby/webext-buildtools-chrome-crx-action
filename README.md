@@ -5,53 +5,55 @@
 The action allows you to build and sign your Web Extension for offline distribution. 
 Read more details at [Alternative Extension Distribution Options](https://developer.chrome.com/apps/external_extensions).
 
-Based on [ChromeCrxBuilder](https://www.npmjs.com/package/webext-buildtools-chrome-crx-builder) and 
-[DirReaderBuilder](https://www.npmjs.com/package/webext-buildtools-dir-reader-mw) packages.
+Based on [ChromeCrxBuilder](https://www.npmjs.com/package/webext-buildtools-chrome-crx-builder) package.
 
 ## Inputs
 
-* `extensionDir`
-**Required** Path to WebExtension directory (relative to repository)
+* `zipFilePath` **Required**<br> 
+Path to zip file with extension (relative to repository)
 
-* `crxFilePath`
-**Required** Path to save result crx file ((relative to repository))
+* `crxFilePath` **Required**<br>
+Path to save result crx file (relative to repository)
 
-* `privateKey`
-**Required** Contents of private key used to sign crx file. Save it to Secrets!
+* `privateKey` **Required**<br>
+Contents of private key used to sign crx file. Save it to Secrets!
 
-* `updateXmlPath`
-Optional: path to save update.xml file (relative to repository) for extensions hosted not on Chrome Web Store. 
-This xml is used as response at url, specified in manifest''s `update_url` key file.
-
-* `updateXmlCodebaseUrl`
-Required, if you specified updateXmlPath. URL to the .crx file for clients.
-
-* `updateXmlAppId`
-App Id to use in update.xml file. Generated from private key by default.
-
-* `updateXmlAppId`
-App Id to use in update.xml file. Generated from private key by default.
-
-* `zipGlobPattern`
-Include files according to the pattern while packing crx. 
-Default: `**`
-
-* `zipIgnore`
-Patterns of files which will be excluded from the zip, separated by `|`. 
-Default: `*.pem|.git|*.crx`
+* `updateXmlPath`<br>
+path to save update.xml file (relative to repository) for extensions hosted not on Chrome Web Store. 
+This xml is used as response at url, specified in manifest''s `update_url` key file.<br>
+If specified, set the following inputs:  
+    * `updateXmlCodebaseUrl`**Required**<br>
+    URL to the .crx file for clients.
+    
+    * `updateXmlAppId`<br>
+    App Id to use in update.xml file. Generated from private key by default.
 
 ## Outputs
-* `extensionName` from extension's manifest
-* `extensionVersion` from extension's manifest
 * `crxFilePath` the absolute path to built crx file
 * `updateXmlFilePath` the absolute path to built update.xml file
+
+## Prepare inputs first
+Use [webext-buildtools-pack-extension-dir-action](https://github.com/cardinalby/webext-buildtools-pack-extension-dir-action)
+to pack your extension directory and provide `zipFilePath` input (see example).
 
 ## Example usage
 
 ```yaml
-uses: cardinalby/webext-buildtools-chrome-crx-action@v1
-with:
-  extensionDir: 'extension'
-  crxFilePath: 'build/extension.crx'
-  privateKey: ${{ secrets.CHROME_CRX_PRIVATE_KEY }}
+steps:
+  # pack zip and read manifest, can be reused in the following steps
+  - id: packExtensionDir
+    uses: cardinalby/webext-buildtools-pack-extension-dir-action@v1
+    with:
+      extensionDir: 'extension'
+      zipFilePath: 'build/extension.zip'
+  
+  - uses: cardinalby/webext-buildtools-chrome-crx-action@v2
+    with:
+      # zip file made at the packExtensionDir step
+      zipFilePath: 'build/extension.zip',
+      crxFilePath: 'build/extension.crx'
+      privateKey: ${{ secrets.CHROME_CRX_PRIVATE_KEY }},
+      # The following is optional if you need update.xml file
+      updateXmlPath: 'build/update.xml',      
+      updateXmlCodebaseUrl: 'http://...'
 ```
