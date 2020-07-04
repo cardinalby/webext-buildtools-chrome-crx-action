@@ -8406,7 +8406,13 @@ function bufferLastIndexOf (value, offset) {
 
 if (Buffer.prototype.lastIndexOf) {
     // check Buffer#lastIndexOf is usable: https://github.com/nodejs/node/issues/4604
-    if (new Buffer ("ABC").lastIndexOf ("ABC") === -1)
+    var newBuffer = (text) => {
+        if (typeof Buffer.from === "function") {
+            return Buffer.from(text);
+        }
+        return new Buffer(text);
+    };
+    if (newBuffer("ABC").lastIndexOf ("ABC") === -1)
         Buffer.prototype.lastIndexOf = bufferLastIndexOf;
 } else {
     Buffer.prototype.lastIndexOf = bufferLastIndexOf;
