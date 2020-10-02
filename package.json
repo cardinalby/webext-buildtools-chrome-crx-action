@@ -30,7 +30,7 @@
   "license": "MIT",
   "dependencies": {
     "@actions/core": "^1.2.6",
-    "github-actions-utils": "^1.0.7",
+    "github-actions-utils": "^1.0.8",
     "webext-buildtools-chrome-crx-builder": "^1.0.14",
     "winston": "^3.2.1"
   },
