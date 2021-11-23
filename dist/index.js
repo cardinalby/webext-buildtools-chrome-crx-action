@@ -19,7 +19,13 @@ module.exports =
 /******/ 		};
 /******/
 /******/ 		// Execute the module function
-/******/ 		modules[moduleId].call(module.exports, module, module.exports, __webpack_require__);
+/******/ 		var threw = true;
+/******/ 		try {
+/******/ 			modules[moduleId].call(module.exports, module, module.exports, __webpack_require__);
+/******/ 			threw = false;
+/******/ 		} finally {
+/******/ 			if(threw) delete installedModules[moduleId];
+/******/ 		}
 /******/
 /******/ 		// Flag the module as loaded
 /******/ 		module.l = true;
@@ -726,53 +732,7 @@ function wrappy (fn, cb) {
 /* 16 */
 /***/ (function(module) {
 
-module.exports = function runTheTrap(text, options) {
-  var result = '';
-  text = text || 'Run the trap, drop the bass';
-  text = text.split('');
-  var trap = {
-    a: ['\u0040', '\u0104', '\u023a', '\u0245', '\u0394', '\u039b', '\u0414'],
-    b: ['\u00df', '\u0181', '\u0243', '\u026e', '\u03b2', '\u0e3f'],
-    c: ['\u00a9', '\u023b', '\u03fe'],
-    d: ['\u00d0', '\u018a', '\u0500', '\u0501', '\u0502', '\u0503'],
-    e: ['\u00cb', '\u0115', '\u018e', '\u0258', '\u03a3', '\u03be', '\u04bc',
-      '\u0a6c'],
-    f: ['\u04fa'],
-    g: ['\u0262'],
-    h: ['\u0126', '\u0195', '\u04a2', '\u04ba', '\u04c7', '\u050a'],
-    i: ['\u0f0f'],
-    j: ['\u0134'],
-    k: ['\u0138', '\u04a0', '\u04c3', '\u051e'],
-    l: ['\u0139'],
-    m: ['\u028d', '\u04cd', '\u04ce', '\u0520', '\u0521', '\u0d69'],
-    n: ['\u00d1', '\u014b', '\u019d', '\u0376', '\u03a0', '\u048a'],
-    o: ['\u00d8', '\u00f5', '\u00f8', '\u01fe', '\u0298', '\u047a', '\u05dd',
-      '\u06dd', '\u0e4f'],
-    p: ['\u01f7', '\u048e'],
-    q: ['\u09cd'],
-    r: ['\u00ae', '\u01a6', '\u0210', '\u024c', '\u0280', '\u042f'],
-    s: ['\u00a7', '\u03de', '\u03df', '\u03e8'],
-    t: ['\u0141', '\u0166', '\u0373'],
-    u: ['\u01b1', '\u054d'],
-    v: ['\u05d8'],
-    w: ['\u0428', '\u0460', '\u047c', '\u0d70'],
-    x: ['\u04b2', '\u04fe', '\u04fc', '\u04fd'],
-    y: ['\u00a5', '\u04b0', '\u04cb'],
-    z: ['\u01b5', '\u0240'],
-  };
-  text.forEach(function(c) {
-    c = c.toLowerCase();
-    var chars = trap[c] || [' '];
-    var rand = Math.floor(Math.random() * chars.length);
-    if (typeof trap[c] !== 'undefined') {
-      result += trap[c][rand];
-    } else {
-      result += c;
-    }
-  });
-  return result;
-};
-
+module.exports = require("tls");
 
 /***/ }),
 /* 17 */
@@ -1758,7 +1718,7 @@ function _isUint8Array(obj) {
 
 /*</replacement>*/
 
-var destroyImpl = __webpack_require__(742);
+var destroyImpl = __webpack_require__(63);
 
 util.inherits(Writable, Stream);
 
@@ -2359,7 +2319,7 @@ Writable.prototype._destroy = function (err, cb) {
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
 var Promise = __webpack_require__(440);
-var Stream = __webpack_require__(413);
+var Stream = __webpack_require__(794);
 var Buffer = __webpack_require__(131);
 
 // Backwards compatibility for node versions < 8
@@ -2390,7 +2350,7 @@ module.exports = function(entry) {
 /* 31 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
-module.exports = __webpack_require__(413);
+module.exports = __webpack_require__(794);
 
 
 /***/ }),
@@ -4502,258 +4462,80 @@ module.exports = {
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
 "use strict";
-/**
- * exception-handler.js: Object for handling uncaughtException events.
- *
- * (C) 2010 Charlie Robbins
- * MIT LICENCE
- */
 
 
+/*<replacement>*/
 
-const os = __webpack_require__(87);
-const asyncForEach = __webpack_require__(101);
-const debug = __webpack_require__(825)('winston:rejection');
-const once = __webpack_require__(297);
-const stackTrace = __webpack_require__(223);
-const ExceptionStream = __webpack_require__(369);
+var pna = __webpack_require__(822);
+/*</replacement>*/
 
-/**
- * Object for handling unhandledRejection events.
- * @type {RejectionHandler}
- */
-module.exports = class RejectionHandler {
-  /**
-   * TODO: add contructor description
-   * @param {!Logger} logger - TODO: add param description
-   */
-  constructor(logger) {
-    if (!logger) {
-      throw new Error('Logger is required to handle rejections');
+// undocumented cb() API, needed for core, not for public API
+function destroy(err, cb) {
+  var _this = this;
+
+  var readableDestroyed = this._readableState && this._readableState.destroyed;
+  var writableDestroyed = this._writableState && this._writableState.destroyed;
+
+  if (readableDestroyed || writableDestroyed) {
+    if (cb) {
+      cb(err);
+    } else if (err && (!this._writableState || !this._writableState.errorEmitted)) {
+      pna.nextTick(emitErrorNT, this, err);
     }
-
-    this.logger = logger;
-    this.handlers = new Map();
+    return this;
   }
 
-  /**
-   * Handles `unhandledRejection` events for the current process by adding any
-   * handlers passed in.
-   * @returns {undefined}
-   */
-  handle(...args) {
-    args.forEach(arg => {
-      if (Array.isArray(arg)) {
-        return arg.forEach(handler => this._addHandler(handler));
+  // we set destroyed to true before firing error callbacks in order
+  // to make it re-entrance safe in case destroy() is called within callbacks
+
+  if (this._readableState) {
+    this._readableState.destroyed = true;
+  }
+
+  // if this is a duplex stream mark the writable part as destroyed as well
+  if (this._writableState) {
+    this._writableState.destroyed = true;
+  }
+
+  this._destroy(err || null, function (err) {
+    if (!cb && err) {
+      pna.nextTick(emitErrorNT, _this, err);
+      if (_this._writableState) {
+        _this._writableState.errorEmitted = true;
       }
-
-      this._addHandler(arg);
-    });
-
-    if (!this.catcher) {
-      this.catcher = this._unhandledRejection.bind(this);
-      process.on('unhandledRejection', this.catcher);
+    } else if (cb) {
+      cb(err);
     }
+  });
+
+  return this;
+}
+
+function undestroy() {
+  if (this._readableState) {
+    this._readableState.destroyed = false;
+    this._readableState.reading = false;
+    this._readableState.ended = false;
+    this._readableState.endEmitted = false;
   }
 
-  /**
-   * Removes any handlers to `unhandledRejection` events for the current
-   * process. This does not modify the state of the `this.handlers` set.
-   * @returns {undefined}
-   */
-  unhandle() {
-    if (this.catcher) {
-      process.removeListener('unhandledRejection', this.catcher);
-      this.catcher = false;
-
-      Array.from(this.handlers.values()).forEach(wrapper =>
-        this.logger.unpipe(wrapper)
-      );
-    }
+  if (this._writableState) {
+    this._writableState.destroyed = false;
+    this._writableState.ended = false;
+    this._writableState.ending = false;
+    this._writableState.finished = false;
+    this._writableState.errorEmitted = false;
   }
+}
 
-  /**
-   * TODO: add method description
-   * @param {Error} err - Error to get information about.
-   * @returns {mixed} - TODO: add return description.
-   */
-  getAllInfo(err) {
-    let { message } = err;
-    if (!message && typeof err === 'string') {
-      message = err;
-    }
+function emitErrorNT(self, err) {
+  self.emit('error', err);
+}
 
-    return {
-      error: err,
-      // TODO (indexzero): how do we configure this?
-      level: 'error',
-      message: [
-        `unhandledRejection: ${message || '(no error message)'}`,
-        err.stack || '  No stack trace'
-      ].join('\n'),
-      stack: err.stack,
-      exception: true,
-      date: new Date().toString(),
-      process: this.getProcessInfo(),
-      os: this.getOsInfo(),
-      trace: this.getTrace(err)
-    };
-  }
-
-  /**
-   * Gets all relevant process information for the currently running process.
-   * @returns {mixed} - TODO: add return description.
-   */
-  getProcessInfo() {
-    return {
-      pid: process.pid,
-      uid: process.getuid ? process.getuid() : null,
-      gid: process.getgid ? process.getgid() : null,
-      cwd: process.cwd(),
-      execPath: process.execPath,
-      version: process.version,
-      argv: process.argv,
-      memoryUsage: process.memoryUsage()
-    };
-  }
-
-  /**
-   * Gets all relevant OS information for the currently running process.
-   * @returns {mixed} - TODO: add return description.
-   */
-  getOsInfo() {
-    return {
-      loadavg: os.loadavg(),
-      uptime: os.uptime()
-    };
-  }
-
-  /**
-   * Gets a stack trace for the specified error.
-   * @param {mixed} err - TODO: add param description.
-   * @returns {mixed} - TODO: add return description.
-   */
-  getTrace(err) {
-    const trace = err ? stackTrace.parse(err) : stackTrace.get();
-    return trace.map(site => {
-      return {
-        column: site.getColumnNumber(),
-        file: site.getFileName(),
-        function: site.getFunctionName(),
-        line: site.getLineNumber(),
-        method: site.getMethodName(),
-        native: site.isNative()
-      };
-    });
-  }
-
-  /**
-   * Helper method to add a transport as an exception handler.
-   * @param {Transport} handler - The transport to add as an exception handler.
-   * @returns {void}
-   */
-  _addHandler(handler) {
-    if (!this.handlers.has(handler)) {
-      handler.handleExceptions = true;
-      const wrapper = new ExceptionStream(handler);
-      this.handlers.set(handler, wrapper);
-      this.logger.pipe(wrapper);
-    }
-  }
-
-  /**
-   * Logs all relevant information around the `err` and exits the current
-   * process.
-   * @param {Error} err - Error to handle
-   * @returns {mixed} - TODO: add return description.
-   * @private
-   */
-  _unhandledRejection(err) {
-    const info = this.getAllInfo(err);
-    const handlers = this._getRejectionHandlers();
-    // Calculate if we should exit on this error
-    let doExit =
-      typeof this.logger.exitOnError === 'function'
-        ? this.logger.exitOnError(err)
-        : this.logger.exitOnError;
-    let timeout;
-
-    if (!handlers.length && doExit) {
-      // eslint-disable-next-line no-console
-      console.warn('winston: exitOnError cannot be true with no rejection handlers.');
-      // eslint-disable-next-line no-console
-      console.warn('winston: not exiting process.');
-      doExit = false;
-    }
-
-    function gracefulExit() {
-      debug('doExit', doExit);
-      debug('process._exiting', process._exiting);
-
-      if (doExit && !process._exiting) {
-        // Remark: Currently ignoring any rejections from transports when
-        // catching unhandled rejections.
-        if (timeout) {
-          clearTimeout(timeout);
-        }
-        // eslint-disable-next-line no-process-exit
-        process.exit(1);
-      }
-    }
-
-    if (!handlers || handlers.length === 0) {
-      return process.nextTick(gracefulExit);
-    }
-
-    // Log to all transports attempting to listen for when they are completed.
-    asyncForEach(
-      handlers,
-      (handler, next) => {
-        const done = once(next);
-        const transport = handler.transport || handler;
-
-        // Debug wrapping so that we can inspect what's going on under the covers.
-        function onDone(event) {
-          return () => {
-            debug(event);
-            done();
-          };
-        }
-
-        transport._ending = true;
-        transport.once('finish', onDone('finished'));
-        transport.once('error', onDone('error'));
-      },
-      () => doExit && gracefulExit()
-    );
-
-    this.logger.log(info);
-
-    // If exitOnError is true, then only allow the logging of exceptions to
-    // take up to `3000ms`.
-    if (doExit) {
-      timeout = setTimeout(gracefulExit, 3000);
-    }
-  }
-
-  /**
-   * Returns the list of transports and exceptionHandlers for this instance.
-   * @returns {Array} - List of transports and exceptionHandlers for this
-   * instance.
-   * @private
-   */
-  _getRejectionHandlers() {
-    // Remark (indexzero): since `logger.transports` returns all of the pipes
-    // from the _readableState of the stream we actually get the join of the
-    // explicit handlers and the implicit transports with
-    // `handleRejections: true`
-    return this.logger.transports.filter(wrap => {
-      const transport = wrap.transport || wrap;
-      return transport.handleRejections;
-    });
-  }
+module.exports = {
+  destroy: destroy,
+  undestroy: undestroy
 };
-
 
 /***/ }),
 /* 64 */
@@ -4812,7 +4594,7 @@ var lazystream = __webpack_require__(656);
 var normalizePath = __webpack_require__(861);
 var defaults = __webpack_require__(995);
 
-var Stream = __webpack_require__(413).Stream;
+var Stream = __webpack_require__(794).Stream;
 var PassThrough = __webpack_require__(343).PassThrough;
 
 var utils = module.exports = {};
@@ -6251,6 +6033,7 @@ LinkWriter.prototype.end = function () {
 // We use any as a valid input type
 /* eslint-disable @typescript-eslint/no-explicit-any */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.toCommandProperties = exports.toCommandValue = void 0;
 /**
  * Sanitizes an input into a string so it can be passed into issueCommand safely
  * @param input input to sanitize into a string
@@ -6265,6 +6048,26 @@ function toCommandValue(input) {
     return JSON.stringify(input);
 }
 exports.toCommandValue = toCommandValue;
+/**
+ *
+ * @param annotationProperties
+ * @returns The command properties to send with the actual annotation command
+ * See IssueCommandProperties: https://github.com/actions/runner/blob/main/src/Runner.Worker/ActionCommandManager.cs#L646
+ */
+function toCommandProperties(annotationProperties) {
+    if (!Object.keys(annotationProperties).length) {
+        return {};
+    }
+    return {
+        title: annotationProperties.title,
+        file: annotationProperties.file,
+        line: annotationProperties.startLine,
+        endLine: annotationProperties.endLine,
+        col: annotationProperties.startColumn,
+        endColumn: annotationProperties.endColumn
+    };
+}
+exports.toCommandProperties = toCommandProperties;
 //# sourceMappingURL=utils.js.map
 
 /***/ }),
@@ -6285,7 +6088,7 @@ var _parallel = __webpack_require__(596);
 
 var _parallel2 = _interopRequireDefault(_parallel);
 
-var _eachOfSeries = __webpack_require__(141);
+var _eachOfSeries = __webpack_require__(558);
 
 var _eachOfSeries2 = _interopRequireDefault(_eachOfSeries);
 
@@ -6393,7 +6196,7 @@ module.exports = exports["default"];
 /* 93 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
-var Stream = __webpack_require__(413).Stream
+var Stream = __webpack_require__(794).Stream
 
 module.exports = legacy
 
@@ -6516,7 +6319,58 @@ function legacy (fs) {
 /***/ }),
 /* 94 */,
 /* 95 */,
-/* 96 */,
+/* 96 */
+/***/ (function(module) {
+
+module.exports = function runTheTrap(text, options) {
+  var result = '';
+  text = text || 'Run the trap, drop the bass';
+  text = text.split('');
+  var trap = {
+    a: ['\u0040', '\u0104', '\u023a', '\u0245', '\u0394', '\u039b', '\u0414'],
+    b: ['\u00df', '\u0181', '\u0243', '\u026e', '\u03b2', '\u0e3f'],
+    c: ['\u00a9', '\u023b', '\u03fe'],
+    d: ['\u00d0', '\u018a', '\u0500', '\u0501', '\u0502', '\u0503'],
+    e: ['\u00cb', '\u0115', '\u018e', '\u0258', '\u03a3', '\u03be', '\u04bc',
+      '\u0a6c'],
+    f: ['\u04fa'],
+    g: ['\u0262'],
+    h: ['\u0126', '\u0195', '\u04a2', '\u04ba', '\u04c7', '\u050a'],
+    i: ['\u0f0f'],
+    j: ['\u0134'],
+    k: ['\u0138', '\u04a0', '\u04c3', '\u051e'],
+    l: ['\u0139'],
+    m: ['\u028d', '\u04cd', '\u04ce', '\u0520', '\u0521', '\u0d69'],
+    n: ['\u00d1', '\u014b', '\u019d', '\u0376', '\u03a0', '\u048a'],
+    o: ['\u00d8', '\u00f5', '\u00f8', '\u01fe', '\u0298', '\u047a', '\u05dd',
+      '\u06dd', '\u0e4f'],
+    p: ['\u01f7', '\u048e'],
+    q: ['\u09cd'],
+    r: ['\u00ae', '\u01a6', '\u0210', '\u024c', '\u0280', '\u042f'],
+    s: ['\u00a7', '\u03de', '\u03df', '\u03e8'],
+    t: ['\u0141', '\u0166', '\u0373'],
+    u: ['\u01b1', '\u054d'],
+    v: ['\u05d8'],
+    w: ['\u0428', '\u0460', '\u047c', '\u0d70'],
+    x: ['\u04b2', '\u04fe', '\u04fc', '\u04fd'],
+    y: ['\u00a5', '\u04b0', '\u04cb'],
+    z: ['\u01b5', '\u0240'],
+  };
+  text.forEach(function(c) {
+    c = c.toLowerCase();
+    var chars = trap[c] || [' '];
+    var rand = Math.floor(Math.random() * chars.length);
+    if (typeof trap[c] !== 'undefined') {
+      result += trap[c][rand];
+    } else {
+      result += c;
+    }
+  });
+  return result;
+};
+
+
+/***/ }),
 /* 97 */
 /***/ (function(module) {
 
@@ -8439,14 +8293,27 @@ module.exports = exports['default'];
 "use strict";
 
 // For internal use, subject to change.
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.issueCommand = void 0;
 // We use any as a valid input type
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const fs = __importStar(__webpack_require__(747));
@@ -9240,7 +9107,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const fs = __importStar(__webpack_require__(226));
+const fs = __importStar(__webpack_require__(232));
 const path = __importStar(__webpack_require__(622));
 const sanitize_filename_1 = __importDefault(__webpack_require__(834));
 // noinspection TypeScriptPreferShortImport
@@ -9475,7 +9342,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const fs = __importStar(__webpack_require__(226));
+const fs = __importStar(__webpack_require__(232));
 const fileUnzip_1 = __webpack_require__(559);
 const manifestValidator_1 = __webpack_require__(585);
 const readableStreamBuffer_1 = __webpack_require__(604);
@@ -9583,44 +9450,274 @@ function collect (stream) {
 /* 139 */,
 /* 140 */,
 /* 141 */
-/***/ (function(module, exports, __webpack_require__) {
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
 
 "use strict";
 
 
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
+var net = __webpack_require__(631);
+var tls = __webpack_require__(16);
+var http = __webpack_require__(605);
+var https = __webpack_require__(211);
+var events = __webpack_require__(614);
+var assert = __webpack_require__(357);
+var util = __webpack_require__(669);
 
-var _eachOfLimit = __webpack_require__(22);
 
-var _eachOfLimit2 = _interopRequireDefault(_eachOfLimit);
+exports.httpOverHttp = httpOverHttp;
+exports.httpsOverHttp = httpsOverHttp;
+exports.httpOverHttps = httpOverHttps;
+exports.httpsOverHttps = httpsOverHttps;
 
-var _doLimit = __webpack_require__(90);
 
-var _doLimit2 = _interopRequireDefault(_doLimit);
+function httpOverHttp(options) {
+  var agent = new TunnelingAgent(options);
+  agent.request = http.request;
+  return agent;
+}
 
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+function httpsOverHttp(options) {
+  var agent = new TunnelingAgent(options);
+  agent.request = http.request;
+  agent.createSocket = createSecureSocket;
+  agent.defaultPort = 443;
+  return agent;
+}
 
-/**
- * The same as [`eachOf`]{@link module:Collections.eachOf} but runs only a single async operation at a time.
- *
- * @name eachOfSeries
- * @static
- * @memberOf module:Collections
- * @method
- * @see [async.eachOf]{@link module:Collections.eachOf}
- * @alias forEachOfSeries
- * @category Collection
- * @param {Array|Iterable|Object} coll - A collection to iterate over.
- * @param {AsyncFunction} iteratee - An async function to apply to each item in
- * `coll`.
- * Invoked with (item, key, callback).
- * @param {Function} [callback] - A callback which is called when all `iteratee`
- * functions have finished, or an error occurs. Invoked with (err).
- */
-exports.default = (0, _doLimit2.default)(_eachOfLimit2.default, 1);
-module.exports = exports['default'];
+function httpOverHttps(options) {
+  var agent = new TunnelingAgent(options);
+  agent.request = https.request;
+  return agent;
+}
+
+function httpsOverHttps(options) {
+  var agent = new TunnelingAgent(options);
+  agent.request = https.request;
+  agent.createSocket = createSecureSocket;
+  agent.defaultPort = 443;
+  return agent;
+}
+
+
+function TunnelingAgent(options) {
+  var self = this;
+  self.options = options || {};
+  self.proxyOptions = self.options.proxy || {};
+  self.maxSockets = self.options.maxSockets || http.Agent.defaultMaxSockets;
+  self.requests = [];
+  self.sockets = [];
+
+  self.on('free', function onFree(socket, host, port, localAddress) {
+    var options = toOptions(host, port, localAddress);
+    for (var i = 0, len = self.requests.length; i < len; ++i) {
+      var pending = self.requests[i];
+      if (pending.host === options.host && pending.port === options.port) {
+        // Detect the request to connect same origin server,
+        // reuse the connection.
+        self.requests.splice(i, 1);
+        pending.request.onSocket(socket);
+        return;
+      }
+    }
+    socket.destroy();
+    self.removeSocket(socket);
+  });
+}
+util.inherits(TunnelingAgent, events.EventEmitter);
+
+TunnelingAgent.prototype.addRequest = function addRequest(req, host, port, localAddress) {
+  var self = this;
+  var options = mergeOptions({request: req}, self.options, toOptions(host, port, localAddress));
+
+  if (self.sockets.length >= this.maxSockets) {
+    // We are over limit so we'll add it to the queue.
+    self.requests.push(options);
+    return;
+  }
+
+  // If we are under maxSockets create a new one.
+  self.createSocket(options, function(socket) {
+    socket.on('free', onFree);
+    socket.on('close', onCloseOrRemove);
+    socket.on('agentRemove', onCloseOrRemove);
+    req.onSocket(socket);
+
+    function onFree() {
+      self.emit('free', socket, options);
+    }
+
+    function onCloseOrRemove(err) {
+      self.removeSocket(socket);
+      socket.removeListener('free', onFree);
+      socket.removeListener('close', onCloseOrRemove);
+      socket.removeListener('agentRemove', onCloseOrRemove);
+    }
+  });
+};
+
+TunnelingAgent.prototype.createSocket = function createSocket(options, cb) {
+  var self = this;
+  var placeholder = {};
+  self.sockets.push(placeholder);
+
+  var connectOptions = mergeOptions({}, self.proxyOptions, {
+    method: 'CONNECT',
+    path: options.host + ':' + options.port,
+    agent: false,
+    headers: {
+      host: options.host + ':' + options.port
+    }
+  });
+  if (options.localAddress) {
+    connectOptions.localAddress = options.localAddress;
+  }
+  if (connectOptions.proxyAuth) {
+    connectOptions.headers = connectOptions.headers || {};
+    connectOptions.headers['Proxy-Authorization'] = 'Basic ' +
+        new Buffer(connectOptions.proxyAuth).toString('base64');
+  }
+
+  debug('making CONNECT request');
+  var connectReq = self.request(connectOptions);
+  connectReq.useChunkedEncodingByDefault = false; // for v0.6
+  connectReq.once('response', onResponse); // for v0.6
+  connectReq.once('upgrade', onUpgrade);   // for v0.6
+  connectReq.once('connect', onConnect);   // for v0.7 or later
+  connectReq.once('error', onError);
+  connectReq.end();
+
+  function onResponse(res) {
+    // Very hacky. This is necessary to avoid http-parser leaks.
+    res.upgrade = true;
+  }
+
+  function onUpgrade(res, socket, head) {
+    // Hacky.
+    process.nextTick(function() {
+      onConnect(res, socket, head);
+    });
+  }
+
+  function onConnect(res, socket, head) {
+    connectReq.removeAllListeners();
+    socket.removeAllListeners();
+
+    if (res.statusCode !== 200) {
+      debug('tunneling socket could not be established, statusCode=%d',
+        res.statusCode);
+      socket.destroy();
+      var error = new Error('tunneling socket could not be established, ' +
+        'statusCode=' + res.statusCode);
+      error.code = 'ECONNRESET';
+      options.request.emit('error', error);
+      self.removeSocket(placeholder);
+      return;
+    }
+    if (head.length > 0) {
+      debug('got illegal response body from proxy');
+      socket.destroy();
+      var error = new Error('got illegal response body from proxy');
+      error.code = 'ECONNRESET';
+      options.request.emit('error', error);
+      self.removeSocket(placeholder);
+      return;
+    }
+    debug('tunneling connection has established');
+    self.sockets[self.sockets.indexOf(placeholder)] = socket;
+    return cb(socket);
+  }
+
+  function onError(cause) {
+    connectReq.removeAllListeners();
+
+    debug('tunneling socket could not be established, cause=%s\n',
+          cause.message, cause.stack);
+    var error = new Error('tunneling socket could not be established, ' +
+                          'cause=' + cause.message);
+    error.code = 'ECONNRESET';
+    options.request.emit('error', error);
+    self.removeSocket(placeholder);
+  }
+};
+
+TunnelingAgent.prototype.removeSocket = function removeSocket(socket) {
+  var pos = this.sockets.indexOf(socket)
+  if (pos === -1) {
+    return;
+  }
+  this.sockets.splice(pos, 1);
+
+  var pending = this.requests.shift();
+  if (pending) {
+    // If we have pending requests and a socket gets closed a new one
+    // needs to be created to take over in the pool for the one that closed.
+    this.createSocket(pending, function(socket) {
+      pending.request.onSocket(socket);
+    });
+  }
+};
+
+function createSecureSocket(options, cb) {
+  var self = this;
+  TunnelingAgent.prototype.createSocket.call(self, options, function(socket) {
+    var hostHeader = options.request.getHeader('host');
+    var tlsOptions = mergeOptions({}, self.options, {
+      socket: socket,
+      servername: hostHeader ? hostHeader.replace(/:.*$/, '') : options.host
+    });
+
+    // 0 is dummy port for v0.6
+    var secureSocket = tls.connect(0, tlsOptions);
+    self.sockets[self.sockets.indexOf(socket)] = secureSocket;
+    cb(secureSocket);
+  });
+}
+
+
+function toOptions(host, port, localAddress) {
+  if (typeof host === 'string') { // since v0.10
+    return {
+      host: host,
+      port: port,
+      localAddress: localAddress
+    };
+  }
+  return host; // for v0.11 or later
+}
+
+function mergeOptions(target) {
+  for (var i = 1, len = arguments.length; i < len; ++i) {
+    var overrides = arguments[i];
+    if (typeof overrides === 'object') {
+      var keys = Object.keys(overrides);
+      for (var j = 0, keyLen = keys.length; j < keyLen; ++j) {
+        var k = keys[j];
+        if (overrides[k] !== undefined) {
+          target[k] = overrides[k];
+        }
+      }
+    }
+  }
+  return target;
+}
+
+
+var debug;
+if (process.env.NODE_DEBUG && /\btunnel\b/.test(process.env.NODE_DEBUG)) {
+  debug = function() {
+    var args = Array.prototype.slice.call(arguments);
+    if (typeof args[0] === 'string') {
+      args[0] = 'TUNNEL: ' + args[0];
+    } else {
+      args.unshift('TUNNEL:');
+    }
+    console.error.apply(console, args);
+  }
+} else {
+  debug = function() {};
+}
+exports.debug = debug; // for test
+
 
 /***/ }),
 /* 142 */,
@@ -10701,7 +10798,16 @@ module.exports = {
 
 
 /***/ }),
-/* 147 */,
+/* 147 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+module.exports = __webpack_require__(271).default;
+
+
+/***/ }),
 /* 148 */,
 /* 149 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
@@ -11049,7 +11155,7 @@ exports.encode = function (opts) {
   return buf
 }
 
-exports.decode = function (buf, filenameEncoding) {
+exports.decode = function (buf, filenameEncoding, allowUnknownFormat) {
   var typeflag = buf[156] === 0 ? 0 : buf[156] - ZERO_OFFSET
 
   var name = decodeStr(buf, 0, 100, filenameEncoding)
@@ -11082,7 +11188,9 @@ exports.decode = function (buf, filenameEncoding) {
     // 'gnu'/'oldgnu' format. Similar to ustar, but has support for incremental and
     // multi-volume tarballs.
   } else {
-    throw new Error('Invalid tar header: unknown format.')
+    if (!allowUnknownFormat) {
+      throw new Error('Invalid tar header: unknown format.')
+    }
   }
 
   // to support old tar versions that use trailing / to indicate dirs
@@ -11513,7 +11621,264 @@ module.exports = __webpack_require__(799).default;
 
 
 /***/ }),
-/* 166 */,
+/* 166 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+/**
+ * exception-handler.js: Object for handling uncaughtException events.
+ *
+ * (C) 2010 Charlie Robbins
+ * MIT LICENCE
+ */
+
+
+
+const os = __webpack_require__(87);
+const asyncForEach = __webpack_require__(101);
+const debug = __webpack_require__(825)('winston:rejection');
+const once = __webpack_require__(297);
+const stackTrace = __webpack_require__(223);
+const ExceptionStream = __webpack_require__(369);
+
+/**
+ * Object for handling unhandledRejection events.
+ * @type {RejectionHandler}
+ */
+module.exports = class RejectionHandler {
+  /**
+   * TODO: add contructor description
+   * @param {!Logger} logger - TODO: add param description
+   */
+  constructor(logger) {
+    if (!logger) {
+      throw new Error('Logger is required to handle rejections');
+    }
+
+    this.logger = logger;
+    this.handlers = new Map();
+  }
+
+  /**
+   * Handles `unhandledRejection` events for the current process by adding any
+   * handlers passed in.
+   * @returns {undefined}
+   */
+  handle(...args) {
+    args.forEach(arg => {
+      if (Array.isArray(arg)) {
+        return arg.forEach(handler => this._addHandler(handler));
+      }
+
+      this._addHandler(arg);
+    });
+
+    if (!this.catcher) {
+      this.catcher = this._unhandledRejection.bind(this);
+      process.on('unhandledRejection', this.catcher);
+    }
+  }
+
+  /**
+   * Removes any handlers to `unhandledRejection` events for the current
+   * process. This does not modify the state of the `this.handlers` set.
+   * @returns {undefined}
+   */
+  unhandle() {
+    if (this.catcher) {
+      process.removeListener('unhandledRejection', this.catcher);
+      this.catcher = false;
+
+      Array.from(this.handlers.values()).forEach(wrapper =>
+        this.logger.unpipe(wrapper)
+      );
+    }
+  }
+
+  /**
+   * TODO: add method description
+   * @param {Error} err - Error to get information about.
+   * @returns {mixed} - TODO: add return description.
+   */
+  getAllInfo(err) {
+    let { message } = err;
+    if (!message && typeof err === 'string') {
+      message = err;
+    }
+
+    return {
+      error: err,
+      // TODO (indexzero): how do we configure this?
+      level: 'error',
+      message: [
+        `unhandledRejection: ${message || '(no error message)'}`,
+        err.stack || '  No stack trace'
+      ].join('\n'),
+      stack: err.stack,
+      exception: true,
+      date: new Date().toString(),
+      process: this.getProcessInfo(),
+      os: this.getOsInfo(),
+      trace: this.getTrace(err)
+    };
+  }
+
+  /**
+   * Gets all relevant process information for the currently running process.
+   * @returns {mixed} - TODO: add return description.
+   */
+  getProcessInfo() {
+    return {
+      pid: process.pid,
+      uid: process.getuid ? process.getuid() : null,
+      gid: process.getgid ? process.getgid() : null,
+      cwd: process.cwd(),
+      execPath: process.execPath,
+      version: process.version,
+      argv: process.argv,
+      memoryUsage: process.memoryUsage()
+    };
+  }
+
+  /**
+   * Gets all relevant OS information for the currently running process.
+   * @returns {mixed} - TODO: add return description.
+   */
+  getOsInfo() {
+    return {
+      loadavg: os.loadavg(),
+      uptime: os.uptime()
+    };
+  }
+
+  /**
+   * Gets a stack trace for the specified error.
+   * @param {mixed} err - TODO: add param description.
+   * @returns {mixed} - TODO: add return description.
+   */
+  getTrace(err) {
+    const trace = err ? stackTrace.parse(err) : stackTrace.get();
+    return trace.map(site => {
+      return {
+        column: site.getColumnNumber(),
+        file: site.getFileName(),
+        function: site.getFunctionName(),
+        line: site.getLineNumber(),
+        method: site.getMethodName(),
+        native: site.isNative()
+      };
+    });
+  }
+
+  /**
+   * Helper method to add a transport as an exception handler.
+   * @param {Transport} handler - The transport to add as an exception handler.
+   * @returns {void}
+   */
+  _addHandler(handler) {
+    if (!this.handlers.has(handler)) {
+      handler.handleExceptions = true;
+      const wrapper = new ExceptionStream(handler);
+      this.handlers.set(handler, wrapper);
+      this.logger.pipe(wrapper);
+    }
+  }
+
+  /**
+   * Logs all relevant information around the `err` and exits the current
+   * process.
+   * @param {Error} err - Error to handle
+   * @returns {mixed} - TODO: add return description.
+   * @private
+   */
+  _unhandledRejection(err) {
+    const info = this.getAllInfo(err);
+    const handlers = this._getRejectionHandlers();
+    // Calculate if we should exit on this error
+    let doExit =
+      typeof this.logger.exitOnError === 'function'
+        ? this.logger.exitOnError(err)
+        : this.logger.exitOnError;
+    let timeout;
+
+    if (!handlers.length && doExit) {
+      // eslint-disable-next-line no-console
+      console.warn('winston: exitOnError cannot be true with no rejection handlers.');
+      // eslint-disable-next-line no-console
+      console.warn('winston: not exiting process.');
+      doExit = false;
+    }
+
+    function gracefulExit() {
+      debug('doExit', doExit);
+      debug('process._exiting', process._exiting);
+
+      if (doExit && !process._exiting) {
+        // Remark: Currently ignoring any rejections from transports when
+        // catching unhandled rejections.
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+        // eslint-disable-next-line no-process-exit
+        process.exit(1);
+      }
+    }
+
+    if (!handlers || handlers.length === 0) {
+      return process.nextTick(gracefulExit);
+    }
+
+    // Log to all transports attempting to listen for when they are completed.
+    asyncForEach(
+      handlers,
+      (handler, next) => {
+        const done = once(next);
+        const transport = handler.transport || handler;
+
+        // Debug wrapping so that we can inspect what's going on under the covers.
+        function onDone(event) {
+          return () => {
+            debug(event);
+            done();
+          };
+        }
+
+        transport._ending = true;
+        transport.once('finish', onDone('finished'));
+        transport.once('error', onDone('error'));
+      },
+      () => doExit && gracefulExit()
+    );
+
+    this.logger.log(info);
+
+    // If exitOnError is true, then only allow the logging of exceptions to
+    // take up to `3000ms`.
+    if (doExit) {
+      timeout = setTimeout(gracefulExit, 3000);
+    }
+  }
+
+  /**
+   * Returns the list of transports and exceptionHandlers for this instance.
+   * @returns {Array} - List of transports and exceptionHandlers for this
+   * instance.
+   * @private
+   */
+  _getRejectionHandlers() {
+    // Remark (indexzero): since `logger.transports` returns all of the pipes
+    // from the _readableState of the stream we actually get the join of the
+    // explicit handlers and the implicit transports with
+    // `handleRejections: true`
+    return this.logger.transports.filter(wrap => {
+      const transport = wrap.transport || wrap;
+      return transport.handleRejections;
+    });
+  }
+};
+
+
+/***/ }),
 /* 167 */,
 /* 168 */
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
@@ -13413,6 +13778,7 @@ module.exports = CRC32Stream;
 /* 185 */
 /***/ (function(__unusedmodule, exports) {
 
+/*! ieee754. BSD-3-Clause License. Feross Aboukhadijeh <https://feross.org/opensource> */
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
   var eLen = (nBytes * 8) - mLen - 1
@@ -13656,7 +14022,7 @@ module.exports = function (keyPair, options) {
 var Promise = __webpack_require__(440);
 var Decrypt = __webpack_require__(225);
 var PullStream = __webpack_require__(887);
-var Stream = __webpack_require__(413);
+var Stream = __webpack_require__(794);
 var binary = __webpack_require__(479);
 var zlib = __webpack_require__(761);
 var parseExtraField = __webpack_require__(805);
@@ -13784,7 +14150,7 @@ module.exports = function unzip(source,offset,_password, directoryVars) {
 /* 196 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var Stream = __webpack_require__(413);
+var Stream = __webpack_require__(794);
 if (process.env.READABLE_STREAM === 'disable' && Stream) {
   module.exports = Stream;
   exports = module.exports = Stream.Readable;
@@ -14580,7 +14946,7 @@ exports._createParsedCallSite = function(properties) {
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
 var bigInt = __webpack_require__(965);
-var Stream = __webpack_require__(413);
+var Stream = __webpack_require__(794);
 
 // Backwards compatibility for node versions < 8
 if (!Stream.Writable || !Stream.Writable.prototype.destroy)
@@ -14654,37 +15020,67 @@ module.exports = Decrypt;
 
 /***/ }),
 /* 226 */
-/***/ (function(module, __unusedexports, __webpack_require__) {
+/***/ (function(__unusedmodule, exports) {
 
 "use strict";
 
-
-module.exports = Object.assign(
-  {},
-  // Export promiseified graceful-fs:
-  __webpack_require__(869),
-  // Export extra methods:
-  __webpack_require__(43),
-  __webpack_require__(774),
-  __webpack_require__(615),
-  __webpack_require__(472),
-  __webpack_require__(171),
-  __webpack_require__(727),
-  __webpack_require__(959),
-  __webpack_require__(353),
-  __webpack_require__(517),
-  __webpack_require__(322),
-  __webpack_require__(723)
-)
-
-// Export fs.promises as a getter property so that we don't trigger
-// ExperimentalWarning before fs.promises is actually accessed.
-const fs = __webpack_require__(747)
-if (Object.getOwnPropertyDescriptor(fs, 'promises')) {
-  Object.defineProperty(module.exports, 'promises', {
-    get () { return fs.promises }
-  })
+Object.defineProperty(exports, "__esModule", { value: true });
+class BasicCredentialHandler {
+    constructor(username, password) {
+        this.username = username;
+        this.password = password;
+    }
+    prepareRequest(options) {
+        options.headers['Authorization'] =
+            'Basic ' +
+                Buffer.from(this.username + ':' + this.password).toString('base64');
+    }
+    // This handler cannot handle 401
+    canHandleAuthentication(response) {
+        return false;
+    }
+    handleAuthentication(httpClient, requestInfo, objs) {
+        return null;
+    }
 }
+exports.BasicCredentialHandler = BasicCredentialHandler;
+class BearerCredentialHandler {
+    constructor(token) {
+        this.token = token;
+    }
+    // currently implements pre-authorization
+    // TODO: support preAuth = false where it hooks on 401
+    prepareRequest(options) {
+        options.headers['Authorization'] = 'Bearer ' + this.token;
+    }
+    // This handler cannot handle 401
+    canHandleAuthentication(response) {
+        return false;
+    }
+    handleAuthentication(httpClient, requestInfo, objs) {
+        return null;
+    }
+}
+exports.BearerCredentialHandler = BearerCredentialHandler;
+class PersonalAccessTokenCredentialHandler {
+    constructor(token) {
+        this.token = token;
+    }
+    // currently implements pre-authorization
+    // TODO: support preAuth = false where it hooks on 401
+    prepareRequest(options) {
+        options.headers['Authorization'] =
+            'Basic ' + Buffer.from('PAT:' + this.token).toString('base64');
+    }
+    // This handler cannot handle 401
+    canHandleAuthentication(response) {
+        return false;
+    }
+    handleAuthentication(httpClient, requestInfo, objs) {
+        return null;
+    }
+}
+exports.PersonalAccessTokenCredentialHandler = PersonalAccessTokenCredentialHandler;
 
 
 /***/ }),
@@ -14781,114 +15177,38 @@ exposeFormat('uncolorize');
 
 /***/ }),
 /* 232 */
-/***/ (function(module) {
+/***/ (function(module, __unusedexports, __webpack_require__) {
 
 "use strict";
- // undocumented cb() API, needed for core, not for public API
-
-function destroy(err, cb) {
-  var _this = this;
-
-  var readableDestroyed = this._readableState && this._readableState.destroyed;
-  var writableDestroyed = this._writableState && this._writableState.destroyed;
-
-  if (readableDestroyed || writableDestroyed) {
-    if (cb) {
-      cb(err);
-    } else if (err) {
-      if (!this._writableState) {
-        process.nextTick(emitErrorNT, this, err);
-      } else if (!this._writableState.errorEmitted) {
-        this._writableState.errorEmitted = true;
-        process.nextTick(emitErrorNT, this, err);
-      }
-    }
-
-    return this;
-  } // we set destroyed to true before firing error callbacks in order
-  // to make it re-entrance safe in case destroy() is called within callbacks
 
 
-  if (this._readableState) {
-    this._readableState.destroyed = true;
-  } // if this is a duplex stream mark the writable part as destroyed as well
+module.exports = Object.assign(
+  {},
+  // Export promiseified graceful-fs:
+  __webpack_require__(869),
+  // Export extra methods:
+  __webpack_require__(43),
+  __webpack_require__(774),
+  __webpack_require__(615),
+  __webpack_require__(472),
+  __webpack_require__(171),
+  __webpack_require__(727),
+  __webpack_require__(959),
+  __webpack_require__(353),
+  __webpack_require__(517),
+  __webpack_require__(322),
+  __webpack_require__(723)
+)
 
-
-  if (this._writableState) {
-    this._writableState.destroyed = true;
-  }
-
-  this._destroy(err || null, function (err) {
-    if (!cb && err) {
-      if (!_this._writableState) {
-        process.nextTick(emitErrorAndCloseNT, _this, err);
-      } else if (!_this._writableState.errorEmitted) {
-        _this._writableState.errorEmitted = true;
-        process.nextTick(emitErrorAndCloseNT, _this, err);
-      } else {
-        process.nextTick(emitCloseNT, _this);
-      }
-    } else if (cb) {
-      process.nextTick(emitCloseNT, _this);
-      cb(err);
-    } else {
-      process.nextTick(emitCloseNT, _this);
-    }
-  });
-
-  return this;
+// Export fs.promises as a getter property so that we don't trigger
+// ExperimentalWarning before fs.promises is actually accessed.
+const fs = __webpack_require__(747)
+if (Object.getOwnPropertyDescriptor(fs, 'promises')) {
+  Object.defineProperty(module.exports, 'promises', {
+    get () { return fs.promises }
+  })
 }
 
-function emitErrorAndCloseNT(self, err) {
-  emitErrorNT(self, err);
-  emitCloseNT(self);
-}
-
-function emitCloseNT(self) {
-  if (self._writableState && !self._writableState.emitClose) return;
-  if (self._readableState && !self._readableState.emitClose) return;
-  self.emit('close');
-}
-
-function undestroy() {
-  if (this._readableState) {
-    this._readableState.destroyed = false;
-    this._readableState.reading = false;
-    this._readableState.ended = false;
-    this._readableState.endEmitted = false;
-  }
-
-  if (this._writableState) {
-    this._writableState.destroyed = false;
-    this._writableState.ended = false;
-    this._writableState.ending = false;
-    this._writableState.finalCalled = false;
-    this._writableState.prefinished = false;
-    this._writableState.finished = false;
-    this._writableState.errorEmitted = false;
-  }
-}
-
-function emitErrorNT(self, err) {
-  self.emit('error', err);
-}
-
-function errorOrDestroy(stream, err) {
-  // We have tests that rely on errors being emitted
-  // in the same tick, so changing this is semver major.
-  // For now when you opt-in to autoDestroy we allow
-  // the error to be emitted nextTick. In a future
-  // semver major update we should change the default to this.
-  var rState = stream._readableState;
-  var wState = stream._writableState;
-  if (rState && rState.autoDestroy || wState && wState.autoDestroy) stream.destroy(err);else stream.emit('error', err);
-}
-
-module.exports = {
-  destroy: destroy,
-  undestroy: undestroy,
-  errorOrDestroy: errorOrDestroy
-};
 
 /***/ }),
 /* 233 */
@@ -21888,7 +22208,7 @@ module.exports = pipeline;
  * Licensed under the MIT license.
  * https://github.com/archiverjs/node-compress-commons/blob/master/LICENSE-MIT
  */
-var Stream = __webpack_require__(413).Stream;
+var Stream = __webpack_require__(794).Stream;
 var PassThrough = __webpack_require__(274).PassThrough;
 
 var util = module.exports = {};
@@ -21998,7 +22318,7 @@ function _isUint8Array(obj) {
   return Buffer.isBuffer(obj) || obj instanceof OurUint8Array;
 }
 
-var destroyImpl = __webpack_require__(232);
+var destroyImpl = __webpack_require__(345);
 
 var _require = __webpack_require__(216),
     getHighWaterMark = _require.getHighWaterMark;
@@ -22693,7 +23013,7 @@ if (debugUtil && debugUtil.debuglog) {
 
 var BufferList = __webpack_require__(912);
 
-var destroyImpl = __webpack_require__(232);
+var destroyImpl = __webpack_require__(345);
 
 var _require = __webpack_require__(216),
     getHighWaterMark = _require.getHighWaterMark;
@@ -23754,7 +24074,6 @@ function indexOf(xs, x) {
 module.exports = globSync
 globSync.GlobSync = GlobSync
 
-var fs = __webpack_require__(747)
 var rp = __webpack_require__(302)
 var minimatch = __webpack_require__(571)
 var Minimatch = minimatch.Minimatch
@@ -23764,8 +24083,6 @@ var path = __webpack_require__(622)
 var assert = __webpack_require__(357)
 var isAbsolute = __webpack_require__(681)
 var common = __webpack_require__(856)
-var alphasort = common.alphasort
-var alphasorti = common.alphasorti
 var setopts = common.setopts
 var ownProp = common.ownProp
 var childrenIgnored = common.childrenIgnored
@@ -24001,7 +24318,7 @@ GlobSync.prototype._readdirInGlobStar = function (abs) {
   var lstat
   var stat
   try {
-    lstat = fs.lstatSync(abs)
+    lstat = this.fs.lstatSync(abs)
   } catch (er) {
     if (er.code === 'ENOENT') {
       // lstat failed, doesn't exist
@@ -24038,7 +24355,7 @@ GlobSync.prototype._readdir = function (abs, inGlobStar) {
   }
 
   try {
-    return this._readdirEntries(abs, fs.readdirSync(abs))
+    return this._readdirEntries(abs, this.fs.readdirSync(abs))
   } catch (er) {
     this._readdirError(abs, er)
     return null
@@ -24197,7 +24514,7 @@ GlobSync.prototype._stat = function (f) {
   if (!stat) {
     var lstat
     try {
-      lstat = fs.lstatSync(abs)
+      lstat = this.fs.lstatSync(abs)
     } catch (er) {
       if (er && (er.code === 'ENOENT' || er.code === 'ENOTDIR')) {
         this.statCache[abs] = false
@@ -24207,7 +24524,7 @@ GlobSync.prototype._stat = function (f) {
 
     if (lstat && lstat.isSymbolicLink()) {
       try {
-        stat = fs.statSync(abs)
+        stat = this.fs.statSync(abs)
       } catch (er) {
         stat = lstat
       }
@@ -25086,10 +25403,14 @@ try {
   process.cwd()
 } catch (er) {}
 
-var chdir = process.chdir
-process.chdir = function(d) {
-  cwd = null
-  chdir.call(process, d)
+// This check is needed until node.js 12 is required
+if (typeof process.chdir === 'function') {
+  var chdir = process.chdir
+  process.chdir = function (d) {
+    cwd = null
+    chdir.call(process, d)
+  }
+  if (Object.setPrototypeOf) Object.setPrototypeOf(process.chdir, chdir)
 }
 
 module.exports = patch
@@ -25204,7 +25525,7 @@ function patch (fs) {
     }
 
     // This ensures `util.promisify` works as it does for native `fs.read`.
-    read.__proto__ = fs$read
+    if (Object.setPrototypeOf) Object.setPrototypeOf(read, fs$read)
     return read
   })(fs.read)
 
@@ -25881,7 +26202,7 @@ winston.ExceptionHandler = __webpack_require__(329);
  * Expose core Logging-related prototypes.
  * @type {Object}
  */
-winston.RejectionHandler = __webpack_require__(63);
+winston.RejectionHandler = __webpack_require__(166);
 /**
  * Expose core Logging-related prototypes.
  * @type {Container}
@@ -27130,7 +27451,7 @@ return {
 /* 274 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var Stream = __webpack_require__(413);
+var Stream = __webpack_require__(794);
 if (process.env.READABLE_STREAM === 'disable' && Stream) {
   module.exports = Stream;
   exports = module.exports = Stream.Readable;
@@ -27190,7 +27511,7 @@ module.exports = format((info, opts) => {
 /* 277 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
-var Stream = __webpack_require__(413);
+var Stream = __webpack_require__(794);
 var util = __webpack_require__(669);
 
 // Backwards compatibility for node versions < 8
@@ -27854,7 +28175,7 @@ function unmonkeypatch () {
 /* 303 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
-var Stream = __webpack_require__(413);
+var Stream = __webpack_require__(794);
 var Parse = __webpack_require__(379);
 var duplexer2 = __webpack_require__(553);
 var BufferStream = __webpack_require__(29);
@@ -29897,7 +30218,7 @@ module.exports = function (store) {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const stream_1 = __webpack_require__(413);
+const stream_1 = __webpack_require__(794);
 class WritableStreamBuffer extends stream_1.Writable {
     constructor(opts) {
         super(opts || {});
@@ -29968,7 +30289,7 @@ exports.WritableStreamBuffer = WritableStreamBuffer;
 /* 343 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var Stream = __webpack_require__(413);
+var Stream = __webpack_require__(794);
 if (process.env.READABLE_STREAM === 'disable' && Stream) {
   module.exports = Stream;
   exports = module.exports = Stream.Readable;
@@ -30024,7 +30345,117 @@ exports.BufferBuildAsset = BufferBuildAsset;
 //# sourceMappingURL=bufferBuildAsset.js.map
 
 /***/ }),
-/* 345 */,
+/* 345 */
+/***/ (function(module) {
+
+"use strict";
+ // undocumented cb() API, needed for core, not for public API
+
+function destroy(err, cb) {
+  var _this = this;
+
+  var readableDestroyed = this._readableState && this._readableState.destroyed;
+  var writableDestroyed = this._writableState && this._writableState.destroyed;
+
+  if (readableDestroyed || writableDestroyed) {
+    if (cb) {
+      cb(err);
+    } else if (err) {
+      if (!this._writableState) {
+        process.nextTick(emitErrorNT, this, err);
+      } else if (!this._writableState.errorEmitted) {
+        this._writableState.errorEmitted = true;
+        process.nextTick(emitErrorNT, this, err);
+      }
+    }
+
+    return this;
+  } // we set destroyed to true before firing error callbacks in order
+  // to make it re-entrance safe in case destroy() is called within callbacks
+
+
+  if (this._readableState) {
+    this._readableState.destroyed = true;
+  } // if this is a duplex stream mark the writable part as destroyed as well
+
+
+  if (this._writableState) {
+    this._writableState.destroyed = true;
+  }
+
+  this._destroy(err || null, function (err) {
+    if (!cb && err) {
+      if (!_this._writableState) {
+        process.nextTick(emitErrorAndCloseNT, _this, err);
+      } else if (!_this._writableState.errorEmitted) {
+        _this._writableState.errorEmitted = true;
+        process.nextTick(emitErrorAndCloseNT, _this, err);
+      } else {
+        process.nextTick(emitCloseNT, _this);
+      }
+    } else if (cb) {
+      process.nextTick(emitCloseNT, _this);
+      cb(err);
+    } else {
+      process.nextTick(emitCloseNT, _this);
+    }
+  });
+
+  return this;
+}
+
+function emitErrorAndCloseNT(self, err) {
+  emitErrorNT(self, err);
+  emitCloseNT(self);
+}
+
+function emitCloseNT(self) {
+  if (self._writableState && !self._writableState.emitClose) return;
+  if (self._readableState && !self._readableState.emitClose) return;
+  self.emit('close');
+}
+
+function undestroy() {
+  if (this._readableState) {
+    this._readableState.destroyed = false;
+    this._readableState.reading = false;
+    this._readableState.ended = false;
+    this._readableState.endEmitted = false;
+  }
+
+  if (this._writableState) {
+    this._writableState.destroyed = false;
+    this._writableState.ended = false;
+    this._writableState.ending = false;
+    this._writableState.finalCalled = false;
+    this._writableState.prefinished = false;
+    this._writableState.finished = false;
+    this._writableState.errorEmitted = false;
+  }
+}
+
+function emitErrorNT(self, err) {
+  self.emit('error', err);
+}
+
+function errorOrDestroy(stream, err) {
+  // We have tests that rely on errors being emitted
+  // in the same tick, so changing this is semver major.
+  // For now when you opt-in to autoDestroy we allow
+  // the error to be emitted nextTick. In a future
+  // semver major update we should change the default to this.
+  var rState = stream._readableState;
+  var wState = stream._writableState;
+  if (rState && rState.autoDestroy || wState && wState.autoDestroy) stream.destroy(err);else stream.emit('error', err);
+}
+
+module.exports = {
+  destroy: destroy,
+  undestroy: undestroy,
+  errorOrDestroy: errorOrDestroy
+};
+
+/***/ }),
 /* 346 */
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
@@ -30342,7 +30773,7 @@ exports.passOnAsset = passOnAsset;
 /* 359 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
-module.exports = __webpack_require__(413);
+module.exports = __webpack_require__(794);
 
 
 /***/ }),
@@ -30648,7 +31079,7 @@ var Extract = function (opts) {
     var offset = self._offset
     var header
     try {
-      header = self._header = headers.decode(b.slice(0, 512), opts.filenameEncoding)
+      header = self._header = headers.decode(b.slice(0, 512), opts.filenameEncoding, opts.allowUnknownFormat)
     } catch (err) {
       self.emit('error', err)
     }
@@ -31520,7 +31951,7 @@ return tryConvertToPromise;
 
 var util = __webpack_require__(669);
 var zlib = __webpack_require__(761);
-var Stream = __webpack_require__(413);
+var Stream = __webpack_require__(794);
 var binary = __webpack_require__(479);
 var Promise = __webpack_require__(440);
 var PullStream = __webpack_require__(887);
@@ -32890,7 +33321,7 @@ module.exports = overArg;
 
 module.exports = Abstract
 
-var Stream = __webpack_require__(413).Stream
+var Stream = __webpack_require__(794).Stream
 var inherits = __webpack_require__(689)
 
 function Abstract () {
@@ -33044,7 +33475,6 @@ module.exports = exports['default'];
 
 module.exports = glob
 
-var fs = __webpack_require__(747)
 var rp = __webpack_require__(302)
 var minimatch = __webpack_require__(571)
 var Minimatch = minimatch.Minimatch
@@ -33055,8 +33485,6 @@ var assert = __webpack_require__(357)
 var isAbsolute = __webpack_require__(681)
 var globSync = __webpack_require__(245)
 var common = __webpack_require__(856)
-var alphasort = common.alphasort
-var alphasorti = common.alphasorti
 var setopts = common.setopts
 var ownProp = common.ownProp
 var inflight = __webpack_require__(674)
@@ -33507,7 +33935,7 @@ Glob.prototype._readdirInGlobStar = function (abs, cb) {
   var lstatcb = inflight(lstatkey, lstatcb_)
 
   if (lstatcb)
-    fs.lstat(abs, lstatcb)
+    self.fs.lstat(abs, lstatcb)
 
   function lstatcb_ (er, lstat) {
     if (er && er.code === 'ENOENT')
@@ -33548,7 +33976,7 @@ Glob.prototype._readdir = function (abs, inGlobStar, cb) {
   }
 
   var self = this
-  fs.readdir(abs, readdirCb(this, abs, cb))
+  self.fs.readdir(abs, readdirCb(this, abs, cb))
 }
 
 function readdirCb (self, abs, cb) {
@@ -33752,13 +34180,13 @@ Glob.prototype._stat = function (f, cb) {
   var self = this
   var statcb = inflight('stat\0' + abs, lstatcb_)
   if (statcb)
-    fs.lstat(abs, statcb)
+    self.fs.lstat(abs, statcb)
 
   function lstatcb_ (er, lstat) {
     if (lstat && lstat.isSymbolicLink()) {
       // If it's a symlink, then treat it as the target, unless
       // the target does not exist, then treat it as a file.
-      return fs.stat(abs, function (er, stat) {
+      return self.fs.stat(abs, function (er, stat) {
         if (er)
           self._stat2(f, abs, null, lstat, cb)
         else
@@ -33816,7 +34244,7 @@ const asyncForEach = __webpack_require__(101);
 const { LEVEL, SPLAT } = __webpack_require__(823);
 const isStream = __webpack_require__(207);
 const ExceptionHandler = __webpack_require__(329);
-const RejectionHandler = __webpack_require__(63);
+const RejectionHandler = __webpack_require__(166);
 const LegacyTransportStream = __webpack_require__(888);
 const Profiler = __webpack_require__(186);
 const { warn } = __webpack_require__(683);
@@ -34664,9 +35092,10 @@ module.exports = baseIsTypedArray;
 
 /***/ }),
 /* 413 */
-/***/ (function(module) {
+/***/ (function(module, __unusedexports, __webpack_require__) {
 
-module.exports = require("stream");
+module.exports = __webpack_require__(141);
+
 
 /***/ }),
 /* 414 */
@@ -34898,7 +35327,7 @@ module.exports = function truncate(getLength, string, byteLength) {
 /* 427 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
-module.exports = __webpack_require__(413);
+module.exports = __webpack_require__(794);
 
 
 /***/ }),
@@ -34910,14 +35339,27 @@ module.exports = __webpack_require__(413);
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.issue = exports.issueCommand = void 0;
 const os = __importStar(__webpack_require__(87));
 const utils_1 = __webpack_require__(82);
 /**
@@ -36266,7 +36708,7 @@ ArchiveOutputStream.prototype.write = function(chunk, cb) {
 /* 458 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
-module.exports = __webpack_require__(413);
+module.exports = __webpack_require__(794);
 
 
 /***/ }),
@@ -36661,7 +37103,7 @@ var sequencer = function sequencer(map, str) {
 };
 
 // custom formatter methods
-colors.trap = __webpack_require__(16);
+colors.trap = __webpack_require__(96);
 colors.zalgo = __webpack_require__(640);
 
 // maps
@@ -37415,6 +37857,25 @@ module.exports = {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -37424,19 +37885,14 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
-    return result;
-};
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.getIDToken = exports.getState = exports.saveState = exports.group = exports.endGroup = exports.startGroup = exports.info = exports.notice = exports.warning = exports.error = exports.debug = exports.isDebug = exports.setFailed = exports.setCommandEcho = exports.setOutput = exports.getBooleanInput = exports.getMultilineInput = exports.getInput = exports.addPath = exports.setSecret = exports.exportVariable = exports.ExitCode = void 0;
 const command_1 = __webpack_require__(431);
 const file_command_1 = __webpack_require__(102);
 const utils_1 = __webpack_require__(82);
 const os = __importStar(__webpack_require__(87));
 const path = __importStar(__webpack_require__(622));
+const oidc_utils_1 = __webpack_require__(742);
 /**
  * The code to exit an action
  */
@@ -37498,7 +37954,9 @@ function addPath(inputPath) {
 }
 exports.addPath = addPath;
 /**
- * Gets the value of an input.  The value is also trimmed.
+ * Gets the value of an input.
+ * Unless trimWhitespace is set to false in InputOptions, the value is also trimmed.
+ * Returns an empty string if the value is not defined.
  *
  * @param     name     name of the input to get
  * @param     options  optional. See InputOptions.
@@ -37509,9 +37967,49 @@ function getInput(name, options) {
     if (options && options.required && !val) {
         throw new Error(`Input required and not supplied: ${name}`);
     }
+    if (options && options.trimWhitespace === false) {
+        return val;
+    }
     return val.trim();
 }
 exports.getInput = getInput;
+/**
+ * Gets the values of an multiline input.  Each value is also trimmed.
+ *
+ * @param     name     name of the input to get
+ * @param     options  optional. See InputOptions.
+ * @returns   string[]
+ *
+ */
+function getMultilineInput(name, options) {
+    const inputs = getInput(name, options)
+        .split('\n')
+        .filter(x => x !== '');
+    return inputs;
+}
+exports.getMultilineInput = getMultilineInput;
+/**
+ * Gets the input value of the boolean type in the YAML 1.2 "core schema" specification.
+ * Support boolean input list: `true | True | TRUE | false | False | FALSE` .
+ * The return value is also in boolean type.
+ * ref: https://yaml.org/spec/1.2/spec.html#id2804923
+ *
+ * @param     name     name of the input to get
+ * @param     options  optional. See InputOptions.
+ * @returns   boolean
+ */
+function getBooleanInput(name, options) {
+    const trueValue = ['true', 'True', 'TRUE'];
+    const falseValue = ['false', 'False', 'FALSE'];
+    const val = getInput(name, options);
+    if (trueValue.includes(val))
+        return true;
+    if (falseValue.includes(val))
+        return false;
+    throw new TypeError(`Input does not meet YAML 1.2 "Core Schema" specification: ${name}\n` +
+        `Support boolean input list: \`true | True | TRUE | false | False | FALSE\``);
+}
+exports.getBooleanInput = getBooleanInput;
 /**
  * Sets the value of an output.
  *
@@ -37520,6 +38018,7 @@ exports.getInput = getInput;
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function setOutput(name, value) {
+    process.stdout.write(os.EOL);
     command_1.issueCommand('set-output', { name }, value);
 }
 exports.setOutput = setOutput;
@@ -37566,19 +38065,30 @@ exports.debug = debug;
 /**
  * Adds an error issue
  * @param message error issue message. Errors will be converted to string via toString()
+ * @param properties optional properties to add to the annotation.
  */
-function error(message) {
-    command_1.issue('error', message instanceof Error ? message.toString() : message);
+function error(message, properties = {}) {
+    command_1.issueCommand('error', utils_1.toCommandProperties(properties), message instanceof Error ? message.toString() : message);
 }
 exports.error = error;
 /**
- * Adds an warning issue
+ * Adds a warning issue
  * @param message warning issue message. Errors will be converted to string via toString()
+ * @param properties optional properties to add to the annotation.
  */
-function warning(message) {
-    command_1.issue('warning', message instanceof Error ? message.toString() : message);
+function warning(message, properties = {}) {
+    command_1.issueCommand('warning', utils_1.toCommandProperties(properties), message instanceof Error ? message.toString() : message);
 }
 exports.warning = warning;
+/**
+ * Adds a notice issue
+ * @param message notice issue message. Errors will be converted to string via toString()
+ * @param properties optional properties to add to the annotation.
+ */
+function notice(message, properties = {}) {
+    command_1.issueCommand('notice', utils_1.toCommandProperties(properties), message instanceof Error ? message.toString() : message);
+}
+exports.notice = notice;
 /**
  * Writes info to log with console.log.
  * @param message info message
@@ -37651,6 +38161,12 @@ function getState(name) {
     return process.env[`STATE_${name}`] || '';
 }
 exports.getState = getState;
+function getIDToken(aud) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return yield oidc_utils_1.OidcClient.getIDToken(aud);
+    });
+}
+exports.getIDToken = getIDToken;
 //# sourceMappingURL=core.js.map
 
 /***/ }),
@@ -38085,7 +38601,7 @@ var Chainsaw = __webpack_require__(868);
 var EventEmitter = __webpack_require__(614).EventEmitter;
 var Buffers = __webpack_require__(642);
 var Vars = __webpack_require__(340);
-var Stream = __webpack_require__(413).Stream;
+var Stream = __webpack_require__(794).Stream;
 
 exports = module.exports = function (bufOrEm, eventName) {
     if (Buffer.isBuffer(bufOrEm)) {
@@ -43792,12 +44308,546 @@ module.exports = crc32;
 
 /***/ }),
 /* 539 */
-/***/ (function(module, __unusedexports, __webpack_require__) {
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
 
 "use strict";
 
-
-module.exports = __webpack_require__(271).default;
+Object.defineProperty(exports, "__esModule", { value: true });
+const http = __webpack_require__(605);
+const https = __webpack_require__(211);
+const pm = __webpack_require__(950);
+let tunnel;
+var HttpCodes;
+(function (HttpCodes) {
+    HttpCodes[HttpCodes["OK"] = 200] = "OK";
+    HttpCodes[HttpCodes["MultipleChoices"] = 300] = "MultipleChoices";
+    HttpCodes[HttpCodes["MovedPermanently"] = 301] = "MovedPermanently";
+    HttpCodes[HttpCodes["ResourceMoved"] = 302] = "ResourceMoved";
+    HttpCodes[HttpCodes["SeeOther"] = 303] = "SeeOther";
+    HttpCodes[HttpCodes["NotModified"] = 304] = "NotModified";
+    HttpCodes[HttpCodes["UseProxy"] = 305] = "UseProxy";
+    HttpCodes[HttpCodes["SwitchProxy"] = 306] = "SwitchProxy";
+    HttpCodes[HttpCodes["TemporaryRedirect"] = 307] = "TemporaryRedirect";
+    HttpCodes[HttpCodes["PermanentRedirect"] = 308] = "PermanentRedirect";
+    HttpCodes[HttpCodes["BadRequest"] = 400] = "BadRequest";
+    HttpCodes[HttpCodes["Unauthorized"] = 401] = "Unauthorized";
+    HttpCodes[HttpCodes["PaymentRequired"] = 402] = "PaymentRequired";
+    HttpCodes[HttpCodes["Forbidden"] = 403] = "Forbidden";
+    HttpCodes[HttpCodes["NotFound"] = 404] = "NotFound";
+    HttpCodes[HttpCodes["MethodNotAllowed"] = 405] = "MethodNotAllowed";
+    HttpCodes[HttpCodes["NotAcceptable"] = 406] = "NotAcceptable";
+    HttpCodes[HttpCodes["ProxyAuthenticationRequired"] = 407] = "ProxyAuthenticationRequired";
+    HttpCodes[HttpCodes["RequestTimeout"] = 408] = "RequestTimeout";
+    HttpCodes[HttpCodes["Conflict"] = 409] = "Conflict";
+    HttpCodes[HttpCodes["Gone"] = 410] = "Gone";
+    HttpCodes[HttpCodes["TooManyRequests"] = 429] = "TooManyRequests";
+    HttpCodes[HttpCodes["InternalServerError"] = 500] = "InternalServerError";
+    HttpCodes[HttpCodes["NotImplemented"] = 501] = "NotImplemented";
+    HttpCodes[HttpCodes["BadGateway"] = 502] = "BadGateway";
+    HttpCodes[HttpCodes["ServiceUnavailable"] = 503] = "ServiceUnavailable";
+    HttpCodes[HttpCodes["GatewayTimeout"] = 504] = "GatewayTimeout";
+})(HttpCodes = exports.HttpCodes || (exports.HttpCodes = {}));
+var Headers;
+(function (Headers) {
+    Headers["Accept"] = "accept";
+    Headers["ContentType"] = "content-type";
+})(Headers = exports.Headers || (exports.Headers = {}));
+var MediaTypes;
+(function (MediaTypes) {
+    MediaTypes["ApplicationJson"] = "application/json";
+})(MediaTypes = exports.MediaTypes || (exports.MediaTypes = {}));
+/**
+ * Returns the proxy URL, depending upon the supplied url and proxy environment variables.
+ * @param serverUrl  The server URL where the request will be sent. For example, https://api.github.com
+ */
+function getProxyUrl(serverUrl) {
+    let proxyUrl = pm.getProxyUrl(new URL(serverUrl));
+    return proxyUrl ? proxyUrl.href : '';
+}
+exports.getProxyUrl = getProxyUrl;
+const HttpRedirectCodes = [
+    HttpCodes.MovedPermanently,
+    HttpCodes.ResourceMoved,
+    HttpCodes.SeeOther,
+    HttpCodes.TemporaryRedirect,
+    HttpCodes.PermanentRedirect
+];
+const HttpResponseRetryCodes = [
+    HttpCodes.BadGateway,
+    HttpCodes.ServiceUnavailable,
+    HttpCodes.GatewayTimeout
+];
+const RetryableHttpVerbs = ['OPTIONS', 'GET', 'DELETE', 'HEAD'];
+const ExponentialBackoffCeiling = 10;
+const ExponentialBackoffTimeSlice = 5;
+class HttpClientError extends Error {
+    constructor(message, statusCode) {
+        super(message);
+        this.name = 'HttpClientError';
+        this.statusCode = statusCode;
+        Object.setPrototypeOf(this, HttpClientError.prototype);
+    }
+}
+exports.HttpClientError = HttpClientError;
+class HttpClientResponse {
+    constructor(message) {
+        this.message = message;
+    }
+    readBody() {
+        return new Promise(async (resolve, reject) => {
+            let output = Buffer.alloc(0);
+            this.message.on('data', (chunk) => {
+                output = Buffer.concat([output, chunk]);
+            });
+            this.message.on('end', () => {
+                resolve(output.toString());
+            });
+        });
+    }
+}
+exports.HttpClientResponse = HttpClientResponse;
+function isHttps(requestUrl) {
+    let parsedUrl = new URL(requestUrl);
+    return parsedUrl.protocol === 'https:';
+}
+exports.isHttps = isHttps;
+class HttpClient {
+    constructor(userAgent, handlers, requestOptions) {
+        this._ignoreSslError = false;
+        this._allowRedirects = true;
+        this._allowRedirectDowngrade = false;
+        this._maxRedirects = 50;
+        this._allowRetries = false;
+        this._maxRetries = 1;
+        this._keepAlive = false;
+        this._disposed = false;
+        this.userAgent = userAgent;
+        this.handlers = handlers || [];
+        this.requestOptions = requestOptions;
+        if (requestOptions) {
+            if (requestOptions.ignoreSslError != null) {
+                this._ignoreSslError = requestOptions.ignoreSslError;
+            }
+            this._socketTimeout = requestOptions.socketTimeout;
+            if (requestOptions.allowRedirects != null) {
+                this._allowRedirects = requestOptions.allowRedirects;
+            }
+            if (requestOptions.allowRedirectDowngrade != null) {
+                this._allowRedirectDowngrade = requestOptions.allowRedirectDowngrade;
+            }
+            if (requestOptions.maxRedirects != null) {
+                this._maxRedirects = Math.max(requestOptions.maxRedirects, 0);
+            }
+            if (requestOptions.keepAlive != null) {
+                this._keepAlive = requestOptions.keepAlive;
+            }
+            if (requestOptions.allowRetries != null) {
+                this._allowRetries = requestOptions.allowRetries;
+            }
+            if (requestOptions.maxRetries != null) {
+                this._maxRetries = requestOptions.maxRetries;
+            }
+        }
+    }
+    options(requestUrl, additionalHeaders) {
+        return this.request('OPTIONS', requestUrl, null, additionalHeaders || {});
+    }
+    get(requestUrl, additionalHeaders) {
+        return this.request('GET', requestUrl, null, additionalHeaders || {});
+    }
+    del(requestUrl, additionalHeaders) {
+        return this.request('DELETE', requestUrl, null, additionalHeaders || {});
+    }
+    post(requestUrl, data, additionalHeaders) {
+        return this.request('POST', requestUrl, data, additionalHeaders || {});
+    }
+    patch(requestUrl, data, additionalHeaders) {
+        return this.request('PATCH', requestUrl, data, additionalHeaders || {});
+    }
+    put(requestUrl, data, additionalHeaders) {
+        return this.request('PUT', requestUrl, data, additionalHeaders || {});
+    }
+    head(requestUrl, additionalHeaders) {
+        return this.request('HEAD', requestUrl, null, additionalHeaders || {});
+    }
+    sendStream(verb, requestUrl, stream, additionalHeaders) {
+        return this.request(verb, requestUrl, stream, additionalHeaders);
+    }
+    /**
+     * Gets a typed object from an endpoint
+     * Be aware that not found returns a null.  Other errors (4xx, 5xx) reject the promise
+     */
+    async getJson(requestUrl, additionalHeaders = {}) {
+        additionalHeaders[Headers.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.Accept, MediaTypes.ApplicationJson);
+        let res = await this.get(requestUrl, additionalHeaders);
+        return this._processResponse(res, this.requestOptions);
+    }
+    async postJson(requestUrl, obj, additionalHeaders = {}) {
+        let data = JSON.stringify(obj, null, 2);
+        additionalHeaders[Headers.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.Accept, MediaTypes.ApplicationJson);
+        additionalHeaders[Headers.ContentType] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.ContentType, MediaTypes.ApplicationJson);
+        let res = await this.post(requestUrl, data, additionalHeaders);
+        return this._processResponse(res, this.requestOptions);
+    }
+    async putJson(requestUrl, obj, additionalHeaders = {}) {
+        let data = JSON.stringify(obj, null, 2);
+        additionalHeaders[Headers.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.Accept, MediaTypes.ApplicationJson);
+        additionalHeaders[Headers.ContentType] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.ContentType, MediaTypes.ApplicationJson);
+        let res = await this.put(requestUrl, data, additionalHeaders);
+        return this._processResponse(res, this.requestOptions);
+    }
+    async patchJson(requestUrl, obj, additionalHeaders = {}) {
+        let data = JSON.stringify(obj, null, 2);
+        additionalHeaders[Headers.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.Accept, MediaTypes.ApplicationJson);
+        additionalHeaders[Headers.ContentType] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.ContentType, MediaTypes.ApplicationJson);
+        let res = await this.patch(requestUrl, data, additionalHeaders);
+        return this._processResponse(res, this.requestOptions);
+    }
+    /**
+     * Makes a raw http request.
+     * All other methods such as get, post, patch, and request ultimately call this.
+     * Prefer get, del, post and patch
+     */
+    async request(verb, requestUrl, data, headers) {
+        if (this._disposed) {
+            throw new Error('Client has already been disposed.');
+        }
+        let parsedUrl = new URL(requestUrl);
+        let info = this._prepareRequest(verb, parsedUrl, headers);
+        // Only perform retries on reads since writes may not be idempotent.
+        let maxTries = this._allowRetries && RetryableHttpVerbs.indexOf(verb) != -1
+            ? this._maxRetries + 1
+            : 1;
+        let numTries = 0;
+        let response;
+        while (numTries < maxTries) {
+            response = await this.requestRaw(info, data);
+            // Check if it's an authentication challenge
+            if (response &&
+                response.message &&
+                response.message.statusCode === HttpCodes.Unauthorized) {
+                let authenticationHandler;
+                for (let i = 0; i < this.handlers.length; i++) {
+                    if (this.handlers[i].canHandleAuthentication(response)) {
+                        authenticationHandler = this.handlers[i];
+                        break;
+                    }
+                }
+                if (authenticationHandler) {
+                    return authenticationHandler.handleAuthentication(this, info, data);
+                }
+                else {
+                    // We have received an unauthorized response but have no handlers to handle it.
+                    // Let the response return to the caller.
+                    return response;
+                }
+            }
+            let redirectsRemaining = this._maxRedirects;
+            while (HttpRedirectCodes.indexOf(response.message.statusCode) != -1 &&
+                this._allowRedirects &&
+                redirectsRemaining > 0) {
+                const redirectUrl = response.message.headers['location'];
+                if (!redirectUrl) {
+                    // if there's no location to redirect to, we won't
+                    break;
+                }
+                let parsedRedirectUrl = new URL(redirectUrl);
+                if (parsedUrl.protocol == 'https:' &&
+                    parsedUrl.protocol != parsedRedirectUrl.protocol &&
+                    !this._allowRedirectDowngrade) {
+                    throw new Error('Redirect from HTTPS to HTTP protocol. This downgrade is not allowed for security reasons. If you want to allow this behavior, set the allowRedirectDowngrade option to true.');
+                }
+                // we need to finish reading the response before reassigning response
+                // which will leak the open socket.
+                await response.readBody();
+                // strip authorization header if redirected to a different hostname
+                if (parsedRedirectUrl.hostname !== parsedUrl.hostname) {
+                    for (let header in headers) {
+                        // header names are case insensitive
+                        if (header.toLowerCase() === 'authorization') {
+                            delete headers[header];
+                        }
+                    }
+                }
+                // let's make the request with the new redirectUrl
+                info = this._prepareRequest(verb, parsedRedirectUrl, headers);
+                response = await this.requestRaw(info, data);
+                redirectsRemaining--;
+            }
+            if (HttpResponseRetryCodes.indexOf(response.message.statusCode) == -1) {
+                // If not a retry code, return immediately instead of retrying
+                return response;
+            }
+            numTries += 1;
+            if (numTries < maxTries) {
+                await response.readBody();
+                await this._performExponentialBackoff(numTries);
+            }
+        }
+        return response;
+    }
+    /**
+     * Needs to be called if keepAlive is set to true in request options.
+     */
+    dispose() {
+        if (this._agent) {
+            this._agent.destroy();
+        }
+        this._disposed = true;
+    }
+    /**
+     * Raw request.
+     * @param info
+     * @param data
+     */
+    requestRaw(info, data) {
+        return new Promise((resolve, reject) => {
+            let callbackForResult = function (err, res) {
+                if (err) {
+                    reject(err);
+                }
+                resolve(res);
+            };
+            this.requestRawWithCallback(info, data, callbackForResult);
+        });
+    }
+    /**
+     * Raw request with callback.
+     * @param info
+     * @param data
+     * @param onResult
+     */
+    requestRawWithCallback(info, data, onResult) {
+        let socket;
+        if (typeof data === 'string') {
+            info.options.headers['Content-Length'] = Buffer.byteLength(data, 'utf8');
+        }
+        let callbackCalled = false;
+        let handleResult = (err, res) => {
+            if (!callbackCalled) {
+                callbackCalled = true;
+                onResult(err, res);
+            }
+        };
+        let req = info.httpModule.request(info.options, (msg) => {
+            let res = new HttpClientResponse(msg);
+            handleResult(null, res);
+        });
+        req.on('socket', sock => {
+            socket = sock;
+        });
+        // If we ever get disconnected, we want the socket to timeout eventually
+        req.setTimeout(this._socketTimeout || 3 * 60000, () => {
+            if (socket) {
+                socket.end();
+            }
+            handleResult(new Error('Request timeout: ' + info.options.path), null);
+        });
+        req.on('error', function (err) {
+            // err has statusCode property
+            // res should have headers
+            handleResult(err, null);
+        });
+        if (data && typeof data === 'string') {
+            req.write(data, 'utf8');
+        }
+        if (data && typeof data !== 'string') {
+            data.on('close', function () {
+                req.end();
+            });
+            data.pipe(req);
+        }
+        else {
+            req.end();
+        }
+    }
+    /**
+     * Gets an http agent. This function is useful when you need an http agent that handles
+     * routing through a proxy server - depending upon the url and proxy environment variables.
+     * @param serverUrl  The server URL where the request will be sent. For example, https://api.github.com
+     */
+    getAgent(serverUrl) {
+        let parsedUrl = new URL(serverUrl);
+        return this._getAgent(parsedUrl);
+    }
+    _prepareRequest(method, requestUrl, headers) {
+        const info = {};
+        info.parsedUrl = requestUrl;
+        const usingSsl = info.parsedUrl.protocol === 'https:';
+        info.httpModule = usingSsl ? https : http;
+        const defaultPort = usingSsl ? 443 : 80;
+        info.options = {};
+        info.options.host = info.parsedUrl.hostname;
+        info.options.port = info.parsedUrl.port
+            ? parseInt(info.parsedUrl.port)
+            : defaultPort;
+        info.options.path =
+            (info.parsedUrl.pathname || '') + (info.parsedUrl.search || '');
+        info.options.method = method;
+        info.options.headers = this._mergeHeaders(headers);
+        if (this.userAgent != null) {
+            info.options.headers['user-agent'] = this.userAgent;
+        }
+        info.options.agent = this._getAgent(info.parsedUrl);
+        // gives handlers an opportunity to participate
+        if (this.handlers) {
+            this.handlers.forEach(handler => {
+                handler.prepareRequest(info.options);
+            });
+        }
+        return info;
+    }
+    _mergeHeaders(headers) {
+        const lowercaseKeys = obj => Object.keys(obj).reduce((c, k) => ((c[k.toLowerCase()] = obj[k]), c), {});
+        if (this.requestOptions && this.requestOptions.headers) {
+            return Object.assign({}, lowercaseKeys(this.requestOptions.headers), lowercaseKeys(headers));
+        }
+        return lowercaseKeys(headers || {});
+    }
+    _getExistingOrDefaultHeader(additionalHeaders, header, _default) {
+        const lowercaseKeys = obj => Object.keys(obj).reduce((c, k) => ((c[k.toLowerCase()] = obj[k]), c), {});
+        let clientHeader;
+        if (this.requestOptions && this.requestOptions.headers) {
+            clientHeader = lowercaseKeys(this.requestOptions.headers)[header];
+        }
+        return additionalHeaders[header] || clientHeader || _default;
+    }
+    _getAgent(parsedUrl) {
+        let agent;
+        let proxyUrl = pm.getProxyUrl(parsedUrl);
+        let useProxy = proxyUrl && proxyUrl.hostname;
+        if (this._keepAlive && useProxy) {
+            agent = this._proxyAgent;
+        }
+        if (this._keepAlive && !useProxy) {
+            agent = this._agent;
+        }
+        // if agent is already assigned use that agent.
+        if (!!agent) {
+            return agent;
+        }
+        const usingSsl = parsedUrl.protocol === 'https:';
+        let maxSockets = 100;
+        if (!!this.requestOptions) {
+            maxSockets = this.requestOptions.maxSockets || http.globalAgent.maxSockets;
+        }
+        if (useProxy) {
+            // If using proxy, need tunnel
+            if (!tunnel) {
+                tunnel = __webpack_require__(413);
+            }
+            const agentOptions = {
+                maxSockets: maxSockets,
+                keepAlive: this._keepAlive,
+                proxy: {
+                    ...((proxyUrl.username || proxyUrl.password) && {
+                        proxyAuth: `${proxyUrl.username}:${proxyUrl.password}`
+                    }),
+                    host: proxyUrl.hostname,
+                    port: proxyUrl.port
+                }
+            };
+            let tunnelAgent;
+            const overHttps = proxyUrl.protocol === 'https:';
+            if (usingSsl) {
+                tunnelAgent = overHttps ? tunnel.httpsOverHttps : tunnel.httpsOverHttp;
+            }
+            else {
+                tunnelAgent = overHttps ? tunnel.httpOverHttps : tunnel.httpOverHttp;
+            }
+            agent = tunnelAgent(agentOptions);
+            this._proxyAgent = agent;
+        }
+        // if reusing agent across request and tunneling agent isn't assigned create a new agent
+        if (this._keepAlive && !agent) {
+            const options = { keepAlive: this._keepAlive, maxSockets: maxSockets };
+            agent = usingSsl ? new https.Agent(options) : new http.Agent(options);
+            this._agent = agent;
+        }
+        // if not using private agent and tunnel agent isn't setup then use global agent
+        if (!agent) {
+            agent = usingSsl ? https.globalAgent : http.globalAgent;
+        }
+        if (usingSsl && this._ignoreSslError) {
+            // we don't want to set NODE_TLS_REJECT_UNAUTHORIZED=0 since that will affect request for entire process
+            // http.RequestOptions doesn't expose a way to modify RequestOptions.agent.options
+            // we have to cast it to any and change it directly
+            agent.options = Object.assign(agent.options || {}, {
+                rejectUnauthorized: false
+            });
+        }
+        return agent;
+    }
+    _performExponentialBackoff(retryNumber) {
+        retryNumber = Math.min(ExponentialBackoffCeiling, retryNumber);
+        const ms = ExponentialBackoffTimeSlice * Math.pow(2, retryNumber);
+        return new Promise(resolve => setTimeout(() => resolve(), ms));
+    }
+    static dateTimeDeserializer(key, value) {
+        if (typeof value === 'string') {
+            let a = new Date(value);
+            if (!isNaN(a.valueOf())) {
+                return a;
+            }
+        }
+        return value;
+    }
+    async _processResponse(res, options) {
+        return new Promise(async (resolve, reject) => {
+            const statusCode = res.message.statusCode;
+            const response = {
+                statusCode: statusCode,
+                result: null,
+                headers: {}
+            };
+            // not found leads to null obj returned
+            if (statusCode == HttpCodes.NotFound) {
+                resolve(response);
+            }
+            let obj;
+            let contents;
+            // get the result from the body
+            try {
+                contents = await res.readBody();
+                if (contents && contents.length > 0) {
+                    if (options && options.deserializeDates) {
+                        obj = JSON.parse(contents, HttpClient.dateTimeDeserializer);
+                    }
+                    else {
+                        obj = JSON.parse(contents);
+                    }
+                    response.result = obj;
+                }
+                response.headers = res.message.headers;
+            }
+            catch (err) {
+                // Invalid resource (contents not json);  leaving result obj null
+            }
+            // note that 3xx redirects are handled by the http layer.
+            if (statusCode > 299) {
+                let msg;
+                // if exception/error in body, attempt to get better error
+                if (obj && obj.message) {
+                    msg = obj.message;
+                }
+                else if (contents && contents.length > 0) {
+                    // it may be the case that the exception is in the body message as string
+                    msg = contents;
+                }
+                else {
+                    msg = 'Failed request: (' + statusCode + ')';
+                }
+                let err = new HttpClientError(msg, statusCode);
+                err.result = response.result;
+                reject(err);
+            }
+            else {
+                resolve(response);
+            }
+        });
+    }
+}
+exports.HttpClient = HttpClient;
 
 
 /***/ }),
@@ -62611,7 +63661,47 @@ module.exports.DuplexWrapper = DuplexWrapper;
 
 
 /***/ }),
-/* 558 */,
+/* 558 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _eachOfLimit = __webpack_require__(22);
+
+var _eachOfLimit2 = _interopRequireDefault(_eachOfLimit);
+
+var _doLimit = __webpack_require__(90);
+
+var _doLimit2 = _interopRequireDefault(_doLimit);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * The same as [`eachOf`]{@link module:Collections.eachOf} but runs only a single async operation at a time.
+ *
+ * @name eachOfSeries
+ * @static
+ * @memberOf module:Collections
+ * @method
+ * @see [async.eachOf]{@link module:Collections.eachOf}
+ * @alias forEachOfSeries
+ * @category Collection
+ * @param {Array|Iterable|Object} coll - A collection to iterate over.
+ * @param {AsyncFunction} iteratee - An async function to apply to each item in
+ * `coll`.
+ * Invoked with (item, key, callback).
+ * @param {Function} [callback] - A callback which is called when all `iteratee`
+ * functions have finished, or an error occurs. Invoked with (err).
+ */
+exports.default = (0, _doLimit2.default)(_eachOfLimit2.default, 1);
+module.exports = exports['default'];
+
+/***/ }),
 /* 559 */
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
@@ -63404,7 +64494,7 @@ function rmkidsSync (p, options) {
 var fs = __webpack_require__(598);
 var Promise = __webpack_require__(440);
 var directory = __webpack_require__(677);
-var Stream = __webpack_require__(413);
+var Stream = __webpack_require__(794);
 
 // Backwards compatibility for node versions < 8
 if (!Stream.Writable || !Stream.Writable.prototype.destroy)
@@ -64846,7 +65936,7 @@ ZipArchiveEntry.prototype.isZip64 = function() {
 /* 574 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var Stream = __webpack_require__(413);
+var Stream = __webpack_require__(794);
 if (process.env.READABLE_STREAM === 'disable' && Stream) {
   module.exports = Stream.Readable;
   Object.assign(module.exports, Stream);
@@ -65768,7 +66858,7 @@ if (!fs[gracefulQueue]) {
       return fs$close.call(fs, fd, function (err) {
         // This function uses the graceful-fs shared queue
         if (!err) {
-          retry()
+          resetQueue()
         }
 
         if (typeof cb === 'function')
@@ -65786,7 +66876,7 @@ if (!fs[gracefulQueue]) {
     function closeSync (fd) {
       // This function uses the graceful-fs shared queue
       fs$closeSync.apply(fs, arguments)
-      retry()
+      resetQueue()
     }
 
     Object.defineProperty(closeSync, previousSymbol, {
@@ -65828,14 +66918,13 @@ function patch (fs) {
 
     return go$readFile(path, options, cb)
 
-    function go$readFile (path, options, cb) {
+    function go$readFile (path, options, cb, startTime) {
       return fs$readFile(path, options, function (err) {
         if (err && (err.code === 'EMFILE' || err.code === 'ENFILE'))
-          enqueue([go$readFile, [path, options, cb]])
+          enqueue([go$readFile, [path, options, cb], err, startTime || Date.now(), Date.now()])
         else {
           if (typeof cb === 'function')
             cb.apply(this, arguments)
-          retry()
         }
       })
     }
@@ -65849,14 +66938,13 @@ function patch (fs) {
 
     return go$writeFile(path, data, options, cb)
 
-    function go$writeFile (path, data, options, cb) {
+    function go$writeFile (path, data, options, cb, startTime) {
       return fs$writeFile(path, data, options, function (err) {
         if (err && (err.code === 'EMFILE' || err.code === 'ENFILE'))
-          enqueue([go$writeFile, [path, data, options, cb]])
+          enqueue([go$writeFile, [path, data, options, cb], err, startTime || Date.now(), Date.now()])
         else {
           if (typeof cb === 'function')
             cb.apply(this, arguments)
-          retry()
         }
       })
     }
@@ -65871,14 +66959,35 @@ function patch (fs) {
 
     return go$appendFile(path, data, options, cb)
 
-    function go$appendFile (path, data, options, cb) {
+    function go$appendFile (path, data, options, cb, startTime) {
       return fs$appendFile(path, data, options, function (err) {
         if (err && (err.code === 'EMFILE' || err.code === 'ENFILE'))
-          enqueue([go$appendFile, [path, data, options, cb]])
+          enqueue([go$appendFile, [path, data, options, cb], err, startTime || Date.now(), Date.now()])
         else {
           if (typeof cb === 'function')
             cb.apply(this, arguments)
-          retry()
+        }
+      })
+    }
+  }
+
+  var fs$copyFile = fs.copyFile
+  if (fs$copyFile)
+    fs.copyFile = copyFile
+  function copyFile (src, dest, flags, cb) {
+    if (typeof flags === 'function') {
+      cb = flags
+      flags = 0
+    }
+    return go$copyFile(src, dest, flags, cb)
+
+    function go$copyFile (src, dest, flags, cb, startTime) {
+      return fs$copyFile(src, dest, flags, function (err) {
+        if (err && (err.code === 'EMFILE' || err.code === 'ENFILE'))
+          enqueue([go$copyFile, [src, dest, flags, cb], err, startTime || Date.now(), Date.now()])
+        else {
+          if (typeof cb === 'function')
+            cb.apply(this, arguments)
         }
       })
     }
@@ -65887,33 +66996,24 @@ function patch (fs) {
   var fs$readdir = fs.readdir
   fs.readdir = readdir
   function readdir (path, options, cb) {
-    var args = [path]
-    if (typeof options !== 'function') {
-      args.push(options)
-    } else {
-      cb = options
+    if (typeof options === 'function')
+      cb = options, options = null
+
+    return go$readdir(path, options, cb)
+
+    function go$readdir (path, options, cb, startTime) {
+      return fs$readdir(path, options, function (err, files) {
+        if (err && (err.code === 'EMFILE' || err.code === 'ENFILE'))
+          enqueue([go$readdir, [path, options, cb], err, startTime || Date.now(), Date.now()])
+        else {
+          if (files && files.sort)
+            files.sort()
+
+          if (typeof cb === 'function')
+            cb.call(this, err, files)
+        }
+      })
     }
-    args.push(go$readdir$cb)
-
-    return go$readdir(args)
-
-    function go$readdir$cb (err, files) {
-      if (files && files.sort)
-        files.sort()
-
-      if (err && (err.code === 'EMFILE' || err.code === 'ENFILE'))
-        enqueue([go$readdir, [args]])
-
-      else {
-        if (typeof cb === 'function')
-          cb.apply(this, arguments)
-        retry()
-      }
-    }
-  }
-
-  function go$readdir (args) {
-    return fs$readdir.apply(fs, args)
   }
 
   if (process.version.substr(0, 4) === 'v0.8') {
@@ -66038,14 +67138,13 @@ function patch (fs) {
 
     return go$open(path, flags, mode, cb)
 
-    function go$open (path, flags, mode, cb) {
+    function go$open (path, flags, mode, cb, startTime) {
       return fs$open(path, flags, mode, function (err, fd) {
         if (err && (err.code === 'EMFILE' || err.code === 'ENFILE'))
-          enqueue([go$open, [path, flags, mode, cb]])
+          enqueue([go$open, [path, flags, mode, cb], err, startTime || Date.now(), Date.now()])
         else {
           if (typeof cb === 'function')
             cb.apply(this, arguments)
-          retry()
         }
       })
     }
@@ -66057,13 +67156,79 @@ function patch (fs) {
 function enqueue (elem) {
   debug('ENQUEUE', elem[0].name, elem[1])
   fs[gracefulQueue].push(elem)
+  retry()
+}
+
+// keep track of the timeout between retry() calls
+var retryTimer
+
+// reset the startTime and lastTime to now
+// this resets the start of the 60 second overall timeout as well as the
+// delay between attempts so that we'll retry these jobs sooner
+function resetQueue () {
+  var now = Date.now()
+  for (var i = 0; i < fs[gracefulQueue].length; ++i) {
+    // entries that are only a length of 2 are from an older version, don't
+    // bother modifying those since they'll be retried anyway.
+    if (fs[gracefulQueue][i].length > 2) {
+      fs[gracefulQueue][i][3] = now // startTime
+      fs[gracefulQueue][i][4] = now // lastTime
+    }
+  }
+  // call retry to make sure we're actively processing the queue
+  retry()
 }
 
 function retry () {
+  // clear the timer and remove it to help prevent unintended concurrency
+  clearTimeout(retryTimer)
+  retryTimer = undefined
+
+  if (fs[gracefulQueue].length === 0)
+    return
+
   var elem = fs[gracefulQueue].shift()
-  if (elem) {
-    debug('RETRY', elem[0].name, elem[1])
-    elem[0].apply(null, elem[1])
+  var fn = elem[0]
+  var args = elem[1]
+  // these items may be unset if they were added by an older graceful-fs
+  var err = elem[2]
+  var startTime = elem[3]
+  var lastTime = elem[4]
+
+  // if we don't have a startTime we have no way of knowing if we've waited
+  // long enough, so go ahead and retry this item now
+  if (startTime === undefined) {
+    debug('RETRY', fn.name, args)
+    fn.apply(null, args)
+  } else if (Date.now() - startTime >= 60000) {
+    // it's been more than 60 seconds total, bail now
+    debug('TIMEOUT', fn.name, args)
+    var cb = args.pop()
+    if (typeof cb === 'function')
+      cb.call(null, err)
+  } else {
+    // the amount of time between the last attempt and right now
+    var sinceAttempt = Date.now() - lastTime
+    // the amount of time between when we first tried, and when we last tried
+    // rounded up to at least 1
+    var sinceStart = Math.max(lastTime - startTime, 1)
+    // backoff. wait longer than the total time we've been retrying, but only
+    // up to a maximum of 100ms
+    var desiredDelay = Math.min(sinceStart * 1.2, 100)
+    // it's been long enough since the last retry, do it again
+    if (sinceAttempt >= desiredDelay) {
+      debug('RETRY', fn.name, args)
+      fn.apply(null, args.concat([startTime]))
+    } else {
+      // if we can't do this job yet, push it to the end of the queue
+      // and let the next iteration check again
+      fs[gracefulQueue].push(elem)
+    }
+  }
+
+  // schedule our next run if one isn't already scheduled
+  if (retryTimer === undefined) {
+    retryTimer = setTimeout(retry, 0)
   }
 }
 
@@ -66151,7 +67316,7 @@ module.exports = objectToString;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const stream_1 = __webpack_require__(413);
+const stream_1 = __webpack_require__(794);
 class ReadableStreamBuffer extends stream_1.Readable {
     constructor(buffer, opts) {
         super(Object.assign({}, opts, { objectMode: false }));
@@ -66304,12 +67469,16 @@ module.exports = {
 
 module.exports = clone
 
+var getPrototypeOf = Object.getPrototypeOf || function (obj) {
+  return obj.__proto__
+}
+
 function clone (obj) {
   if (obj === null || typeof obj !== 'object')
     return obj
 
   if (obj instanceof Object)
-    var copy = { __proto__: obj.__proto__ }
+    var copy = { __proto__: getPrototypeOf(obj) }
   else
     var copy = Object.create(null)
 
@@ -66523,6 +67692,9 @@ function range(a, b, str) {
   var i = ai;
 
   if (ai >= 0 && bi > 0) {
+    if(a===b) {
+      return [ai, bi];
+    }
     begs = [];
     left = str.length;
 
@@ -67006,7 +68178,12 @@ module.exports = convert;
 
 /***/ }),
 /* 630 */,
-/* 631 */,
+/* 631 */
+/***/ (function(module) {
+
+module.exports = require("net");
+
+/***/ }),
 /* 632 */,
 /* 633 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
@@ -69298,7 +70475,7 @@ BufferList.prototype._match = function (offset, search) {
           return this.slice(offset, offset + byteLength)[m](0, byteLength)
         }
       } else {
-        BufferList.prototype[m] = function (offset) {
+        BufferList.prototype[m] = function (offset = 0) {
           return this.slice(offset, offset + methods[m])[m](0)
         }
       }
@@ -69771,7 +70948,7 @@ module.exports = {
   crc16: __webpack_require__(707),
   crc16ccitt: __webpack_require__(818),
   crc16modbus: __webpack_require__(165),
-  crc16xmodem: __webpack_require__(539),
+  crc16xmodem: __webpack_require__(147),
   crc16kermit: __webpack_require__(758),
   crc24: __webpack_require__(482),
   crc32: __webpack_require__(36),
@@ -74967,21 +76144,24 @@ module.exports = {
 /* 731 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var fs   = __webpack_require__(747),
-    path = __webpack_require__(622),
-    cnst = __webpack_require__(619);
+let fs   = __webpack_require__(747);
+let path = __webpack_require__(622);
+let cnst = __webpack_require__(619);
 
-var rimraf     = __webpack_require__(569),
-    os         = __webpack_require__(87),
-    rimrafSync = rimraf.sync;
+let os         = __webpack_require__(87);
+let rimraf     = __webpack_require__(569);
+let mkdirp     = __webpack_require__(626);
+let osTmpdir   = __webpack_require__(87).tmpdir();
 
-/* HELPERS */
+const rimrafSync = rimraf.sync;
 
-var dir = path.resolve(os.tmpdir());
+//== helpers
+//
+let dir = path.resolve(os.tmpdir());
 
-var RDWR_EXCL = cnst.O_CREAT | cnst.O_TRUNC | cnst.O_RDWR | cnst.O_EXCL;
+let RDWR_EXCL = cnst.O_CREAT | cnst.O_TRUNC | cnst.O_RDWR | cnst.O_EXCL;
 
-var promisify = function(callback) {
+let promisify = function(callback) {
   if (typeof callback === 'function') {
     return [undefined, callback];
   }
@@ -75070,7 +76250,14 @@ function deleteDirOnExit(dirPath) {
 function attachExitListener() {
   if (!tracking) return false;
   if (!exitListenerAttached) {
-    process.addListener('exit', cleanupSync);
+    process.addListener('exit', function() {
+        try {
+            cleanupSync();
+        } catch(err) {
+            console.warn("Fail to clean temporary files on exit : ", err);
+            throw err;
+        }
+    });
     exitListenerAttached = true;
   }
 }
@@ -75082,7 +76269,7 @@ function cleanupFilesSync() {
   var count = 0;
   var toDelete;
   while ((toDelete = filesToDelete.shift()) !== undefined) {
-    rimrafSync(toDelete);
+    rimrafSync(toDelete, { maxBusyTries: 6 });
     count++;
   }
   return count;
@@ -75124,7 +76311,7 @@ function cleanupFiles(callback) {
     }
   };
   while ((toDelete = filesToDelete.shift()) !== undefined) {
-    rimraf(toDelete, rimrafCallback);
+    rimraf(toDelete, { maxBusyTries: 6 }, rimrafCallback);
   }
   return promise;
 }
@@ -75136,7 +76323,7 @@ function cleanupDirsSync() {
   var count = 0;
   var toDelete;
   while ((toDelete = dirsToDelete.shift()) !== undefined) {
-    rimrafSync(toDelete);
+    rimrafSync(toDelete, { maxBusyTries: 6 });
     count++;
   }
   return count;
@@ -75178,7 +76365,7 @@ function cleanupDirs(callback) {
     }
   };
   while ((toDelete = dirsToDelete.shift()) !== undefined) {
-    rimraf(toDelete, rimrafCallback);
+    rimraf(toDelete, { maxBusyTries: 6 }, rimrafCallback);
   }
   return promise;
 }
@@ -75213,15 +76400,15 @@ function cleanup(callback) {
   return promise;
 }
 
-/* DIRECTORIES */
-
-function mkdir(affixes, callback) {
-  var p = promisify(callback);
-  var promise = p[0];
+//== directories
+//
+const mkdir = (affixes, callback) => {
+  const p = promisify(callback);
+  const promise = p[0];
   callback = p[1];
 
-  var dirPath = generateName(affixes, 'd-');
-  fs.mkdir(dirPath, parseInt('0700', 8), function(err) {
+  let dirPath = generateName(affixes, 'd-');
+  mkdirp(dirPath, 0o700, (err) => {
     if (!err) {
       deleteDirOnExit(dirPath);
     }
@@ -75230,56 +76417,58 @@ function mkdir(affixes, callback) {
   return promise;
 }
 
-function mkdirSync(affixes) {
-  var dirPath = generateName(affixes, 'd-');
-  fs.mkdirSync(dirPath, parseInt('0700', 8));
+const mkdirSync = (affixes) => {
+  let dirPath = generateName(affixes, 'd-');
+  mkdirp.sync(dirPath, 0o700);
   deleteDirOnExit(dirPath);
   return dirPath;
 }
 
-/* FILES */
-
-function open(affixes, callback) {
-  var p = promisify(callback);
-  var promise = p[0];
+//== files
+//
+const open = (affixes, callback) => {
+  const p = promisify(callback);
+  const promise = p[0];
   callback = p[1];
 
-  var filePath = generateName(affixes, 'f-');
-  fs.open(filePath, RDWR_EXCL, parseInt('0600', 8), function(err, fd) {
+  const path = generateName(affixes, 'f-');
+  fs.open(path, RDWR_EXCL, 0o600, (err, fd) => {
     if (!err) {
-      deleteFileOnExit(filePath);
+      deleteFileOnExit(path);
     }
-    callback(err, {path: filePath, fd: fd});
+    callback(err, { path, fd });
   });
   return promise;
 }
 
-function openSync(affixes) {
-  var filePath = generateName(affixes, 'f-');
-  var fd = fs.openSync(filePath, RDWR_EXCL, parseInt('0600', 8));
-  deleteFileOnExit(filePath);
-  return {path: filePath, fd: fd};
+const openSync = (affixes) => {
+  const path = generateName(affixes, 'f-');
+  let fd = fs.openSync(path, RDWR_EXCL, 0o600);
+  deleteFileOnExit(path);
+  return { path, fd };
 }
 
-function createWriteStream(affixes) {
-  var filePath = generateName(affixes, 's-');
-  var stream = fs.createWriteStream(filePath, {flags: RDWR_EXCL, mode: parseInt('0600', 8)});
-  deleteFileOnExit(filePath);
+const createWriteStream =  (affixes) => {
+  const path = generateName(affixes, 's-');
+  let stream = fs.createWriteStream(path, { flags: RDWR_EXCL, mode: 0o600 });
+  deleteFileOnExit(path);
   return stream;
 }
 
-/* EXPORTS */
-// Settings
-exports.dir               = dir;
-exports.track             = track;
-// Functions
-exports.mkdir             = mkdir;
-exports.mkdirSync         = mkdirSync;
-exports.open              = open;
-exports.openSync          = openSync;
-exports.path              = generateName;
-exports.cleanup           = cleanup;
-exports.cleanupSync       = cleanupSync;
+//== settings
+//
+exports.dir = dir;
+exports.track = track;
+
+//== functions
+//
+exports.mkdir = mkdir;
+exports.mkdirSync = mkdirSync;
+exports.open = open;
+exports.openSync = openSync;
+exports.path = generateName;
+exports.cleanup = cleanup;
+exports.cleanupSync = cleanupSync;
 exports.createWriteStream = createWriteStream;
 
 
@@ -75531,83 +76720,86 @@ module.exports = eos;
 /***/ }),
 /* 741 */,
 /* 742 */
-/***/ (function(module, __unusedexports, __webpack_require__) {
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
 
 "use strict";
 
-
-/*<replacement>*/
-
-var pna = __webpack_require__(822);
-/*</replacement>*/
-
-// undocumented cb() API, needed for core, not for public API
-function destroy(err, cb) {
-  var _this = this;
-
-  var readableDestroyed = this._readableState && this._readableState.destroyed;
-  var writableDestroyed = this._writableState && this._writableState.destroyed;
-
-  if (readableDestroyed || writableDestroyed) {
-    if (cb) {
-      cb(err);
-    } else if (err && (!this._writableState || !this._writableState.errorEmitted)) {
-      pna.nextTick(emitErrorNT, this, err);
-    }
-    return this;
-  }
-
-  // we set destroyed to true before firing error callbacks in order
-  // to make it re-entrance safe in case destroy() is called within callbacks
-
-  if (this._readableState) {
-    this._readableState.destroyed = true;
-  }
-
-  // if this is a duplex stream mark the writable part as destroyed as well
-  if (this._writableState) {
-    this._writableState.destroyed = true;
-  }
-
-  this._destroy(err || null, function (err) {
-    if (!cb && err) {
-      pna.nextTick(emitErrorNT, _this, err);
-      if (_this._writableState) {
-        _this._writableState.errorEmitted = true;
-      }
-    } else if (cb) {
-      cb(err);
-    }
-  });
-
-  return this;
-}
-
-function undestroy() {
-  if (this._readableState) {
-    this._readableState.destroyed = false;
-    this._readableState.reading = false;
-    this._readableState.ended = false;
-    this._readableState.endEmitted = false;
-  }
-
-  if (this._writableState) {
-    this._writableState.destroyed = false;
-    this._writableState.ended = false;
-    this._writableState.ending = false;
-    this._writableState.finished = false;
-    this._writableState.errorEmitted = false;
-  }
-}
-
-function emitErrorNT(self, err) {
-  self.emit('error', err);
-}
-
-module.exports = {
-  destroy: destroy,
-  undestroy: undestroy
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
 };
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.OidcClient = void 0;
+const http_client_1 = __webpack_require__(539);
+const auth_1 = __webpack_require__(226);
+const core_1 = __webpack_require__(470);
+class OidcClient {
+    static createHttpClient(allowRetry = true, maxRetry = 10) {
+        const requestOptions = {
+            allowRetries: allowRetry,
+            maxRetries: maxRetry
+        };
+        return new http_client_1.HttpClient('actions/oidc-client', [new auth_1.BearerCredentialHandler(OidcClient.getRequestToken())], requestOptions);
+    }
+    static getRequestToken() {
+        const token = process.env['ACTIONS_ID_TOKEN_REQUEST_TOKEN'];
+        if (!token) {
+            throw new Error('Unable to get ACTIONS_ID_TOKEN_REQUEST_TOKEN env variable');
+        }
+        return token;
+    }
+    static getIDTokenUrl() {
+        const runtimeUrl = process.env['ACTIONS_ID_TOKEN_REQUEST_URL'];
+        if (!runtimeUrl) {
+            throw new Error('Unable to get ACTIONS_ID_TOKEN_REQUEST_URL env variable');
+        }
+        return runtimeUrl;
+    }
+    static getCall(id_token_url) {
+        var _a;
+        return __awaiter(this, void 0, void 0, function* () {
+            const httpclient = OidcClient.createHttpClient();
+            const res = yield httpclient
+                .getJson(id_token_url)
+                .catch(error => {
+                throw new Error(`Failed to get ID Token. \n 
+        Error Code : ${error.statusCode}\n 
+        Error Message: ${error.result.message}`);
+            });
+            const id_token = (_a = res.result) === null || _a === void 0 ? void 0 : _a.value;
+            if (!id_token) {
+                throw new Error('Response json body do not have ID Token field');
+            }
+            return id_token;
+        });
+    }
+    static getIDToken(audience) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                // New ID Token is requested from action service
+                let id_token_url = OidcClient.getIDTokenUrl();
+                if (audience) {
+                    const encodedAudience = encodeURIComponent(audience);
+                    id_token_url = `${id_token_url}&audience=${encodedAudience}`;
+                }
+                core_1.debug(`ID token url is ${id_token_url}`);
+                const id_token = yield OidcClient.getCall(id_token_url);
+                core_1.setSecret(id_token);
+                return id_token;
+            }
+            catch (error) {
+                throw new Error(`Error message: ${error.message}`);
+            }
+        });
+    }
+}
+exports.OidcClient = OidcClient;
+//# sourceMappingURL=oidc-utils.js.map
 
 /***/ }),
 /* 743 */,
@@ -76815,7 +78007,7 @@ if (debugUtil && debugUtil.debuglog) {
 /*</replacement>*/
 
 var BufferList = __webpack_require__(667);
-var destroyImpl = __webpack_require__(742);
+var destroyImpl = __webpack_require__(63);
 var StringDecoder;
 
 util.inherits(Readable, Stream);
@@ -78006,7 +79198,12 @@ Object.defineProperty(exports, 'Stream', {
 
 
 /***/ }),
-/* 794 */,
+/* 794 */
+/***/ (function(module) {
+
+module.exports = require("stream");
+
+/***/ }),
 /* 795 */,
 /* 796 */
 /***/ (function(module) {
@@ -79542,7 +80739,7 @@ module.exports = isArray;
 /* 807 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var Stream = __webpack_require__(413);
+var Stream = __webpack_require__(794);
 if (process.env.READABLE_STREAM === 'disable' && Stream) {
   module.exports = Stream;
   exports = module.exports = Stream.Readable;
@@ -81754,7 +82951,7 @@ module.exports = Extract;
 var Parse = __webpack_require__(379);
 var Writer = __webpack_require__(311).Writer;
 var path = __webpack_require__(622);
-var stream = __webpack_require__(413);
+var stream = __webpack_require__(794);
 var duplexer2 = __webpack_require__(553);
 var Promise = __webpack_require__(440);
 
@@ -82785,8 +83982,6 @@ exports.BaseBuildResult = BaseBuildResult;
 /* 856 */
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
-exports.alphasort = alphasort
-exports.alphasorti = alphasorti
 exports.setopts = setopts
 exports.ownProp = ownProp
 exports.makeAbs = makeAbs
@@ -82799,17 +83994,14 @@ function ownProp (obj, field) {
   return Object.prototype.hasOwnProperty.call(obj, field)
 }
 
+var fs = __webpack_require__(747)
 var path = __webpack_require__(622)
 var minimatch = __webpack_require__(571)
 var isAbsolute = __webpack_require__(681)
 var Minimatch = minimatch.Minimatch
 
-function alphasorti (a, b) {
-  return a.toLowerCase().localeCompare(b.toLowerCase())
-}
-
 function alphasort (a, b) {
-  return a.localeCompare(b)
+  return a.localeCompare(b, 'en')
 }
 
 function setupIgnores (self, options) {
@@ -82868,6 +84060,7 @@ function setopts (self, pattern, options) {
   self.stat = !!options.stat
   self.noprocess = !!options.noprocess
   self.absolute = !!options.absolute
+  self.fs = options.fs || fs
 
   self.maxLength = options.maxLength || Infinity
   self.cache = options.cache || Object.create(null)
@@ -82937,7 +84130,7 @@ function finish (self) {
     all = Object.keys(all)
 
   if (!self.nosort)
-    all = all.sort(self.nocase ? alphasorti : alphasort)
+    all = all.sort(alphasort)
 
   // at *some* point we statted all of these
   if (self.mark) {
@@ -83032,7 +84225,7 @@ function childrenIgnored (self, path) {
 /* 858 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var Stream = __webpack_require__(413);
+var Stream = __webpack_require__(794);
 if (process.env.READABLE_STREAM === 'disable' && Stream) {
   module.exports = Stream;
   exports = module.exports = Stream.Readable;
@@ -83470,7 +84663,7 @@ exports.write = function (fd, buffer, ...args) {
 /* 873 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
-var Stream = __webpack_require__(413)
+var Stream = __webpack_require__(794)
 var Writable = __webpack_require__(27)
 
 if (process.env.READABLE_STREAM === 'disable') {
@@ -83668,7 +84861,7 @@ Duplex.prototype._destroy = function (err, cb) {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const fs = __webpack_require__(226);
+const fs = __webpack_require__(232);
 const webext_buildtools_utils_1 = __webpack_require__(99);
 const buildResult_1 = __webpack_require__(816);
 const crxWrapper_1 = __webpack_require__(763);
@@ -84120,7 +85313,7 @@ module.exports = exports["default"];
 /* 887 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
-var Stream = __webpack_require__(413);
+var Stream = __webpack_require__(794);
 var Promise = __webpack_require__(440);
 var util = __webpack_require__(669);
 var Buffer = __webpack_require__(131);
@@ -85103,7 +86296,7 @@ swizzle.wrap = function (fn) {
 /* 903 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
-module.exports = __webpack_require__(413);
+module.exports = __webpack_require__(794);
 
 
 /***/ }),
@@ -86120,7 +87313,7 @@ module.exports = function (keyPair, options) {
 /* 928 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
-module.exports = __webpack_require__(413);
+module.exports = __webpack_require__(794);
 
 
 /***/ }),
@@ -87223,7 +88416,70 @@ Promise.promisifyAll = function (target, options) {
 
 /***/ }),
 /* 949 */,
-/* 950 */,
+/* 950 */
+/***/ (function(__unusedmodule, exports) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+function getProxyUrl(reqUrl) {
+    let usingSsl = reqUrl.protocol === 'https:';
+    let proxyUrl;
+    if (checkBypass(reqUrl)) {
+        return proxyUrl;
+    }
+    let proxyVar;
+    if (usingSsl) {
+        proxyVar = process.env['https_proxy'] || process.env['HTTPS_PROXY'];
+    }
+    else {
+        proxyVar = process.env['http_proxy'] || process.env['HTTP_PROXY'];
+    }
+    if (proxyVar) {
+        proxyUrl = new URL(proxyVar);
+    }
+    return proxyUrl;
+}
+exports.getProxyUrl = getProxyUrl;
+function checkBypass(reqUrl) {
+    if (!reqUrl.hostname) {
+        return false;
+    }
+    let noProxy = process.env['no_proxy'] || process.env['NO_PROXY'] || '';
+    if (!noProxy) {
+        return false;
+    }
+    // Determine the request port
+    let reqPort;
+    if (reqUrl.port) {
+        reqPort = Number(reqUrl.port);
+    }
+    else if (reqUrl.protocol === 'http:') {
+        reqPort = 80;
+    }
+    else if (reqUrl.protocol === 'https:') {
+        reqPort = 443;
+    }
+    // Format the request hostname and hostname with port
+    let upperReqHosts = [reqUrl.hostname.toUpperCase()];
+    if (typeof reqPort === 'number') {
+        upperReqHosts.push(`${upperReqHosts[0]}:${reqPort}`);
+    }
+    // Compare request host against noproxy
+    for (let upperNoProxyItem of noProxy
+        .split(',')
+        .map(x => x.trim().toUpperCase())
+        .filter(x => x)) {
+        if (upperReqHosts.some(x => x === upperNoProxyItem)) {
+            return true;
+        }
+    }
+    return false;
+}
+exports.checkBypass = checkBypass;
+
+
+/***/ }),
 /* 951 */,
 /* 952 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
@@ -87276,7 +88532,7 @@ PassThrough.prototype._transform = function (chunk, encoding, cb) {
 module.exports = Reader
 
 var fs = __webpack_require__(598)
-var Stream = __webpack_require__(413).Stream
+var Stream = __webpack_require__(794).Stream
 var inherits = __webpack_require__(689)
 var path = __webpack_require__(622)
 var getType = __webpack_require__(716)
@@ -89023,10 +90279,10 @@ var bigInt = (function (undefined) {
         var digits = toBase(range, BASE).value;
         var result = [], restricted = true;
         for (var i = 0; i < digits.length; i++) {
-            var top = restricted ? digits[i] : BASE;
+            var top = restricted ? digits[i] + (i + 1 < digits.length ? digits[i + 1] / BASE : 0) : BASE;
             var digit = truncate(usedRNG() * top);
             result.push(digit);
-            if (digit < top) restricted = false;
+            if (digit < digits[i]) restricted = false;
         }
         return low.add(Integer.fromArray(result, BASE, false));
     }
@@ -90316,7 +91572,7 @@ module.exports = getRawTag;
 /* 987 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
-module.exports = __webpack_require__(413);
+module.exports = __webpack_require__(794);
 
 
 /***/ }),
