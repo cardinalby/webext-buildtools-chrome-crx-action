@@ -50,10 +50,10 @@ steps:
   - uses: cardinalby/webext-buildtools-chrome-crx-action@v2
     with:
       # zip file made at the packExtensionDir step
-      zipFilePath: 'build/extension.zip',
+      zipFilePath: 'build/extension.zip'
       crxFilePath: 'build/extension.crx'
-      privateKey: ${{ secrets.CHROME_CRX_PRIVATE_KEY }},
+      privateKey: ${{ secrets.CHROME_CRX_PRIVATE_KEY }}
       # The following is optional if you need update.xml file
-      updateXmlPath: 'build/update.xml',      
+      updateXmlPath: 'build/update.xml'
       updateXmlCodebaseUrl: 'http://...'
 ```
