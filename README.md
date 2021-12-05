@@ -36,7 +36,7 @@ If specified, set the following inputs:
 Use [webext-buildtools-pack-extension-dir-action](https://github.com/cardinalby/webext-buildtools-pack-extension-dir-action)
 to pack your extension directory and provide `zipFilePath` input (see example).
 
-## Example usage
+## Usage example
 
 ```yaml
 steps:
@@ -57,3 +57,7 @@ steps:
       updateXmlPath: 'build/update.xml',      
       updateXmlCodebaseUrl: 'http://...'
 ```
+
+---
+If you are interested in the building the entire deployment workflow for WebExtension, 
+you can read this [article](https://dev.to/cardinalby/webextension-deployment-and-publishing-using-github-actions-522o).
