@@ -26,7 +26,7 @@ outputs:
   updateXmlFilePath:
     description: 'the absolute path to built update.xml file'
 runs:
-  using: 'node12'
+  using: 'node16'
   main: 'dist/index.js'
 branding:
   icon: 'package'

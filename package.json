@@ -37,7 +37,7 @@
   "devDependencies": {
     "webext-buildtools-builder-types": "^1.0.10",
     "@types/node": "^12.7.12",
-    "@zeit/ncc": "^0.22.3",
+    "@vercel/ncc": "^0.33.1",
     "typescript": "^3.9.10"
   }
 }
