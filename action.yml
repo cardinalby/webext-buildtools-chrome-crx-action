@@ -1,4 +1,4 @@
-name: 'webext-buildtools-chrome-crx-action'
+name: 'Sign Chrome Extension crx file'
 description: 'Build signed crx file for your WebExtension'
 author: 'cardinalby'
 inputs:
