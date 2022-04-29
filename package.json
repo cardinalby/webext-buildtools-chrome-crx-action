@@ -28,15 +28,15 @@
   "author": "cardinalby",
   "license": "MIT",
   "dependencies": {
-    "@actions/core": "^1.6.0",
+    "@actions/core": "^1.7.0",
     "github-actions-utils": "^1.0.8",
-    "webext-buildtools-chrome-crx-builder": "^1.0.16",
-    "winston": "^3.2.1"
+    "webext-buildtools-chrome-crx-builder": "^1.0.17",
+    "winston": "^3.7.2"
   },
   "devDependencies": {
-    "webext-buildtools-builder-types": "^1.0.10",
-    "@types/node": "^12.7.12",
-    "@vercel/ncc": "^0.33.1",
-    "typescript": "^3.9.10"
+    "webext-buildtools-builder-types": "^1.0.11",
+    "@types/node": "^16.11.32",
+    "@vercel/ncc": "^0.33.4",
+    "typescript": "^4.6.4"
   }
 }

@@ -68,7 +68,11 @@ exports.getLogger = getLogger;
 
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
 }) : (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     o[k2] = m[k];
@@ -81,7 +85,7 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
     __setModuleDefault(result, mod);
     return result;
 };
@@ -111,13 +115,13 @@ function run() {
             yield runImpl();
         }
         catch (error) {
-            ghActions.setFailed(error.message);
+            ghActions.setFailed(String(error));
         }
     });
 }
 function runImpl() {
     return __awaiter(this, void 0, void 0, function* () {
-        const logger = logger_1.getLogger();
+        const logger = (0, logger_1.getLogger)();
         const options = {
             crxFilePath: actionInputs_1.actionInputs.crxFilePath,
             privateKey: Buffer.from(actionInputs_1.actionInputs.privateKey)
@@ -571,6 +575,11 @@ function getIDToken(aud) {
     });
 }
 exports.getIDToken = getIDToken;
+/**
+ * Markdown summary exports
+ */
+var markdown_summary_1 = __nccwpck_require__(8042);
+Object.defineProperty(exports, "markdownSummary", ({ enumerable: true, get: function () { return markdown_summary_1.markdownSummary; } }));
 //# sourceMappingURL=core.js.map
 
 /***/ }),
@@ -621,6 +630,292 @@ function issueCommand(command, message) {
 }
 exports.issueCommand = issueCommand;
 //# sourceMappingURL=file-command.js.map
+
+/***/ }),
+
+/***/ 8042:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.markdownSummary = exports.SUMMARY_DOCS_URL = exports.SUMMARY_ENV_VAR = void 0;
+const os_1 = __nccwpck_require__(2037);
+const fs_1 = __nccwpck_require__(7147);
+const { access, appendFile, writeFile } = fs_1.promises;
+exports.SUMMARY_ENV_VAR = 'GITHUB_STEP_SUMMARY';
+exports.SUMMARY_DOCS_URL = 'https://docs.github.com/actions/using-workflows/workflow-commands-for-github-actions#adding-a-markdown-summary';
+class MarkdownSummary {
+    constructor() {
+        this._buffer = '';
+    }
+    /**
+     * Finds the summary file path from the environment, rejects if env var is not found or file does not exist
+     * Also checks r/w permissions.
+     *
+     * @returns step summary file path
+     */
+    filePath() {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (this._filePath) {
+                return this._filePath;
+            }
+            const pathFromEnv = process.env[exports.SUMMARY_ENV_VAR];
+            if (!pathFromEnv) {
+                throw new Error(`Unable to find environment variable for $${exports.SUMMARY_ENV_VAR}. Check if your runtime environment supports markdown summaries.`);
+            }
+            try {
+                yield access(pathFromEnv, fs_1.constants.R_OK | fs_1.constants.W_OK);
+            }
+            catch (_a) {
+                throw new Error(`Unable to access summary file: '${pathFromEnv}'. Check if the file has correct read/write permissions.`);
+            }
+            this._filePath = pathFromEnv;
+            return this._filePath;
+        });
+    }
+    /**
+     * Wraps content in an HTML tag, adding any HTML attributes
+     *
+     * @param {string} tag HTML tag to wrap
+     * @param {string | null} content content within the tag
+     * @param {[attribute: string]: string} attrs key-value list of HTML attributes to add
+     *
+     * @returns {string} content wrapped in HTML element
+     */
+    wrap(tag, content, attrs = {}) {
+        const htmlAttrs = Object.entries(attrs)
+            .map(([key, value]) => ` ${key}="${value}"`)
+            .join('');
+        if (!content) {
+            return `<${tag}${htmlAttrs}>`;
+        }
+        return `<${tag}${htmlAttrs}>${content}</${tag}>`;
+    }
+    /**
+     * Writes text in the buffer to the summary buffer file and empties buffer. Will append by default.
+     *
+     * @param {SummaryWriteOptions} [options] (optional) options for write operation
+     *
+     * @returns {Promise<MarkdownSummary>} markdown summary instance
+     */
+    write(options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const overwrite = !!(options === null || options === void 0 ? void 0 : options.overwrite);
+            const filePath = yield this.filePath();
+            const writeFunc = overwrite ? writeFile : appendFile;
+            yield writeFunc(filePath, this._buffer, { encoding: 'utf8' });
+            return this.emptyBuffer();
+        });
+    }
+    /**
+     * Clears the summary buffer and wipes the summary file
+     *
+     * @returns {MarkdownSummary} markdown summary instance
+     */
+    clear() {
+        return __awaiter(this, void 0, void 0, function* () {
+            return this.emptyBuffer().write({ overwrite: true });
+        });
+    }
+    /**
+     * Returns the current summary buffer as a string
+     *
+     * @returns {string} string of summary buffer
+     */
+    stringify() {
+        return this._buffer;
+    }
+    /**
+     * If the summary buffer is empty
+     *
+     * @returns {boolen} true if the buffer is empty
+     */
+    isEmptyBuffer() {
+        return this._buffer.length === 0;
+    }
+    /**
+     * Resets the summary buffer without writing to summary file
+     *
+     * @returns {MarkdownSummary} markdown summary instance
+     */
+    emptyBuffer() {
+        this._buffer = '';
+        return this;
+    }
+    /**
+     * Adds raw text to the summary buffer
+     *
+     * @param {string} text content to add
+     * @param {boolean} [addEOL=false] (optional) append an EOL to the raw text (default: false)
+     *
+     * @returns {MarkdownSummary} markdown summary instance
+     */
+    addRaw(text, addEOL = false) {
+        this._buffer += text;
+        return addEOL ? this.addEOL() : this;
+    }
+    /**
+     * Adds the operating system-specific end-of-line marker to the buffer
+     *
+     * @returns {MarkdownSummary} markdown summary instance
+     */
+    addEOL() {
+        return this.addRaw(os_1.EOL);
+    }
+    /**
+     * Adds an HTML codeblock to the summary buffer
+     *
+     * @param {string} code content to render within fenced code block
+     * @param {string} lang (optional) language to syntax highlight code
+     *
+     * @returns {MarkdownSummary} markdown summary instance
+     */
+    addCodeBlock(code, lang) {
+        const attrs = Object.assign({}, (lang && { lang }));
+        const element = this.wrap('pre', this.wrap('code', code), attrs);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML list to the summary buffer
+     *
+     * @param {string[]} items list of items to render
+     * @param {boolean} [ordered=false] (optional) if the rendered list should be ordered or not (default: false)
+     *
+     * @returns {MarkdownSummary} markdown summary instance
+     */
+    addList(items, ordered = false) {
+        const tag = ordered ? 'ol' : 'ul';
+        const listItems = items.map(item => this.wrap('li', item)).join('');
+        const element = this.wrap(tag, listItems);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML table to the summary buffer
+     *
+     * @param {SummaryTableCell[]} rows table rows
+     *
+     * @returns {MarkdownSummary} markdown summary instance
+     */
+    addTable(rows) {
+        const tableBody = rows
+            .map(row => {
+            const cells = row
+                .map(cell => {
+                if (typeof cell === 'string') {
+                    return this.wrap('td', cell);
+                }
+                const { header, data, colspan, rowspan } = cell;
+                const tag = header ? 'th' : 'td';
+                const attrs = Object.assign(Object.assign({}, (colspan && { colspan })), (rowspan && { rowspan }));
+                return this.wrap(tag, data, attrs);
+            })
+                .join('');
+            return this.wrap('tr', cells);
+        })
+            .join('');
+        const element = this.wrap('table', tableBody);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds a collapsable HTML details element to the summary buffer
+     *
+     * @param {string} label text for the closed state
+     * @param {string} content collapsable content
+     *
+     * @returns {MarkdownSummary} markdown summary instance
+     */
+    addDetails(label, content) {
+        const element = this.wrap('details', this.wrap('summary', label) + content);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML image tag to the summary buffer
+     *
+     * @param {string} src path to the image you to embed
+     * @param {string} alt text description of the image
+     * @param {SummaryImageOptions} options (optional) addition image attributes
+     *
+     * @returns {MarkdownSummary} markdown summary instance
+     */
+    addImage(src, alt, options) {
+        const { width, height } = options || {};
+        const attrs = Object.assign(Object.assign({}, (width && { width })), (height && { height }));
+        const element = this.wrap('img', null, Object.assign({ src, alt }, attrs));
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML section heading element
+     *
+     * @param {string} text heading text
+     * @param {number | string} [level=1] (optional) the heading level, default: 1
+     *
+     * @returns {MarkdownSummary} markdown summary instance
+     */
+    addHeading(text, level) {
+        const tag = `h${level}`;
+        const allowedTag = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag)
+            ? tag
+            : 'h1';
+        const element = this.wrap(allowedTag, text);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML thematic break (<hr>) to the summary buffer
+     *
+     * @returns {MarkdownSummary} markdown summary instance
+     */
+    addSeparator() {
+        const element = this.wrap('hr', null);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML line break (<br>) to the summary buffer
+     *
+     * @returns {MarkdownSummary} markdown summary instance
+     */
+    addBreak() {
+        const element = this.wrap('br', null);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML blockquote to the summary buffer
+     *
+     * @param {string} text quote text
+     * @param {string} cite (optional) citation url
+     *
+     * @returns {MarkdownSummary} markdown summary instance
+     */
+    addQuote(text, cite) {
+        const attrs = Object.assign({}, (cite && { cite }));
+        const element = this.wrap('blockquote', text, attrs);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML anchor tag to the summary buffer
+     *
+     * @param {string} text link text/content
+     * @param {string} href hyperlink
+     *
+     * @returns {MarkdownSummary} markdown summary instance
+     */
+    addLink(text, href) {
+        const element = this.wrap('a', text, { href });
+        return this.addRaw(element).addEOL();
+    }
+}
+// singleton export
+exports.markdownSummary = new MarkdownSummary();
+//# sourceMappingURL=markdown-summary.js.map
 
 /***/ }),
 
@@ -1427,6 +1722,1185 @@ function checkBypass(reqUrl) {
     return false;
 }
 exports.checkBypass = checkBypass;
+
+
+/***/ }),
+
+/***/ 4175:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+/*
+
+The MIT License (MIT)
+
+Original Library
+  - Copyright (c) Marak Squires
+
+Additional functionality
+ - Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+*/
+
+var colors = {};
+module['exports'] = colors;
+
+colors.themes = {};
+
+var util = __nccwpck_require__(3837);
+var ansiStyles = colors.styles = __nccwpck_require__(5691);
+var defineProps = Object.defineProperties;
+var newLineRegex = new RegExp(/[\r\n]+/g);
+
+colors.supportsColor = (__nccwpck_require__(1959).supportsColor);
+
+if (typeof colors.enabled === 'undefined') {
+  colors.enabled = colors.supportsColor() !== false;
+}
+
+colors.enable = function() {
+  colors.enabled = true;
+};
+
+colors.disable = function() {
+  colors.enabled = false;
+};
+
+colors.stripColors = colors.strip = function(str) {
+  return ('' + str).replace(/\x1B\[\d+m/g, '');
+};
+
+// eslint-disable-next-line no-unused-vars
+var stylize = colors.stylize = function stylize(str, style) {
+  if (!colors.enabled) {
+    return str+'';
+  }
+
+  var styleMap = ansiStyles[style];
+
+  // Stylize should work for non-ANSI styles, too
+  if (!styleMap && style in colors) {
+    // Style maps like trap operate as functions on strings;
+    // they don't have properties like open or close.
+    return colors[style](str);
+  }
+
+  return styleMap.open + str + styleMap.close;
+};
+
+var matchOperatorsRe = /[|\\{}()[\]^$+*?.]/g;
+var escapeStringRegexp = function(str) {
+  if (typeof str !== 'string') {
+    throw new TypeError('Expected a string');
+  }
+  return str.replace(matchOperatorsRe, '\\$&');
+};
+
+function build(_styles) {
+  var builder = function builder() {
+    return applyStyle.apply(builder, arguments);
+  };
+  builder._styles = _styles;
+  // __proto__ is used because we must return a function, but there is
+  // no way to create a function with a different prototype.
+  builder.__proto__ = proto;
+  return builder;
+}
+
+var styles = (function() {
+  var ret = {};
+  ansiStyles.grey = ansiStyles.gray;
+  Object.keys(ansiStyles).forEach(function(key) {
+    ansiStyles[key].closeRe =
+      new RegExp(escapeStringRegexp(ansiStyles[key].close), 'g');
+    ret[key] = {
+      get: function() {
+        return build(this._styles.concat(key));
+      },
+    };
+  });
+  return ret;
+})();
+
+var proto = defineProps(function colors() {}, styles);
+
+function applyStyle() {
+  var args = Array.prototype.slice.call(arguments);
+
+  var str = args.map(function(arg) {
+    // Use weak equality check so we can colorize null/undefined in safe mode
+    if (arg != null && arg.constructor === String) {
+      return arg;
+    } else {
+      return util.inspect(arg);
+    }
+  }).join(' ');
+
+  if (!colors.enabled || !str) {
+    return str;
+  }
+
+  var newLinesPresent = str.indexOf('\n') != -1;
+
+  var nestedStyles = this._styles;
+
+  var i = nestedStyles.length;
+  while (i--) {
+    var code = ansiStyles[nestedStyles[i]];
+    str = code.open + str.replace(code.closeRe, code.open) + code.close;
+    if (newLinesPresent) {
+      str = str.replace(newLineRegex, function(match) {
+        return code.close + match + code.open;
+      });
+    }
+  }
+
+  return str;
+}
+
+colors.setTheme = function(theme) {
+  if (typeof theme === 'string') {
+    console.log('colors.setTheme now only accepts an object, not a string.  ' +
+      'If you are trying to set a theme from a file, it is now your (the ' +
+      'caller\'s) responsibility to require the file.  The old syntax ' +
+      'looked like colors.setTheme(__dirname + ' +
+      '\'/../themes/generic-logging.js\'); The new syntax looks like '+
+      'colors.setTheme(require(__dirname + ' +
+      '\'/../themes/generic-logging.js\'));');
+    return;
+  }
+  for (var style in theme) {
+    (function(style) {
+      colors[style] = function(str) {
+        if (typeof theme[style] === 'object') {
+          var out = str;
+          for (var i in theme[style]) {
+            out = colors[theme[style][i]](out);
+          }
+          return out;
+        }
+        return colors[theme[style]](str);
+      };
+    })(style);
+  }
+};
+
+function init() {
+  var ret = {};
+  Object.keys(styles).forEach(function(name) {
+    ret[name] = {
+      get: function() {
+        return build([name]);
+      },
+    };
+  });
+  return ret;
+}
+
+var sequencer = function sequencer(map, str) {
+  var exploded = str.split('');
+  exploded = exploded.map(map);
+  return exploded.join('');
+};
+
+// custom formatter methods
+colors.trap = __nccwpck_require__(9493);
+colors.zalgo = __nccwpck_require__(90);
+
+// maps
+colors.maps = {};
+colors.maps.america = __nccwpck_require__(9337)(colors);
+colors.maps.zebra = __nccwpck_require__(3792)(colors);
+colors.maps.rainbow = __nccwpck_require__(9565)(colors);
+colors.maps.random = __nccwpck_require__(8212)(colors);
+
+for (var map in colors.maps) {
+  (function(map) {
+    colors[map] = function(str) {
+      return sequencer(colors.maps[map], str);
+    };
+  })(map);
+}
+
+defineProps(colors, init());
+
+
+/***/ }),
+
+/***/ 9493:
+/***/ ((module) => {
+
+module['exports'] = function runTheTrap(text, options) {
+  var result = '';
+  text = text || 'Run the trap, drop the bass';
+  text = text.split('');
+  var trap = {
+    a: ['\u0040', '\u0104', '\u023a', '\u0245', '\u0394', '\u039b', '\u0414'],
+    b: ['\u00df', '\u0181', '\u0243', '\u026e', '\u03b2', '\u0e3f'],
+    c: ['\u00a9', '\u023b', '\u03fe'],
+    d: ['\u00d0', '\u018a', '\u0500', '\u0501', '\u0502', '\u0503'],
+    e: ['\u00cb', '\u0115', '\u018e', '\u0258', '\u03a3', '\u03be', '\u04bc',
+      '\u0a6c'],
+    f: ['\u04fa'],
+    g: ['\u0262'],
+    h: ['\u0126', '\u0195', '\u04a2', '\u04ba', '\u04c7', '\u050a'],
+    i: ['\u0f0f'],
+    j: ['\u0134'],
+    k: ['\u0138', '\u04a0', '\u04c3', '\u051e'],
+    l: ['\u0139'],
+    m: ['\u028d', '\u04cd', '\u04ce', '\u0520', '\u0521', '\u0d69'],
+    n: ['\u00d1', '\u014b', '\u019d', '\u0376', '\u03a0', '\u048a'],
+    o: ['\u00d8', '\u00f5', '\u00f8', '\u01fe', '\u0298', '\u047a', '\u05dd',
+      '\u06dd', '\u0e4f'],
+    p: ['\u01f7', '\u048e'],
+    q: ['\u09cd'],
+    r: ['\u00ae', '\u01a6', '\u0210', '\u024c', '\u0280', '\u042f'],
+    s: ['\u00a7', '\u03de', '\u03df', '\u03e8'],
+    t: ['\u0141', '\u0166', '\u0373'],
+    u: ['\u01b1', '\u054d'],
+    v: ['\u05d8'],
+    w: ['\u0428', '\u0460', '\u047c', '\u0d70'],
+    x: ['\u04b2', '\u04fe', '\u04fc', '\u04fd'],
+    y: ['\u00a5', '\u04b0', '\u04cb'],
+    z: ['\u01b5', '\u0240'],
+  };
+  text.forEach(function(c) {
+    c = c.toLowerCase();
+    var chars = trap[c] || [' '];
+    var rand = Math.floor(Math.random() * chars.length);
+    if (typeof trap[c] !== 'undefined') {
+      result += trap[c][rand];
+    } else {
+      result += c;
+    }
+  });
+  return result;
+};
+
+
+/***/ }),
+
+/***/ 90:
+/***/ ((module) => {
+
+// please no
+module['exports'] = function zalgo(text, options) {
+  text = text || '   he is here   ';
+  var soul = {
+    'up': [
+      '̍', '̎', '̄', '̅',
+      '̿', '̑', '̆', '̐',
+      '͒', '͗', '͑', '̇',
+      '̈', '̊', '͂', '̓',
+      '̈', '͊', '͋', '͌',
+      '̃', '̂', '̌', '͐',
+      '̀', '́', '̋', '̏',
+      '̒', '̓', '̔', '̽',
+      '̉', 'ͣ', 'ͤ', 'ͥ',
+      'ͦ', 'ͧ', 'ͨ', 'ͩ',
+      'ͪ', 'ͫ', 'ͬ', 'ͭ',
+      'ͮ', 'ͯ', '̾', '͛',
+      '͆', '̚',
+    ],
+    'down': [
+      '̖', '̗', '̘', '̙',
+      '̜', '̝', '̞', '̟',
+      '̠', '̤', '̥', '̦',
+      '̩', '̪', '̫', '̬',
+      '̭', '̮', '̯', '̰',
+      '̱', '̲', '̳', '̹',
+      '̺', '̻', '̼', 'ͅ',
+      '͇', '͈', '͉', '͍',
+      '͎', '͓', '͔', '͕',
+      '͖', '͙', '͚', '̣',
+    ],
+    'mid': [
+      '̕', '̛', '̀', '́',
+      '͘', '̡', '̢', '̧',
+      '̨', '̴', '̵', '̶',
+      '͜', '͝', '͞',
+      '͟', '͠', '͢', '̸',
+      '̷', '͡', ' ҉',
+    ],
+  };
+  var all = [].concat(soul.up, soul.down, soul.mid);
+
+  function randomNumber(range) {
+    var r = Math.floor(Math.random() * range);
+    return r;
+  }
+
+  function isChar(character) {
+    var bool = false;
+    all.filter(function(i) {
+      bool = (i === character);
+    });
+    return bool;
+  }
+
+
+  function heComes(text, options) {
+    var result = '';
+    var counts;
+    var l;
+    options = options || {};
+    options['up'] =
+      typeof options['up'] !== 'undefined' ? options['up'] : true;
+    options['mid'] =
+      typeof options['mid'] !== 'undefined' ? options['mid'] : true;
+    options['down'] =
+      typeof options['down'] !== 'undefined' ? options['down'] : true;
+    options['size'] =
+      typeof options['size'] !== 'undefined' ? options['size'] : 'maxi';
+    text = text.split('');
+    for (l in text) {
+      if (isChar(l)) {
+        continue;
+      }
+      result = result + text[l];
+      counts = {'up': 0, 'down': 0, 'mid': 0};
+      switch (options.size) {
+        case 'mini':
+          counts.up = randomNumber(8);
+          counts.mid = randomNumber(2);
+          counts.down = randomNumber(8);
+          break;
+        case 'maxi':
+          counts.up = randomNumber(16) + 3;
+          counts.mid = randomNumber(4) + 1;
+          counts.down = randomNumber(64) + 3;
+          break;
+        default:
+          counts.up = randomNumber(8) + 1;
+          counts.mid = randomNumber(6) / 2;
+          counts.down = randomNumber(8) + 1;
+          break;
+      }
+
+      var arr = ['up', 'mid', 'down'];
+      for (var d in arr) {
+        var index = arr[d];
+        for (var i = 0; i <= counts[index]; i++) {
+          if (options[index]) {
+            result = result + soul[index][randomNumber(soul[index].length)];
+          }
+        }
+      }
+    }
+    return result;
+  }
+  // don't summon him
+  return heComes(text, options);
+};
+
+
+
+/***/ }),
+
+/***/ 9337:
+/***/ ((module) => {
+
+module['exports'] = function(colors) {
+  return function(letter, i, exploded) {
+    if (letter === ' ') return letter;
+    switch (i%3) {
+      case 0: return colors.red(letter);
+      case 1: return colors.white(letter);
+      case 2: return colors.blue(letter);
+    }
+  };
+};
+
+
+/***/ }),
+
+/***/ 9565:
+/***/ ((module) => {
+
+module['exports'] = function(colors) {
+  // RoY G BiV
+  var rainbowColors = ['red', 'yellow', 'green', 'blue', 'magenta'];
+  return function(letter, i, exploded) {
+    if (letter === ' ') {
+      return letter;
+    } else {
+      return colors[rainbowColors[i++ % rainbowColors.length]](letter);
+    }
+  };
+};
+
+
+
+/***/ }),
+
+/***/ 8212:
+/***/ ((module) => {
+
+module['exports'] = function(colors) {
+  var available = ['underline', 'inverse', 'grey', 'yellow', 'red', 'green',
+    'blue', 'white', 'cyan', 'magenta', 'brightYellow', 'brightRed',
+    'brightGreen', 'brightBlue', 'brightWhite', 'brightCyan', 'brightMagenta'];
+  return function(letter, i, exploded) {
+    return letter === ' ' ? letter :
+      colors[
+          available[Math.round(Math.random() * (available.length - 2))]
+      ](letter);
+  };
+};
+
+
+/***/ }),
+
+/***/ 3792:
+/***/ ((module) => {
+
+module['exports'] = function(colors) {
+  return function(letter, i, exploded) {
+    return i % 2 === 0 ? letter : colors.inverse(letter);
+  };
+};
+
+
+/***/ }),
+
+/***/ 5691:
+/***/ ((module) => {
+
+/*
+The MIT License (MIT)
+
+Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+*/
+
+var styles = {};
+module['exports'] = styles;
+
+var codes = {
+  reset: [0, 0],
+
+  bold: [1, 22],
+  dim: [2, 22],
+  italic: [3, 23],
+  underline: [4, 24],
+  inverse: [7, 27],
+  hidden: [8, 28],
+  strikethrough: [9, 29],
+
+  black: [30, 39],
+  red: [31, 39],
+  green: [32, 39],
+  yellow: [33, 39],
+  blue: [34, 39],
+  magenta: [35, 39],
+  cyan: [36, 39],
+  white: [37, 39],
+  gray: [90, 39],
+  grey: [90, 39],
+
+  brightRed: [91, 39],
+  brightGreen: [92, 39],
+  brightYellow: [93, 39],
+  brightBlue: [94, 39],
+  brightMagenta: [95, 39],
+  brightCyan: [96, 39],
+  brightWhite: [97, 39],
+
+  bgBlack: [40, 49],
+  bgRed: [41, 49],
+  bgGreen: [42, 49],
+  bgYellow: [43, 49],
+  bgBlue: [44, 49],
+  bgMagenta: [45, 49],
+  bgCyan: [46, 49],
+  bgWhite: [47, 49],
+  bgGray: [100, 49],
+  bgGrey: [100, 49],
+
+  bgBrightRed: [101, 49],
+  bgBrightGreen: [102, 49],
+  bgBrightYellow: [103, 49],
+  bgBrightBlue: [104, 49],
+  bgBrightMagenta: [105, 49],
+  bgBrightCyan: [106, 49],
+  bgBrightWhite: [107, 49],
+
+  // legacy styles for colors pre v1.0.0
+  blackBG: [40, 49],
+  redBG: [41, 49],
+  greenBG: [42, 49],
+  yellowBG: [43, 49],
+  blueBG: [44, 49],
+  magentaBG: [45, 49],
+  cyanBG: [46, 49],
+  whiteBG: [47, 49],
+
+};
+
+Object.keys(codes).forEach(function(key) {
+  var val = codes[key];
+  var style = styles[key] = [];
+  style.open = '\u001b[' + val[0] + 'm';
+  style.close = '\u001b[' + val[1] + 'm';
+});
+
+
+/***/ }),
+
+/***/ 3680:
+/***/ ((module) => {
+
+"use strict";
+/*
+MIT License
+
+Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
+
+
+module.exports = function(flag, argv) {
+  argv = argv || process.argv;
+
+  var terminatorPos = argv.indexOf('--');
+  var prefix = /^-{1,2}/.test(flag) ? '' : '--';
+  var pos = argv.indexOf(prefix + flag);
+
+  return pos !== -1 && (terminatorPos === -1 ? true : pos < terminatorPos);
+};
+
+
+/***/ }),
+
+/***/ 1959:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+/*
+The MIT License (MIT)
+
+Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+*/
+
+
+
+var os = __nccwpck_require__(2037);
+var hasFlag = __nccwpck_require__(3680);
+
+var env = process.env;
+
+var forceColor = void 0;
+if (hasFlag('no-color') || hasFlag('no-colors') || hasFlag('color=false')) {
+  forceColor = false;
+} else if (hasFlag('color') || hasFlag('colors') || hasFlag('color=true')
+           || hasFlag('color=always')) {
+  forceColor = true;
+}
+if ('FORCE_COLOR' in env) {
+  forceColor = env.FORCE_COLOR.length === 0
+    || parseInt(env.FORCE_COLOR, 10) !== 0;
+}
+
+function translateLevel(level) {
+  if (level === 0) {
+    return false;
+  }
+
+  return {
+    level: level,
+    hasBasic: true,
+    has256: level >= 2,
+    has16m: level >= 3,
+  };
+}
+
+function supportsColor(stream) {
+  if (forceColor === false) {
+    return 0;
+  }
+
+  if (hasFlag('color=16m') || hasFlag('color=full')
+      || hasFlag('color=truecolor')) {
+    return 3;
+  }
+
+  if (hasFlag('color=256')) {
+    return 2;
+  }
+
+  if (stream && !stream.isTTY && forceColor !== true) {
+    return 0;
+  }
+
+  var min = forceColor ? 1 : 0;
+
+  if (process.platform === 'win32') {
+    // Node.js 7.5.0 is the first version of Node.js to include a patch to
+    // libuv that enables 256 color output on Windows. Anything earlier and it
+    // won't work. However, here we target Node.js 8 at minimum as it is an LTS
+    // release, and Node.js 7 is not. Windows 10 build 10586 is the first
+    // Windows release that supports 256 colors. Windows 10 build 14931 is the
+    // first release that supports 16m/TrueColor.
+    var osRelease = os.release().split('.');
+    if (Number(process.versions.node.split('.')[0]) >= 8
+        && Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
+      return Number(osRelease[2]) >= 14931 ? 3 : 2;
+    }
+
+    return 1;
+  }
+
+  if ('CI' in env) {
+    if (['TRAVIS', 'CIRCLECI', 'APPVEYOR', 'GITLAB_CI'].some(function(sign) {
+      return sign in env;
+    }) || env.CI_NAME === 'codeship') {
+      return 1;
+    }
+
+    return min;
+  }
+
+  if ('TEAMCITY_VERSION' in env) {
+    return (/^(9\.(0*[1-9]\d*)\.|\d{2,}\.)/.test(env.TEAMCITY_VERSION) ? 1 : 0
+    );
+  }
+
+  if ('TERM_PROGRAM' in env) {
+    var version = parseInt((env.TERM_PROGRAM_VERSION || '').split('.')[0], 10);
+
+    switch (env.TERM_PROGRAM) {
+      case 'iTerm.app':
+        return version >= 3 ? 3 : 2;
+      case 'Hyper':
+        return 3;
+      case 'Apple_Terminal':
+        return 2;
+      // No default
+    }
+  }
+
+  if (/-256(color)?$/i.test(env.TERM)) {
+    return 2;
+  }
+
+  if (/^screen|^xterm|^vt100|^rxvt|color|ansi|cygwin|linux/i.test(env.TERM)) {
+    return 1;
+  }
+
+  if ('COLORTERM' in env) {
+    return 1;
+  }
+
+  if (env.TERM === 'dumb') {
+    return min;
+  }
+
+  return min;
+}
+
+function getSupportLevel(stream) {
+  var level = supportsColor(stream);
+  return translateLevel(level);
+}
+
+module.exports = {
+  supportsColor: getSupportLevel,
+  stdout: getSupportLevel(process.stdout),
+  stderr: getSupportLevel(process.stderr),
+};
+
+
+/***/ }),
+
+/***/ 9256:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+//
+// Remark: Requiring this file will use the "safe" colors API,
+// which will not touch String.prototype.
+//
+//   var colors = require('colors/safe');
+//   colors.red("foo")
+//
+//
+var colors = __nccwpck_require__(4175);
+module['exports'] = colors;
+
+
+/***/ }),
+
+/***/ 4235:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+var enabled = __nccwpck_require__(3495);
+
+/**
+ * Creates a new Adapter.
+ *
+ * @param {Function} fn Function that returns the value.
+ * @returns {Function} The adapter logic.
+ * @public
+ */
+module.exports = function create(fn) {
+  return function adapter(namespace) {
+    try {
+      return enabled(namespace, fn());
+    } catch (e) { /* Any failure means that we found nothing */ }
+
+    return false;
+  };
+}
+
+
+/***/ }),
+
+/***/ 1009:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+var adapter = __nccwpck_require__(4235);
+
+/**
+ * Extracts the values from process.env.
+ *
+ * @type {Function}
+ * @public
+ */
+module.exports = adapter(function processenv() {
+  return process.env.DEBUG || process.env.DIAGNOSTICS;
+});
+
+
+/***/ }),
+
+/***/ 3201:
+/***/ ((module) => {
+
+/**
+ * Contains all configured adapters for the given environment.
+ *
+ * @type {Array}
+ * @public
+ */
+var adapters = [];
+
+/**
+ * Contains all modifier functions.
+ *
+ * @typs {Array}
+ * @public
+ */
+var modifiers = [];
+
+/**
+ * Our default logger.
+ *
+ * @public
+ */
+var logger = function devnull() {};
+
+/**
+ * Register a new adapter that will used to find environments.
+ *
+ * @param {Function} adapter A function that will return the possible env.
+ * @returns {Boolean} Indication of a successful add.
+ * @public
+ */
+function use(adapter) {
+  if (~adapters.indexOf(adapter)) return false;
+
+  adapters.push(adapter);
+  return true;
+}
+
+/**
+ * Assign a new log method.
+ *
+ * @param {Function} custom The log method.
+ * @public
+ */
+function set(custom) {
+  logger = custom;
+}
+
+/**
+ * Check if the namespace is allowed by any of our adapters.
+ *
+ * @param {String} namespace The namespace that needs to be enabled
+ * @returns {Boolean|Promise} Indication if the namespace is enabled by our adapters.
+ * @public
+ */
+function enabled(namespace) {
+  var async = [];
+
+  for (var i = 0; i < adapters.length; i++) {
+    if (adapters[i].async) {
+      async.push(adapters[i]);
+      continue;
+    }
+
+    if (adapters[i](namespace)) return true;
+  }
+
+  if (!async.length) return false;
+
+  //
+  // Now that we know that we Async functions, we know we run in an ES6
+  // environment and can use all the API's that they offer, in this case
+  // we want to return a Promise so that we can `await` in React-Native
+  // for an async adapter.
+  //
+  return new Promise(function pinky(resolve) {
+    Promise.all(
+      async.map(function prebind(fn) {
+        return fn(namespace);
+      })
+    ).then(function resolved(values) {
+      resolve(values.some(Boolean));
+    });
+  });
+}
+
+/**
+ * Add a new message modifier to the debugger.
+ *
+ * @param {Function} fn Modification function.
+ * @returns {Boolean} Indication of a successful add.
+ * @public
+ */
+function modify(fn) {
+  if (~modifiers.indexOf(fn)) return false;
+
+  modifiers.push(fn);
+  return true;
+}
+
+/**
+ * Write data to the supplied logger.
+ *
+ * @param {Object} meta Meta information about the log.
+ * @param {Array} args Arguments for console.log.
+ * @public
+ */
+function write() {
+  logger.apply(logger, arguments);
+}
+
+/**
+ * Process the message with the modifiers.
+ *
+ * @param {Mixed} message The message to be transformed by modifers.
+ * @returns {String} Transformed message.
+ * @public
+ */
+function process(message) {
+  for (var i = 0; i < modifiers.length; i++) {
+    message = modifiers[i].apply(modifiers[i], arguments);
+  }
+
+  return message;
+}
+
+/**
+ * Introduce options to the logger function.
+ *
+ * @param {Function} fn Calback function.
+ * @param {Object} options Properties to introduce on fn.
+ * @returns {Function} The passed function
+ * @public
+ */
+function introduce(fn, options) {
+  var has = Object.prototype.hasOwnProperty;
+
+  for (var key in options) {
+    if (has.call(options, key)) {
+      fn[key] = options[key];
+    }
+  }
+
+  return fn;
+}
+
+/**
+ * Nope, we're not allowed to write messages.
+ *
+ * @returns {Boolean} false
+ * @public
+ */
+function nope(options) {
+  options.enabled = false;
+  options.modify = modify;
+  options.set = set;
+  options.use = use;
+
+  return introduce(function diagnopes() {
+    return false;
+  }, options);
+}
+
+/**
+ * Yep, we're allowed to write debug messages.
+ *
+ * @param {Object} options The options for the process.
+ * @returns {Function} The function that does the logging.
+ * @public
+ */
+function yep(options) {
+  /**
+   * The function that receives the actual debug information.
+   *
+   * @returns {Boolean} indication that we're logging.
+   * @public
+   */
+  function diagnostics() {
+    var args = Array.prototype.slice.call(arguments, 0);
+
+    write.call(write, options, process(args, options));
+    return true;
+  }
+
+  options.enabled = true;
+  options.modify = modify;
+  options.set = set;
+  options.use = use;
+
+  return introduce(diagnostics, options);
+}
+
+/**
+ * Simple helper function to introduce various of helper methods to our given
+ * diagnostics function.
+ *
+ * @param {Function} diagnostics The diagnostics function.
+ * @returns {Function} diagnostics
+ * @public
+ */
+module.exports = function create(diagnostics) {
+  diagnostics.introduce = introduce;
+  diagnostics.enabled = enabled;
+  diagnostics.process = process;
+  diagnostics.modify = modify;
+  diagnostics.write = write;
+  diagnostics.nope = nope;
+  diagnostics.yep = yep;
+  diagnostics.set = set;
+  diagnostics.use = use;
+
+  return diagnostics;
+}
+
+
+/***/ }),
+
+/***/ 1238:
+/***/ ((module) => {
+
+/**
+ * An idiot proof logger to be used as default. We've wrapped it in a try/catch
+ * statement to ensure the environments without the `console` API do not crash
+ * as well as an additional fix for ancient browsers like IE8 where the
+ * `console.log` API doesn't have an `apply`, so we need to use the Function's
+ * apply functionality to apply the arguments.
+ *
+ * @param {Object} meta Options of the logger.
+ * @param {Array} messages The actuall message that needs to be logged.
+ * @public
+ */
+module.exports = function (meta, messages) {
+  //
+  // So yea. IE8 doesn't have an apply so we need a work around to puke the
+  // arguments in place.
+  //
+  try { Function.prototype.apply.call(console.log, console, messages); }
+  catch (e) {}
+}
+
+
+/***/ }),
+
+/***/ 5037:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+var colorspace = __nccwpck_require__(5917);
+var kuler = __nccwpck_require__(6287);
+
+/**
+ * Prefix the messages with a colored namespace.
+ *
+ * @param {Array} args The messages array that is getting written.
+ * @param {Object} options Options for diagnostics.
+ * @returns {Array} Altered messages array.
+ * @public
+ */
+module.exports = function ansiModifier(args, options) {
+  var namespace = options.namespace;
+  var ansi = options.colors !== false
+  ? kuler(namespace +':', colorspace(namespace))
+  : namespace +':';
+
+  args[0] = ansi +' '+ args[0];
+  return args;
+};
+
+
+/***/ }),
+
+/***/ 611:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+var create = __nccwpck_require__(3201);
+var tty = (__nccwpck_require__(6224).isatty)(1);
+
+/**
+ * Create a new diagnostics logger.
+ *
+ * @param {String} namespace The namespace it should enable.
+ * @param {Object} options Additional options.
+ * @returns {Function} The logger.
+ * @public
+ */
+var diagnostics = create(function dev(namespace, options) {
+  options = options || {};
+  options.colors = 'colors' in options ? options.colors : tty;
+  options.namespace = namespace;
+  options.prod = false;
+  options.dev = true;
+
+  if (!dev.enabled(namespace) && !(options.force || dev.force)) {
+    return dev.nope(options);
+  }
+  
+  return dev.yep(options);
+});
+
+//
+// Configure the logger for the given environment.
+//
+diagnostics.modify(__nccwpck_require__(5037));
+diagnostics.use(__nccwpck_require__(1009));
+diagnostics.set(__nccwpck_require__(1238));
+
+//
+// Expose the diagnostics logger.
+//
+module.exports = diagnostics;
+
+
+/***/ }),
+
+/***/ 3170:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+//
+// Select the correct build version depending on the environment.
+//
+if (process.env.NODE_ENV === 'production') {
+  module.exports = __nccwpck_require__(8477);
+} else {
+  module.exports = __nccwpck_require__(611);
+}
+
+
+/***/ }),
+
+/***/ 8477:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+var create = __nccwpck_require__(3201);
+
+/**
+ * Create a new diagnostics logger.
+ *
+ * @param {String} namespace The namespace it should enable.
+ * @param {Object} options Additional options.
+ * @returns {Function} The logger.
+ * @public
+ */
+var diagnostics = create(function prod(namespace, options) {
+  options = options || {};
+  options.namespace = namespace;
+  options.prod = true;
+  options.dev = false;
+
+  if (!(options.force || prod.force)) return prod.nope(options);
+  return prod.yep(options);
+});
+
+//
+// Expose the diagnostics logger.
+//
+module.exports = diagnostics;
 
 
 /***/ }),
@@ -6360,123 +7834,6 @@ module.exports = {
 
 /***/ }),
 
-/***/ 991:
-/***/ ((module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-    value: true
-}));
-exports["default"] = asyncify;
-
-var _isObject = __nccwpck_require__(3334);
-
-var _isObject2 = _interopRequireDefault(_isObject);
-
-var _initialParams = __nccwpck_require__(9658);
-
-var _initialParams2 = _interopRequireDefault(_initialParams);
-
-var _setImmediate = __nccwpck_require__(729);
-
-var _setImmediate2 = _interopRequireDefault(_setImmediate);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-/**
- * Take a sync function and make it async, passing its return value to a
- * callback. This is useful for plugging sync functions into a waterfall,
- * series, or other async functions. Any arguments passed to the generated
- * function will be passed to the wrapped function (except for the final
- * callback argument). Errors thrown will be passed to the callback.
- *
- * If the function passed to `asyncify` returns a Promise, that promises's
- * resolved/rejected state will be used to call the callback, rather than simply
- * the synchronous return value.
- *
- * This also means you can asyncify ES2017 `async` functions.
- *
- * @name asyncify
- * @static
- * @memberOf module:Utils
- * @method
- * @alias wrapSync
- * @category Util
- * @param {Function} func - The synchronous function, or Promise-returning
- * function to convert to an {@link AsyncFunction}.
- * @returns {AsyncFunction} An asynchronous wrapper of the `func`. To be
- * invoked with `(args..., callback)`.
- * @example
- *
- * // passing a regular synchronous function
- * async.waterfall([
- *     async.apply(fs.readFile, filename, "utf8"),
- *     async.asyncify(JSON.parse),
- *     function (data, next) {
- *         // data is the result of parsing the text.
- *         // If there was a parsing error, it would have been caught.
- *     }
- * ], callback);
- *
- * // passing a function returning a promise
- * async.waterfall([
- *     async.apply(fs.readFile, filename, "utf8"),
- *     async.asyncify(function (contents) {
- *         return db.model.create(contents);
- *     }),
- *     function (model, next) {
- *         // `model` is the instantiated model object.
- *         // If there was an error, this function would be skipped.
- *     }
- * ], callback);
- *
- * // es2017 example, though `asyncify` is not needed if your JS environment
- * // supports async functions out of the box
- * var q = async.queue(async.asyncify(async function(file) {
- *     var intermediateStep = await processFile(file);
- *     return await somePromise(intermediateStep)
- * }));
- *
- * q.push(files);
- */
-function asyncify(func) {
-    return (0, _initialParams2.default)(function (args, callback) {
-        var result;
-        try {
-            result = func.apply(this, args);
-        } catch (e) {
-            return callback(e);
-        }
-        // if result is Promise object
-        if ((0, _isObject2.default)(result) && typeof result.then === 'function') {
-            result.then(function (value) {
-                invokeCallback(callback, null, value);
-            }, function (err) {
-                invokeCallback(callback, err.message ? err : new Error(err));
-            });
-        } else {
-            callback(null, result);
-        }
-    });
-}
-
-function invokeCallback(callback, error, value) {
-    try {
-        callback(error, value);
-    } catch (e) {
-        (0, _setImmediate2.default)(rethrow, e);
-    }
-}
-
-function rethrow(error) {
-    throw error;
-}
-module.exports = exports['default'];
-
-/***/ }),
-
 /***/ 7888:
 /***/ (function(module, exports, __nccwpck_require__) {
 
@@ -7430,6 +8787,9 @@ function createObjectIterator(obj) {
     var len = okeys.length;
     return function next() {
         var key = okeys[++i];
+        if (key === '__proto__') {
+            return next();
+        }
         return i < len ? {value: obj[key], key: key} : null;
     };
 }
@@ -12093,840 +13453,6 @@ Object.defineProperty(exports, '__esModule', { value: true });
 
 /***/ }),
 
-/***/ 5460:
-/***/ ((module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-    value: true
-}));
-
-exports["default"] = function (coll, iteratee, callback) {
-    var eachOfImplementation = (0, _isArrayLike2.default)(coll) ? eachOfArrayLike : eachOfGeneric;
-    eachOfImplementation(coll, (0, _wrapAsync2.default)(iteratee), callback);
-};
-
-var _isArrayLike = __nccwpck_require__(8017);
-
-var _isArrayLike2 = _interopRequireDefault(_isArrayLike);
-
-var _breakLoop = __nccwpck_require__(8810);
-
-var _breakLoop2 = _interopRequireDefault(_breakLoop);
-
-var _eachOfLimit = __nccwpck_require__(9342);
-
-var _eachOfLimit2 = _interopRequireDefault(_eachOfLimit);
-
-var _doLimit = __nccwpck_require__(6707);
-
-var _doLimit2 = _interopRequireDefault(_doLimit);
-
-var _noop = __nccwpck_require__(1901);
-
-var _noop2 = _interopRequireDefault(_noop);
-
-var _once = __nccwpck_require__(7260);
-
-var _once2 = _interopRequireDefault(_once);
-
-var _onlyOnce = __nccwpck_require__(1990);
-
-var _onlyOnce2 = _interopRequireDefault(_onlyOnce);
-
-var _wrapAsync = __nccwpck_require__(7456);
-
-var _wrapAsync2 = _interopRequireDefault(_wrapAsync);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-// eachOf implementation optimized for array-likes
-function eachOfArrayLike(coll, iteratee, callback) {
-    callback = (0, _once2.default)(callback || _noop2.default);
-    var index = 0,
-        completed = 0,
-        length = coll.length;
-    if (length === 0) {
-        callback(null);
-    }
-
-    function iteratorCallback(err, value) {
-        if (err) {
-            callback(err);
-        } else if (++completed === length || value === _breakLoop2.default) {
-            callback(null);
-        }
-    }
-
-    for (; index < length; index++) {
-        iteratee(coll[index], index, (0, _onlyOnce2.default)(iteratorCallback));
-    }
-}
-
-// a generic version of eachOf which can handle array, object, and iterator cases.
-var eachOfGeneric = (0, _doLimit2.default)(_eachOfLimit2.default, Infinity);
-
-/**
- * Like [`each`]{@link module:Collections.each}, except that it passes the key (or index) as the second argument
- * to the iteratee.
- *
- * @name eachOf
- * @static
- * @memberOf module:Collections
- * @method
- * @alias forEachOf
- * @category Collection
- * @see [async.each]{@link module:Collections.each}
- * @param {Array|Iterable|Object} coll - A collection to iterate over.
- * @param {AsyncFunction} iteratee - A function to apply to each
- * item in `coll`.
- * The `key` is the item's key, or index in the case of an array.
- * Invoked with (item, key, callback).
- * @param {Function} [callback] - A callback which is called when all
- * `iteratee` functions have finished, or an error occurs. Invoked with (err).
- * @example
- *
- * var obj = {dev: "/dev.json", test: "/test.json", prod: "/prod.json"};
- * var configs = {};
- *
- * async.forEachOf(obj, function (value, key, callback) {
- *     fs.readFile(__dirname + value, "utf8", function (err, data) {
- *         if (err) return callback(err);
- *         try {
- *             configs[key] = JSON.parse(data);
- *         } catch (e) {
- *             return callback(e);
- *         }
- *         callback();
- *     });
- * }, function (err) {
- *     if (err) console.error(err.message);
- *     // configs is now a map of JSON data
- *     doSomethingWith(configs);
- * });
- */
-module.exports = exports['default'];
-
-/***/ }),
-
-/***/ 9342:
-/***/ ((module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = eachOfLimit;
-
-var _eachOfLimit2 = __nccwpck_require__(6658);
-
-var _eachOfLimit3 = _interopRequireDefault(_eachOfLimit2);
-
-var _wrapAsync = __nccwpck_require__(7456);
-
-var _wrapAsync2 = _interopRequireDefault(_wrapAsync);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-/**
- * The same as [`eachOf`]{@link module:Collections.eachOf} but runs a maximum of `limit` async operations at a
- * time.
- *
- * @name eachOfLimit
- * @static
- * @memberOf module:Collections
- * @method
- * @see [async.eachOf]{@link module:Collections.eachOf}
- * @alias forEachOfLimit
- * @category Collection
- * @param {Array|Iterable|Object} coll - A collection to iterate over.
- * @param {number} limit - The maximum number of async operations at a time.
- * @param {AsyncFunction} iteratee - An async function to apply to each
- * item in `coll`. The `key` is the item's key, or index in the case of an
- * array.
- * Invoked with (item, key, callback).
- * @param {Function} [callback] - A callback which is called when all
- * `iteratee` functions have finished, or an error occurs. Invoked with (err).
- */
-function eachOfLimit(coll, limit, iteratee, callback) {
-  (0, _eachOfLimit3.default)(limit)(coll, (0, _wrapAsync2.default)(iteratee), callback);
-}
-module.exports = exports['default'];
-
-/***/ }),
-
-/***/ 1336:
-/***/ ((module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-
-var _eachOfLimit = __nccwpck_require__(9342);
-
-var _eachOfLimit2 = _interopRequireDefault(_eachOfLimit);
-
-var _doLimit = __nccwpck_require__(6707);
-
-var _doLimit2 = _interopRequireDefault(_doLimit);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-/**
- * The same as [`eachOf`]{@link module:Collections.eachOf} but runs only a single async operation at a time.
- *
- * @name eachOfSeries
- * @static
- * @memberOf module:Collections
- * @method
- * @see [async.eachOf]{@link module:Collections.eachOf}
- * @alias forEachOfSeries
- * @category Collection
- * @param {Array|Iterable|Object} coll - A collection to iterate over.
- * @param {AsyncFunction} iteratee - An async function to apply to each item in
- * `coll`.
- * Invoked with (item, key, callback).
- * @param {Function} [callback] - A callback which is called when all `iteratee`
- * functions have finished, or an error occurs. Invoked with (err).
- */
-exports["default"] = (0, _doLimit2.default)(_eachOfLimit2.default, 1);
-module.exports = exports['default'];
-
-/***/ }),
-
-/***/ 1216:
-/***/ ((module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = eachLimit;
-
-var _eachOf = __nccwpck_require__(5460);
-
-var _eachOf2 = _interopRequireDefault(_eachOf);
-
-var _withoutIndex = __nccwpck_require__(4674);
-
-var _withoutIndex2 = _interopRequireDefault(_withoutIndex);
-
-var _wrapAsync = __nccwpck_require__(7456);
-
-var _wrapAsync2 = _interopRequireDefault(_wrapAsync);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-/**
- * Applies the function `iteratee` to each item in `coll`, in parallel.
- * The `iteratee` is called with an item from the list, and a callback for when
- * it has finished. If the `iteratee` passes an error to its `callback`, the
- * main `callback` (for the `each` function) is immediately called with the
- * error.
- *
- * Note, that since this function applies `iteratee` to each item in parallel,
- * there is no guarantee that the iteratee functions will complete in order.
- *
- * @name each
- * @static
- * @memberOf module:Collections
- * @method
- * @alias forEach
- * @category Collection
- * @param {Array|Iterable|Object} coll - A collection to iterate over.
- * @param {AsyncFunction} iteratee - An async function to apply to
- * each item in `coll`. Invoked with (item, callback).
- * The array index is not passed to the iteratee.
- * If you need the index, use `eachOf`.
- * @param {Function} [callback] - A callback which is called when all
- * `iteratee` functions have finished, or an error occurs. Invoked with (err).
- * @example
- *
- * // assuming openFiles is an array of file names and saveFile is a function
- * // to save the modified contents of that file:
- *
- * async.each(openFiles, saveFile, function(err){
- *   // if any of the saves produced an error, err would equal that error
- * });
- *
- * // assuming openFiles is an array of file names
- * async.each(openFiles, function(file, callback) {
- *
- *     // Perform operation on file here.
- *     console.log('Processing file ' + file);
- *
- *     if( file.length > 32 ) {
- *       console.log('This file name is too long');
- *       callback('File name too long');
- *     } else {
- *       // Do work to process file here
- *       console.log('File processed');
- *       callback();
- *     }
- * }, function(err) {
- *     // if any of the file processing produced an error, err would equal that error
- *     if( err ) {
- *       // One of the iterations produced an error.
- *       // All processing will now stop.
- *       console.log('A file failed to process');
- *     } else {
- *       console.log('All files have been processed successfully');
- *     }
- * });
- */
-function eachLimit(coll, iteratee, callback) {
-  (0, _eachOf2.default)(coll, (0, _withoutIndex2.default)((0, _wrapAsync2.default)(iteratee)), callback);
-}
-module.exports = exports['default'];
-
-/***/ }),
-
-/***/ 8810:
-/***/ ((module, exports) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-// A temporary value used to identify if the loop should be broken.
-// See #1064, #1293
-exports["default"] = {};
-module.exports = exports["default"];
-
-/***/ }),
-
-/***/ 6707:
-/***/ ((module, exports) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-    value: true
-}));
-exports["default"] = doLimit;
-function doLimit(fn, limit) {
-    return function (iterable, iteratee, callback) {
-        return fn(iterable, limit, iteratee, callback);
-    };
-}
-module.exports = exports["default"];
-
-/***/ }),
-
-/***/ 6658:
-/***/ ((module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-    value: true
-}));
-exports["default"] = _eachOfLimit;
-
-var _noop = __nccwpck_require__(1901);
-
-var _noop2 = _interopRequireDefault(_noop);
-
-var _once = __nccwpck_require__(7260);
-
-var _once2 = _interopRequireDefault(_once);
-
-var _iterator = __nccwpck_require__(1420);
-
-var _iterator2 = _interopRequireDefault(_iterator);
-
-var _onlyOnce = __nccwpck_require__(1990);
-
-var _onlyOnce2 = _interopRequireDefault(_onlyOnce);
-
-var _breakLoop = __nccwpck_require__(8810);
-
-var _breakLoop2 = _interopRequireDefault(_breakLoop);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _eachOfLimit(limit) {
-    return function (obj, iteratee, callback) {
-        callback = (0, _once2.default)(callback || _noop2.default);
-        if (limit <= 0 || !obj) {
-            return callback(null);
-        }
-        var nextElem = (0, _iterator2.default)(obj);
-        var done = false;
-        var running = 0;
-        var looping = false;
-
-        function iterateeCallback(err, value) {
-            running -= 1;
-            if (err) {
-                done = true;
-                callback(err);
-            } else if (value === _breakLoop2.default || done && running <= 0) {
-                done = true;
-                return callback(null);
-            } else if (!looping) {
-                replenish();
-            }
-        }
-
-        function replenish() {
-            looping = true;
-            while (running < limit && !done) {
-                var elem = nextElem();
-                if (elem === null) {
-                    done = true;
-                    if (running <= 0) {
-                        callback(null);
-                    }
-                    return;
-                }
-                running += 1;
-                iteratee(elem.value, elem.key, (0, _onlyOnce2.default)(iterateeCallback));
-            }
-            looping = false;
-        }
-
-        replenish();
-    };
-}
-module.exports = exports['default'];
-
-/***/ }),
-
-/***/ 7645:
-/***/ ((module, exports) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-    value: true
-}));
-
-exports["default"] = function (coll) {
-    return iteratorSymbol && coll[iteratorSymbol] && coll[iteratorSymbol]();
-};
-
-var iteratorSymbol = typeof Symbol === 'function' && Symbol.iterator;
-
-module.exports = exports['default'];
-
-/***/ }),
-
-/***/ 9658:
-/***/ ((module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-    value: true
-}));
-
-exports["default"] = function (fn) {
-    return function () /*...args, callback*/{
-        var args = (0, _slice2.default)(arguments);
-        var callback = args.pop();
-        fn.call(this, args, callback);
-    };
-};
-
-var _slice = __nccwpck_require__(6980);
-
-var _slice2 = _interopRequireDefault(_slice);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-module.exports = exports['default'];
-
-/***/ }),
-
-/***/ 1420:
-/***/ ((module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-    value: true
-}));
-exports["default"] = iterator;
-
-var _isArrayLike = __nccwpck_require__(8017);
-
-var _isArrayLike2 = _interopRequireDefault(_isArrayLike);
-
-var _getIterator = __nccwpck_require__(7645);
-
-var _getIterator2 = _interopRequireDefault(_getIterator);
-
-var _keys = __nccwpck_require__(7855);
-
-var _keys2 = _interopRequireDefault(_keys);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function createArrayIterator(coll) {
-    var i = -1;
-    var len = coll.length;
-    return function next() {
-        return ++i < len ? { value: coll[i], key: i } : null;
-    };
-}
-
-function createES2015Iterator(iterator) {
-    var i = -1;
-    return function next() {
-        var item = iterator.next();
-        if (item.done) return null;
-        i++;
-        return { value: item.value, key: i };
-    };
-}
-
-function createObjectIterator(obj) {
-    var okeys = (0, _keys2.default)(obj);
-    var i = -1;
-    var len = okeys.length;
-    return function next() {
-        var key = okeys[++i];
-        return i < len ? { value: obj[key], key: key } : null;
-    };
-}
-
-function iterator(coll) {
-    if ((0, _isArrayLike2.default)(coll)) {
-        return createArrayIterator(coll);
-    }
-
-    var iterator = (0, _getIterator2.default)(coll);
-    return iterator ? createES2015Iterator(iterator) : createObjectIterator(coll);
-}
-module.exports = exports['default'];
-
-/***/ }),
-
-/***/ 7260:
-/***/ ((module, exports) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-    value: true
-}));
-exports["default"] = once;
-function once(fn) {
-    return function () {
-        if (fn === null) return;
-        var callFn = fn;
-        fn = null;
-        callFn.apply(this, arguments);
-    };
-}
-module.exports = exports["default"];
-
-/***/ }),
-
-/***/ 1990:
-/***/ ((module, exports) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-    value: true
-}));
-exports["default"] = onlyOnce;
-function onlyOnce(fn) {
-    return function () {
-        if (fn === null) throw new Error("Callback was already called.");
-        var callFn = fn;
-        fn = null;
-        callFn.apply(this, arguments);
-    };
-}
-module.exports = exports["default"];
-
-/***/ }),
-
-/***/ 3221:
-/***/ ((module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-    value: true
-}));
-exports["default"] = _parallel;
-
-var _noop = __nccwpck_require__(1901);
-
-var _noop2 = _interopRequireDefault(_noop);
-
-var _isArrayLike = __nccwpck_require__(8017);
-
-var _isArrayLike2 = _interopRequireDefault(_isArrayLike);
-
-var _slice = __nccwpck_require__(6980);
-
-var _slice2 = _interopRequireDefault(_slice);
-
-var _wrapAsync = __nccwpck_require__(7456);
-
-var _wrapAsync2 = _interopRequireDefault(_wrapAsync);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _parallel(eachfn, tasks, callback) {
-    callback = callback || _noop2.default;
-    var results = (0, _isArrayLike2.default)(tasks) ? [] : {};
-
-    eachfn(tasks, function (task, key, callback) {
-        (0, _wrapAsync2.default)(task)(function (err, result) {
-            if (arguments.length > 2) {
-                result = (0, _slice2.default)(arguments, 1);
-            }
-            results[key] = result;
-            callback(err);
-        });
-    }, function (err) {
-        callback(err, results);
-    });
-}
-module.exports = exports['default'];
-
-/***/ }),
-
-/***/ 729:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-    value: true
-}));
-exports.hasNextTick = exports.hasSetImmediate = undefined;
-exports.fallback = fallback;
-exports.wrap = wrap;
-
-var _slice = __nccwpck_require__(6980);
-
-var _slice2 = _interopRequireDefault(_slice);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-var hasSetImmediate = exports.hasSetImmediate = typeof setImmediate === 'function' && setImmediate;
-var hasNextTick = exports.hasNextTick = typeof process === 'object' && typeof process.nextTick === 'function';
-
-function fallback(fn) {
-    setTimeout(fn, 0);
-}
-
-function wrap(defer) {
-    return function (fn /*, ...args*/) {
-        var args = (0, _slice2.default)(arguments, 1);
-        defer(function () {
-            fn.apply(null, args);
-        });
-    };
-}
-
-var _defer;
-
-if (hasSetImmediate) {
-    _defer = setImmediate;
-} else if (hasNextTick) {
-    _defer = process.nextTick;
-} else {
-    _defer = fallback;
-}
-
-exports["default"] = wrap(_defer);
-
-/***/ }),
-
-/***/ 6980:
-/***/ ((module, exports) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-    value: true
-}));
-exports["default"] = slice;
-function slice(arrayLike, start) {
-    start = start | 0;
-    var newLen = Math.max(arrayLike.length - start, 0);
-    var newArr = Array(newLen);
-    for (var idx = 0; idx < newLen; idx++) {
-        newArr[idx] = arrayLike[start + idx];
-    }
-    return newArr;
-}
-module.exports = exports["default"];
-
-/***/ }),
-
-/***/ 4674:
-/***/ ((module, exports) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-    value: true
-}));
-exports["default"] = _withoutIndex;
-function _withoutIndex(iteratee) {
-    return function (value, index, callback) {
-        return iteratee(value, callback);
-    };
-}
-module.exports = exports["default"];
-
-/***/ }),
-
-/***/ 7456:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-    value: true
-}));
-exports.isAsync = undefined;
-
-var _asyncify = __nccwpck_require__(991);
-
-var _asyncify2 = _interopRequireDefault(_asyncify);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-var supportsSymbol = typeof Symbol === 'function';
-
-function isAsync(fn) {
-    return supportsSymbol && fn[Symbol.toStringTag] === 'AsyncFunction';
-}
-
-function wrapAsync(asyncFn) {
-    return isAsync(asyncFn) ? (0, _asyncify2.default)(asyncFn) : asyncFn;
-}
-
-exports["default"] = wrapAsync;
-exports.isAsync = isAsync;
-
-/***/ }),
-
-/***/ 9619:
-/***/ ((module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = series;
-
-var _parallel = __nccwpck_require__(3221);
-
-var _parallel2 = _interopRequireDefault(_parallel);
-
-var _eachOfSeries = __nccwpck_require__(1336);
-
-var _eachOfSeries2 = _interopRequireDefault(_eachOfSeries);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-/**
- * Run the functions in the `tasks` collection in series, each one running once
- * the previous function has completed. If any functions in the series pass an
- * error to its callback, no more functions are run, and `callback` is
- * immediately called with the value of the error. Otherwise, `callback`
- * receives an array of results when `tasks` have completed.
- *
- * It is also possible to use an object instead of an array. Each property will
- * be run as a function, and the results will be passed to the final `callback`
- * as an object instead of an array. This can be a more readable way of handling
- *  results from {@link async.series}.
- *
- * **Note** that while many implementations preserve the order of object
- * properties, the [ECMAScript Language Specification](http://www.ecma-international.org/ecma-262/5.1/#sec-8.6)
- * explicitly states that
- *
- * > The mechanics and order of enumerating the properties is not specified.
- *
- * So if you rely on the order in which your series of functions are executed,
- * and want this to work on all platforms, consider using an array.
- *
- * @name series
- * @static
- * @memberOf module:ControlFlow
- * @method
- * @category Control Flow
- * @param {Array|Iterable|Object} tasks - A collection containing
- * [async functions]{@link AsyncFunction} to run in series.
- * Each function can complete with any number of optional `result` values.
- * @param {Function} [callback] - An optional callback to run once all the
- * functions have completed. This function gets a results array (or object)
- * containing all the result arguments passed to the `task` callbacks. Invoked
- * with (err, result).
- * @example
- * async.series([
- *     function(callback) {
- *         // do some stuff ...
- *         callback(null, 'one');
- *     },
- *     function(callback) {
- *         // do some more stuff ...
- *         callback(null, 'two');
- *     }
- * ],
- * // optional callback
- * function(err, results) {
- *     // results is now equal to ['one', 'two']
- * });
- *
- * async.series({
- *     one: function(callback) {
- *         setTimeout(function() {
- *             callback(null, 1);
- *         }, 200);
- *     },
- *     two: function(callback){
- *         setTimeout(function() {
- *             callback(null, 2);
- *         }, 100);
- *     }
- * }, function(err, results) {
- *     // results is now equal to: {one: 1, two: 2}
- * });
- */
-function series(tasks, callback) {
-  (0, _parallel2.default)(_eachOfSeries2.default, tasks, callback);
-}
-module.exports = exports['default'];
-
-/***/ }),
-
 /***/ 9417:
 /***/ ((module) => {
 
@@ -14463,7 +14989,7 @@ if (typeof define === "function" && define.amd) {
 
 var Chainsaw = __nccwpck_require__(6533);
 var EventEmitter = (__nccwpck_require__(2361).EventEmitter);
-var Buffers = __nccwpck_require__(16);
+var Buffers = __nccwpck_require__(1590);
 var Vars = __nccwpck_require__(3755);
 var Stream = (__nccwpck_require__(2781).Stream);
 
@@ -21571,7 +22097,7 @@ if (Buffer.prototype.lastIndexOf) {
 
 /***/ }),
 
-/***/ 16:
+/***/ 1590:
 /***/ ((module) => {
 
 module.exports = Buffers;
@@ -23229,12 +23755,13 @@ module.exports = {
 /* MIT license */
 var colorNames = __nccwpck_require__(8510);
 var swizzle = __nccwpck_require__(8679);
+var hasOwnProperty = Object.hasOwnProperty;
 
-var reverseNames = {};
+var reverseNames = Object.create(null);
 
 // create a list of reverse color names
 for (var name in colorNames) {
-	if (colorNames.hasOwnProperty(name)) {
+	if (hasOwnProperty.call(colorNames, name)) {
 		reverseNames[colorNames[name]] = name;
 	}
 }
@@ -23277,9 +23804,9 @@ cs.get.rgb = function (string) {
 
 	var abbr = /^#([a-f0-9]{3,4})$/i;
 	var hex = /^#([a-f0-9]{6})([a-f0-9]{2})?$/i;
-	var rgba = /^rgba?\(\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*(?:,\s*([+-]?[\d\.]+)\s*)?\)$/;
-	var per = /^rgba?\(\s*([+-]?[\d\.]+)\%\s*,\s*([+-]?[\d\.]+)\%\s*,\s*([+-]?[\d\.]+)\%\s*(?:,\s*([+-]?[\d\.]+)\s*)?\)$/;
-	var keyword = /(\D+)/;
+	var rgba = /^rgba?\(\s*([+-]?\d+)(?=[\s,])\s*(?:,\s*)?([+-]?\d+)(?=[\s,])\s*(?:,\s*)?([+-]?\d+)\s*(?:[,|\/]\s*([+-]?[\d\.]+)(%?)\s*)?\)$/;
+	var per = /^rgba?\(\s*([+-]?[\d\.]+)\%\s*,?\s*([+-]?[\d\.]+)\%\s*,?\s*([+-]?[\d\.]+)\%\s*(?:[,|\/]\s*([+-]?[\d\.]+)(%?)\s*)?\)$/;
+	var keyword = /^(\w+)$/;
 
 	var rgb = [0, 0, 0, 1];
 	var match;
@@ -23316,7 +23843,11 @@ cs.get.rgb = function (string) {
 		}
 
 		if (match[4]) {
-			rgb[3] = parseFloat(match[4]);
+			if (match[5]) {
+				rgb[3] = parseFloat(match[4]) * 0.01;
+			} else {
+				rgb[3] = parseFloat(match[4]);
+			}
 		}
 	} else if (match = string.match(per)) {
 		for (i = 0; i < 3; i++) {
@@ -23324,19 +23855,22 @@ cs.get.rgb = function (string) {
 		}
 
 		if (match[4]) {
-			rgb[3] = parseFloat(match[4]);
+			if (match[5]) {
+				rgb[3] = parseFloat(match[4]) * 0.01;
+			} else {
+				rgb[3] = parseFloat(match[4]);
+			}
 		}
 	} else if (match = string.match(keyword)) {
 		if (match[1] === 'transparent') {
 			return [0, 0, 0, 0];
 		}
 
-		rgb = colorNames[match[1]];
-
-		if (!rgb) {
+		if (!hasOwnProperty.call(colorNames, match[1])) {
 			return null;
 		}
 
+		rgb = colorNames[match[1]];
 		rgb[3] = 1;
 
 		return rgb;
@@ -23357,12 +23891,12 @@ cs.get.hsl = function (string) {
 		return null;
 	}
 
-	var hsl = /^hsla?\(\s*([+-]?(?:\d{0,3}\.)?\d+)(?:deg)?\s*,?\s*([+-]?[\d\.]+)%\s*,?\s*([+-]?[\d\.]+)%\s*(?:[,|\/]\s*([+-]?[\d\.]+)\s*)?\)$/;
+	var hsl = /^hsla?\(\s*([+-]?(?:\d{0,3}\.)?\d+)(?:deg)?\s*,?\s*([+-]?[\d\.]+)%\s*,?\s*([+-]?[\d\.]+)%\s*(?:[,|\/]\s*([+-]?(?=\.\d|\d)(?:0|[1-9]\d*)?(?:\.\d*)?(?:[eE][+-]?\d+)?)\s*)?\)$/;
 	var match = string.match(hsl);
 
 	if (match) {
 		var alpha = parseFloat(match[4]);
-		var h = (parseFloat(match[1]) + 360) % 360;
+		var h = ((parseFloat(match[1]) % 360) + 360) % 360;
 		var s = clamp(parseFloat(match[2]), 0, 100);
 		var l = clamp(parseFloat(match[3]), 0, 100);
 		var a = clamp(isNaN(alpha) ? 1 : alpha, 0, 1);
@@ -23378,7 +23912,7 @@ cs.get.hwb = function (string) {
 		return null;
 	}
 
-	var hwb = /^hwb\(\s*([+-]?\d{0,3}(?:\.\d+)?)(?:deg)?\s*,\s*([+-]?[\d\.]+)%\s*,\s*([+-]?[\d\.]+)%\s*(?:,\s*([+-]?[\d\.]+)\s*)?\)$/;
+	var hwb = /^hwb\(\s*([+-]?\d{0,3}(?:\.\d+)?)(?:deg)?\s*,\s*([+-]?[\d\.]+)%\s*,\s*([+-]?[\d\.]+)%\s*(?:,\s*([+-]?(?=\.\d|\d)(?:0|[1-9]\d*)?(?:\.\d*)?(?:[eE][+-]?\d+)?)\s*)?\)$/;
 	var match = string.match(hwb);
 
 	if (match) {
@@ -23457,7 +23991,7 @@ function clamp(num, min, max) {
 }
 
 function hexDouble(num) {
-	var str = num.toString(16).toUpperCase();
+	var str = Math.round(num).toString(16).toUpperCase();
 	return (str.length < 2) ? '0' + str : str;
 }
 
@@ -23509,7 +24043,7 @@ function Color(obj, model) {
 	var i;
 	var channels;
 
-	if (!obj) {
+	if (obj == null) { // eslint-disable-line no-eq-null,eqeqeq
 		this.model = 'rgb';
 		this.color = [0, 0, 0];
 		this.valpha = 1;
@@ -23836,6 +24370,9 @@ Color.prototype = {
 	mix: function (mixinColor, weight) {
 		// ported from sass implementation in C
 		// https://github.com/sass/libsass/blob/0e6b4a2850092356aa3ece07c6b249f0221caced/functions.cpp#L209
+		if (!mixinColor || !mixinColor.rgb) {
+			throw new Error('Argument to "mix" was not a Color instance, but rather an instance of ' + typeof mixinColor);
+		}
 		var color1 = mixinColor.rgb();
 		var color2 = this.rgb();
 		var p = weight === undefined ? 0.5 : weight;
@@ -23947,3409 +24484,6 @@ function zeroArray(arr, length) {
 }
 
 module.exports = Color;
-
-
-/***/ }),
-
-/***/ 7740:
-/***/ ((module) => {
-
-module.exports = [
-  {
-    "value":"#B0171F",
-    "name":"indian red"
-  },
-  {
-    "value":"#DC143C",
-    "css":true,
-    "name":"crimson"
-  },
-  {
-    "value":"#FFB6C1",
-    "css":true,
-    "name":"lightpink"
-  },
-  {
-    "value":"#FFAEB9",
-    "name":"lightpink 1"
-  },
-  {
-    "value":"#EEA2AD",
-    "name":"lightpink 2"
-  },
-  {
-    "value":"#CD8C95",
-    "name":"lightpink 3"
-  },
-  {
-    "value":"#8B5F65",
-    "name":"lightpink 4"
-  },
-  {
-    "value":"#FFC0CB",
-    "css":true,
-    "name":"pink"
-  },
-  {
-    "value":"#FFB5C5",
-    "name":"pink 1"
-  },
-  {
-    "value":"#EEA9B8",
-    "name":"pink 2"
-  },
-  {
-    "value":"#CD919E",
-    "name":"pink 3"
-  },
-  {
-    "value":"#8B636C",
-    "name":"pink 4"
-  },
-  {
-    "value":"#DB7093",
-    "css":true,
-    "name":"palevioletred"
-  },
-  {
-    "value":"#FF82AB",
-    "name":"palevioletred 1"
-  },
-  {
-    "value":"#EE799F",
-    "name":"palevioletred 2"
-  },
-  {
-    "value":"#CD6889",
-    "name":"palevioletred 3"
-  },
-  {
-    "value":"#8B475D",
-    "name":"palevioletred 4"
-  },
-  {
-    "value":"#FFF0F5",
-    "name":"lavenderblush 1"
-  },
-  {
-    "value":"#FFF0F5",
-    "css":true,
-    "name":"lavenderblush"
-  },
-  {
-    "value":"#EEE0E5",
-    "name":"lavenderblush 2"
-  },
-  {
-    "value":"#CDC1C5",
-    "name":"lavenderblush 3"
-  },
-  {
-    "value":"#8B8386",
-    "name":"lavenderblush 4"
-  },
-  {
-    "value":"#FF3E96",
-    "name":"violetred 1"
-  },
-  {
-    "value":"#EE3A8C",
-    "name":"violetred 2"
-  },
-  {
-    "value":"#CD3278",
-    "name":"violetred 3"
-  },
-  {
-    "value":"#8B2252",
-    "name":"violetred 4"
-  },
-  {
-    "value":"#FF69B4",
-    "css":true,
-    "name":"hotpink"
-  },
-  {
-    "value":"#FF6EB4",
-    "name":"hotpink 1"
-  },
-  {
-    "value":"#EE6AA7",
-    "name":"hotpink 2"
-  },
-  {
-    "value":"#CD6090",
-    "name":"hotpink 3"
-  },
-  {
-    "value":"#8B3A62",
-    "name":"hotpink 4"
-  },
-  {
-    "value":"#872657",
-    "name":"raspberry"
-  },
-  {
-    "value":"#FF1493",
-    "name":"deeppink 1"
-  },
-  {
-    "value":"#FF1493",
-    "css":true,
-    "name":"deeppink"
-  },
-  {
-    "value":"#EE1289",
-    "name":"deeppink 2"
-  },
-  {
-    "value":"#CD1076",
-    "name":"deeppink 3"
-  },
-  {
-    "value":"#8B0A50",
-    "name":"deeppink 4"
-  },
-  {
-    "value":"#FF34B3",
-    "name":"maroon 1"
-  },
-  {
-    "value":"#EE30A7",
-    "name":"maroon 2"
-  },
-  {
-    "value":"#CD2990",
-    "name":"maroon 3"
-  },
-  {
-    "value":"#8B1C62",
-    "name":"maroon 4"
-  },
-  {
-    "value":"#C71585",
-    "css":true,
-    "name":"mediumvioletred"
-  },
-  {
-    "value":"#D02090",
-    "name":"violetred"
-  },
-  {
-    "value":"#DA70D6",
-    "css":true,
-    "name":"orchid"
-  },
-  {
-    "value":"#FF83FA",
-    "name":"orchid 1"
-  },
-  {
-    "value":"#EE7AE9",
-    "name":"orchid 2"
-  },
-  {
-    "value":"#CD69C9",
-    "name":"orchid 3"
-  },
-  {
-    "value":"#8B4789",
-    "name":"orchid 4"
-  },
-  {
-    "value":"#D8BFD8",
-    "css":true,
-    "name":"thistle"
-  },
-  {
-    "value":"#FFE1FF",
-    "name":"thistle 1"
-  },
-  {
-    "value":"#EED2EE",
-    "name":"thistle 2"
-  },
-  {
-    "value":"#CDB5CD",
-    "name":"thistle 3"
-  },
-  {
-    "value":"#8B7B8B",
-    "name":"thistle 4"
-  },
-  {
-    "value":"#FFBBFF",
-    "name":"plum 1"
-  },
-  {
-    "value":"#EEAEEE",
-    "name":"plum 2"
-  },
-  {
-    "value":"#CD96CD",
-    "name":"plum 3"
-  },
-  {
-    "value":"#8B668B",
-    "name":"plum 4"
-  },
-  {
-    "value":"#DDA0DD",
-    "css":true,
-    "name":"plum"
-  },
-  {
-    "value":"#EE82EE",
-    "css":true,
-    "name":"violet"
-  },
-  {
-    "value":"#FF00FF",
-    "vga":true,
-    "name":"magenta"
-  },
-  {
-    "value":"#FF00FF",
-    "vga":true,
-    "css":true,
-    "name":"fuchsia"
-  },
-  {
-    "value":"#EE00EE",
-    "name":"magenta 2"
-  },
-  {
-    "value":"#CD00CD",
-    "name":"magenta 3"
-  },
-  {
-    "value":"#8B008B",
-    "name":"magenta 4"
-  },
-  {
-    "value":"#8B008B",
-    "css":true,
-    "name":"darkmagenta"
-  },
-  {
-    "value":"#800080",
-    "vga":true,
-    "css":true,
-    "name":"purple"
-  },
-  {
-    "value":"#BA55D3",
-    "css":true,
-    "name":"mediumorchid"
-  },
-  {
-    "value":"#E066FF",
-    "name":"mediumorchid 1"
-  },
-  {
-    "value":"#D15FEE",
-    "name":"mediumorchid 2"
-  },
-  {
-    "value":"#B452CD",
-    "name":"mediumorchid 3"
-  },
-  {
-    "value":"#7A378B",
-    "name":"mediumorchid 4"
-  },
-  {
-    "value":"#9400D3",
-    "css":true,
-    "name":"darkviolet"
-  },
-  {
-    "value":"#9932CC",
-    "css":true,
-    "name":"darkorchid"
-  },
-  {
-    "value":"#BF3EFF",
-    "name":"darkorchid 1"
-  },
-  {
-    "value":"#B23AEE",
-    "name":"darkorchid 2"
-  },
-  {
-    "value":"#9A32CD",
-    "name":"darkorchid 3"
-  },
-  {
-    "value":"#68228B",
-    "name":"darkorchid 4"
-  },
-  {
-    "value":"#4B0082",
-    "css":true,
-    "name":"indigo"
-  },
-  {
-    "value":"#8A2BE2",
-    "css":true,
-    "name":"blueviolet"
-  },
-  {
-    "value":"#9B30FF",
-    "name":"purple 1"
-  },
-  {
-    "value":"#912CEE",
-    "name":"purple 2"
-  },
-  {
-    "value":"#7D26CD",
-    "name":"purple 3"
-  },
-  {
-    "value":"#551A8B",
-    "name":"purple 4"
-  },
-  {
-    "value":"#9370DB",
-    "css":true,
-    "name":"mediumpurple"
-  },
-  {
-    "value":"#AB82FF",
-    "name":"mediumpurple 1"
-  },
-  {
-    "value":"#9F79EE",
-    "name":"mediumpurple 2"
-  },
-  {
-    "value":"#8968CD",
-    "name":"mediumpurple 3"
-  },
-  {
-    "value":"#5D478B",
-    "name":"mediumpurple 4"
-  },
-  {
-    "value":"#483D8B",
-    "css":true,
-    "name":"darkslateblue"
-  },
-  {
-    "value":"#8470FF",
-    "name":"lightslateblue"
-  },
-  {
-    "value":"#7B68EE",
-    "css":true,
-    "name":"mediumslateblue"
-  },
-  {
-    "value":"#6A5ACD",
-    "css":true,
-    "name":"slateblue"
-  },
-  {
-    "value":"#836FFF",
-    "name":"slateblue 1"
-  },
-  {
-    "value":"#7A67EE",
-    "name":"slateblue 2"
-  },
-  {
-    "value":"#6959CD",
-    "name":"slateblue 3"
-  },
-  {
-    "value":"#473C8B",
-    "name":"slateblue 4"
-  },
-  {
-    "value":"#F8F8FF",
-    "css":true,
-    "name":"ghostwhite"
-  },
-  {
-    "value":"#E6E6FA",
-    "css":true,
-    "name":"lavender"
-  },
-  {
-    "value":"#0000FF",
-    "vga":true,
-    "css":true,
-    "name":"blue"
-  },
-  {
-    "value":"#0000EE",
-    "name":"blue 2"
-  },
-  {
-    "value":"#0000CD",
-    "name":"blue 3"
-  },
-  {
-    "value":"#0000CD",
-    "css":true,
-    "name":"mediumblue"
-  },
-  {
-    "value":"#00008B",
-    "name":"blue 4"
-  },
-  {
-    "value":"#00008B",
-    "css":true,
-    "name":"darkblue"
-  },
-  {
-    "value":"#000080",
-    "vga":true,
-    "css":true,
-    "name":"navy"
-  },
-  {
-    "value":"#191970",
-    "css":true,
-    "name":"midnightblue"
-  },
-  {
-    "value":"#3D59AB",
-    "name":"cobalt"
-  },
-  {
-    "value":"#4169E1",
-    "css":true,
-    "name":"royalblue"
-  },
-  {
-    "value":"#4876FF",
-    "name":"royalblue 1"
-  },
-  {
-    "value":"#436EEE",
-    "name":"royalblue 2"
-  },
-  {
-    "value":"#3A5FCD",
-    "name":"royalblue 3"
-  },
-  {
-    "value":"#27408B",
-    "name":"royalblue 4"
-  },
-  {
-    "value":"#6495ED",
-    "css":true,
-    "name":"cornflowerblue"
-  },
-  {
-    "value":"#B0C4DE",
-    "css":true,
-    "name":"lightsteelblue"
-  },
-  {
-    "value":"#CAE1FF",
-    "name":"lightsteelblue 1"
-  },
-  {
-    "value":"#BCD2EE",
-    "name":"lightsteelblue 2"
-  },
-  {
-    "value":"#A2B5CD",
-    "name":"lightsteelblue 3"
-  },
-  {
-    "value":"#6E7B8B",
-    "name":"lightsteelblue 4"
-  },
-  {
-    "value":"#778899",
-    "css":true,
-    "name":"lightslategray"
-  },
-  {
-    "value":"#708090",
-    "css":true,
-    "name":"slategray"
-  },
-  {
-    "value":"#C6E2FF",
-    "name":"slategray 1"
-  },
-  {
-    "value":"#B9D3EE",
-    "name":"slategray 2"
-  },
-  {
-    "value":"#9FB6CD",
-    "name":"slategray 3"
-  },
-  {
-    "value":"#6C7B8B",
-    "name":"slategray 4"
-  },
-  {
-    "value":"#1E90FF",
-    "name":"dodgerblue 1"
-  },
-  {
-    "value":"#1E90FF",
-    "css":true,
-    "name":"dodgerblue"
-  },
-  {
-    "value":"#1C86EE",
-    "name":"dodgerblue 2"
-  },
-  {
-    "value":"#1874CD",
-    "name":"dodgerblue 3"
-  },
-  {
-    "value":"#104E8B",
-    "name":"dodgerblue 4"
-  },
-  {
-    "value":"#F0F8FF",
-    "css":true,
-    "name":"aliceblue"
-  },
-  {
-    "value":"#4682B4",
-    "css":true,
-    "name":"steelblue"
-  },
-  {
-    "value":"#63B8FF",
-    "name":"steelblue 1"
-  },
-  {
-    "value":"#5CACEE",
-    "name":"steelblue 2"
-  },
-  {
-    "value":"#4F94CD",
-    "name":"steelblue 3"
-  },
-  {
-    "value":"#36648B",
-    "name":"steelblue 4"
-  },
-  {
-    "value":"#87CEFA",
-    "css":true,
-    "name":"lightskyblue"
-  },
-  {
-    "value":"#B0E2FF",
-    "name":"lightskyblue 1"
-  },
-  {
-    "value":"#A4D3EE",
-    "name":"lightskyblue 2"
-  },
-  {
-    "value":"#8DB6CD",
-    "name":"lightskyblue 3"
-  },
-  {
-    "value":"#607B8B",
-    "name":"lightskyblue 4"
-  },
-  {
-    "value":"#87CEFF",
-    "name":"skyblue 1"
-  },
-  {
-    "value":"#7EC0EE",
-    "name":"skyblue 2"
-  },
-  {
-    "value":"#6CA6CD",
-    "name":"skyblue 3"
-  },
-  {
-    "value":"#4A708B",
-    "name":"skyblue 4"
-  },
-  {
-    "value":"#87CEEB",
-    "css":true,
-    "name":"skyblue"
-  },
-  {
-    "value":"#00BFFF",
-    "name":"deepskyblue 1"
-  },
-  {
-    "value":"#00BFFF",
-    "css":true,
-    "name":"deepskyblue"
-  },
-  {
-    "value":"#00B2EE",
-    "name":"deepskyblue 2"
-  },
-  {
-    "value":"#009ACD",
-    "name":"deepskyblue 3"
-  },
-  {
-    "value":"#00688B",
-    "name":"deepskyblue 4"
-  },
-  {
-    "value":"#33A1C9",
-    "name":"peacock"
-  },
-  {
-    "value":"#ADD8E6",
-    "css":true,
-    "name":"lightblue"
-  },
-  {
-    "value":"#BFEFFF",
-    "name":"lightblue 1"
-  },
-  {
-    "value":"#B2DFEE",
-    "name":"lightblue 2"
-  },
-  {
-    "value":"#9AC0CD",
-    "name":"lightblue 3"
-  },
-  {
-    "value":"#68838B",
-    "name":"lightblue 4"
-  },
-  {
-    "value":"#B0E0E6",
-    "css":true,
-    "name":"powderblue"
-  },
-  {
-    "value":"#98F5FF",
-    "name":"cadetblue 1"
-  },
-  {
-    "value":"#8EE5EE",
-    "name":"cadetblue 2"
-  },
-  {
-    "value":"#7AC5CD",
-    "name":"cadetblue 3"
-  },
-  {
-    "value":"#53868B",
-    "name":"cadetblue 4"
-  },
-  {
-    "value":"#00F5FF",
-    "name":"turquoise 1"
-  },
-  {
-    "value":"#00E5EE",
-    "name":"turquoise 2"
-  },
-  {
-    "value":"#00C5CD",
-    "name":"turquoise 3"
-  },
-  {
-    "value":"#00868B",
-    "name":"turquoise 4"
-  },
-  {
-    "value":"#5F9EA0",
-    "css":true,
-    "name":"cadetblue"
-  },
-  {
-    "value":"#00CED1",
-    "css":true,
-    "name":"darkturquoise"
-  },
-  {
-    "value":"#F0FFFF",
-    "name":"azure 1"
-  },
-  {
-    "value":"#F0FFFF",
-    "css":true,
-    "name":"azure"
-  },
-  {
-    "value":"#E0EEEE",
-    "name":"azure 2"
-  },
-  {
-    "value":"#C1CDCD",
-    "name":"azure 3"
-  },
-  {
-    "value":"#838B8B",
-    "name":"azure 4"
-  },
-  {
-    "value":"#E0FFFF",
-    "name":"lightcyan 1"
-  },
-  {
-    "value":"#E0FFFF",
-    "css":true,
-    "name":"lightcyan"
-  },
-  {
-    "value":"#D1EEEE",
-    "name":"lightcyan 2"
-  },
-  {
-    "value":"#B4CDCD",
-    "name":"lightcyan 3"
-  },
-  {
-    "value":"#7A8B8B",
-    "name":"lightcyan 4"
-  },
-  {
-    "value":"#BBFFFF",
-    "name":"paleturquoise 1"
-  },
-  {
-    "value":"#AEEEEE",
-    "name":"paleturquoise 2"
-  },
-  {
-    "value":"#AEEEEE",
-    "css":true,
-    "name":"paleturquoise"
-  },
-  {
-    "value":"#96CDCD",
-    "name":"paleturquoise 3"
-  },
-  {
-    "value":"#668B8B",
-    "name":"paleturquoise 4"
-  },
-  {
-    "value":"#2F4F4F",
-    "css":true,
-    "name":"darkslategray"
-  },
-  {
-    "value":"#97FFFF",
-    "name":"darkslategray 1"
-  },
-  {
-    "value":"#8DEEEE",
-    "name":"darkslategray 2"
-  },
-  {
-    "value":"#79CDCD",
-    "name":"darkslategray 3"
-  },
-  {
-    "value":"#528B8B",
-    "name":"darkslategray 4"
-  },
-  {
-    "value":"#00FFFF",
-    "name":"cyan"
-  },
-  {
-    "value":"#00FFFF",
-    "css":true,
-    "name":"aqua"
-  },
-  {
-    "value":"#00EEEE",
-    "name":"cyan 2"
-  },
-  {
-    "value":"#00CDCD",
-    "name":"cyan 3"
-  },
-  {
-    "value":"#008B8B",
-    "name":"cyan 4"
-  },
-  {
-    "value":"#008B8B",
-    "css":true,
-    "name":"darkcyan"
-  },
-  {
-    "value":"#008080",
-    "vga":true,
-    "css":true,
-    "name":"teal"
-  },
-  {
-    "value":"#48D1CC",
-    "css":true,
-    "name":"mediumturquoise"
-  },
-  {
-    "value":"#20B2AA",
-    "css":true,
-    "name":"lightseagreen"
-  },
-  {
-    "value":"#03A89E",
-    "name":"manganeseblue"
-  },
-  {
-    "value":"#40E0D0",
-    "css":true,
-    "name":"turquoise"
-  },
-  {
-    "value":"#808A87",
-    "name":"coldgrey"
-  },
-  {
-    "value":"#00C78C",
-    "name":"turquoiseblue"
-  },
-  {
-    "value":"#7FFFD4",
-    "name":"aquamarine 1"
-  },
-  {
-    "value":"#7FFFD4",
-    "css":true,
-    "name":"aquamarine"
-  },
-  {
-    "value":"#76EEC6",
-    "name":"aquamarine 2"
-  },
-  {
-    "value":"#66CDAA",
-    "name":"aquamarine 3"
-  },
-  {
-    "value":"#66CDAA",
-    "css":true,
-    "name":"mediumaquamarine"
-  },
-  {
-    "value":"#458B74",
-    "name":"aquamarine 4"
-  },
-  {
-    "value":"#00FA9A",
-    "css":true,
-    "name":"mediumspringgreen"
-  },
-  {
-    "value":"#F5FFFA",
-    "css":true,
-    "name":"mintcream"
-  },
-  {
-    "value":"#00FF7F",
-    "css":true,
-    "name":"springgreen"
-  },
-  {
-    "value":"#00EE76",
-    "name":"springgreen 1"
-  },
-  {
-    "value":"#00CD66",
-    "name":"springgreen 2"
-  },
-  {
-    "value":"#008B45",
-    "name":"springgreen 3"
-  },
-  {
-    "value":"#3CB371",
-    "css":true,
-    "name":"mediumseagreen"
-  },
-  {
-    "value":"#54FF9F",
-    "name":"seagreen 1"
-  },
-  {
-    "value":"#4EEE94",
-    "name":"seagreen 2"
-  },
-  {
-    "value":"#43CD80",
-    "name":"seagreen 3"
-  },
-  {
-    "value":"#2E8B57",
-    "name":"seagreen 4"
-  },
-  {
-    "value":"#2E8B57",
-    "css":true,
-    "name":"seagreen"
-  },
-  {
-    "value":"#00C957",
-    "name":"emeraldgreen"
-  },
-  {
-    "value":"#BDFCC9",
-    "name":"mint"
-  },
-  {
-    "value":"#3D9140",
-    "name":"cobaltgreen"
-  },
-  {
-    "value":"#F0FFF0",
-    "name":"honeydew 1"
-  },
-  {
-    "value":"#F0FFF0",
-    "css":true,
-    "name":"honeydew"
-  },
-  {
-    "value":"#E0EEE0",
-    "name":"honeydew 2"
-  },
-  {
-    "value":"#C1CDC1",
-    "name":"honeydew 3"
-  },
-  {
-    "value":"#838B83",
-    "name":"honeydew 4"
-  },
-  {
-    "value":"#8FBC8F",
-    "css":true,
-    "name":"darkseagreen"
-  },
-  {
-    "value":"#C1FFC1",
-    "name":"darkseagreen 1"
-  },
-  {
-    "value":"#B4EEB4",
-    "name":"darkseagreen 2"
-  },
-  {
-    "value":"#9BCD9B",
-    "name":"darkseagreen 3"
-  },
-  {
-    "value":"#698B69",
-    "name":"darkseagreen 4"
-  },
-  {
-    "value":"#98FB98",
-    "css":true,
-    "name":"palegreen"
-  },
-  {
-    "value":"#9AFF9A",
-    "name":"palegreen 1"
-  },
-  {
-    "value":"#90EE90",
-    "name":"palegreen 2"
-  },
-  {
-    "value":"#90EE90",
-    "css":true,
-    "name":"lightgreen"
-  },
-  {
-    "value":"#7CCD7C",
-    "name":"palegreen 3"
-  },
-  {
-    "value":"#548B54",
-    "name":"palegreen 4"
-  },
-  {
-    "value":"#32CD32",
-    "css":true,
-    "name":"limegreen"
-  },
-  {
-    "value":"#228B22",
-    "css":true,
-    "name":"forestgreen"
-  },
-  {
-    "value":"#00FF00",
-    "vga":true,
-    "name":"green 1"
-  },
-  {
-    "value":"#00FF00",
-    "vga":true,
-    "css":true,
-    "name":"lime"
-  },
-  {
-    "value":"#00EE00",
-    "name":"green 2"
-  },
-  {
-    "value":"#00CD00",
-    "name":"green 3"
-  },
-  {
-    "value":"#008B00",
-    "name":"green 4"
-  },
-  {
-    "value":"#008000",
-    "vga":true,
-    "css":true,
-    "name":"green"
-  },
-  {
-    "value":"#006400",
-    "css":true,
-    "name":"darkgreen"
-  },
-  {
-    "value":"#308014",
-    "name":"sapgreen"
-  },
-  {
-    "value":"#7CFC00",
-    "css":true,
-    "name":"lawngreen"
-  },
-  {
-    "value":"#7FFF00",
-    "name":"chartreuse 1"
-  },
-  {
-    "value":"#7FFF00",
-    "css":true,
-    "name":"chartreuse"
-  },
-  {
-    "value":"#76EE00",
-    "name":"chartreuse 2"
-  },
-  {
-    "value":"#66CD00",
-    "name":"chartreuse 3"
-  },
-  {
-    "value":"#458B00",
-    "name":"chartreuse 4"
-  },
-  {
-    "value":"#ADFF2F",
-    "css":true,
-    "name":"greenyellow"
-  },
-  {
-    "value":"#CAFF70",
-    "name":"darkolivegreen 1"
-  },
-  {
-    "value":"#BCEE68",
-    "name":"darkolivegreen 2"
-  },
-  {
-    "value":"#A2CD5A",
-    "name":"darkolivegreen 3"
-  },
-  {
-    "value":"#6E8B3D",
-    "name":"darkolivegreen 4"
-  },
-  {
-    "value":"#556B2F",
-    "css":true,
-    "name":"darkolivegreen"
-  },
-  {
-    "value":"#6B8E23",
-    "css":true,
-    "name":"olivedrab"
-  },
-  {
-    "value":"#C0FF3E",
-    "name":"olivedrab 1"
-  },
-  {
-    "value":"#B3EE3A",
-    "name":"olivedrab 2"
-  },
-  {
-    "value":"#9ACD32",
-    "name":"olivedrab 3"
-  },
-  {
-    "value":"#9ACD32",
-    "css":true,
-    "name":"yellowgreen"
-  },
-  {
-    "value":"#698B22",
-    "name":"olivedrab 4"
-  },
-  {
-    "value":"#FFFFF0",
-    "name":"ivory 1"
-  },
-  {
-    "value":"#FFFFF0",
-    "css":true,
-    "name":"ivory"
-  },
-  {
-    "value":"#EEEEE0",
-    "name":"ivory 2"
-  },
-  {
-    "value":"#CDCDC1",
-    "name":"ivory 3"
-  },
-  {
-    "value":"#8B8B83",
-    "name":"ivory 4"
-  },
-  {
-    "value":"#F5F5DC",
-    "css":true,
-    "name":"beige"
-  },
-  {
-    "value":"#FFFFE0",
-    "name":"lightyellow 1"
-  },
-  {
-    "value":"#FFFFE0",
-    "css":true,
-    "name":"lightyellow"
-  },
-  {
-    "value":"#EEEED1",
-    "name":"lightyellow 2"
-  },
-  {
-    "value":"#CDCDB4",
-    "name":"lightyellow 3"
-  },
-  {
-    "value":"#8B8B7A",
-    "name":"lightyellow 4"
-  },
-  {
-    "value":"#FAFAD2",
-    "css":true,
-    "name":"lightgoldenrodyellow"
-  },
-  {
-    "value":"#FFFF00",
-    "vga":true,
-    "name":"yellow 1"
-  },
-  {
-    "value":"#FFFF00",
-    "vga":true,
-    "css":true,
-    "name":"yellow"
-  },
-  {
-    "value":"#EEEE00",
-    "name":"yellow 2"
-  },
-  {
-    "value":"#CDCD00",
-    "name":"yellow 3"
-  },
-  {
-    "value":"#8B8B00",
-    "name":"yellow 4"
-  },
-  {
-    "value":"#808069",
-    "name":"warmgrey"
-  },
-  {
-    "value":"#808000",
-    "vga":true,
-    "css":true,
-    "name":"olive"
-  },
-  {
-    "value":"#BDB76B",
-    "css":true,
-    "name":"darkkhaki"
-  },
-  {
-    "value":"#FFF68F",
-    "name":"khaki 1"
-  },
-  {
-    "value":"#EEE685",
-    "name":"khaki 2"
-  },
-  {
-    "value":"#CDC673",
-    "name":"khaki 3"
-  },
-  {
-    "value":"#8B864E",
-    "name":"khaki 4"
-  },
-  {
-    "value":"#F0E68C",
-    "css":true,
-    "name":"khaki"
-  },
-  {
-    "value":"#EEE8AA",
-    "css":true,
-    "name":"palegoldenrod"
-  },
-  {
-    "value":"#FFFACD",
-    "name":"lemonchiffon 1"
-  },
-  {
-    "value":"#FFFACD",
-    "css":true,
-    "name":"lemonchiffon"
-  },
-  {
-    "value":"#EEE9BF",
-    "name":"lemonchiffon 2"
-  },
-  {
-    "value":"#CDC9A5",
-    "name":"lemonchiffon 3"
-  },
-  {
-    "value":"#8B8970",
-    "name":"lemonchiffon 4"
-  },
-  {
-    "value":"#FFEC8B",
-    "name":"lightgoldenrod 1"
-  },
-  {
-    "value":"#EEDC82",
-    "name":"lightgoldenrod 2"
-  },
-  {
-    "value":"#CDBE70",
-    "name":"lightgoldenrod 3"
-  },
-  {
-    "value":"#8B814C",
-    "name":"lightgoldenrod 4"
-  },
-  {
-    "value":"#E3CF57",
-    "name":"banana"
-  },
-  {
-    "value":"#FFD700",
-    "name":"gold 1"
-  },
-  {
-    "value":"#FFD700",
-    "css":true,
-    "name":"gold"
-  },
-  {
-    "value":"#EEC900",
-    "name":"gold 2"
-  },
-  {
-    "value":"#CDAD00",
-    "name":"gold 3"
-  },
-  {
-    "value":"#8B7500",
-    "name":"gold 4"
-  },
-  {
-    "value":"#FFF8DC",
-    "name":"cornsilk 1"
-  },
-  {
-    "value":"#FFF8DC",
-    "css":true,
-    "name":"cornsilk"
-  },
-  {
-    "value":"#EEE8CD",
-    "name":"cornsilk 2"
-  },
-  {
-    "value":"#CDC8B1",
-    "name":"cornsilk 3"
-  },
-  {
-    "value":"#8B8878",
-    "name":"cornsilk 4"
-  },
-  {
-    "value":"#DAA520",
-    "css":true,
-    "name":"goldenrod"
-  },
-  {
-    "value":"#FFC125",
-    "name":"goldenrod 1"
-  },
-  {
-    "value":"#EEB422",
-    "name":"goldenrod 2"
-  },
-  {
-    "value":"#CD9B1D",
-    "name":"goldenrod 3"
-  },
-  {
-    "value":"#8B6914",
-    "name":"goldenrod 4"
-  },
-  {
-    "value":"#B8860B",
-    "css":true,
-    "name":"darkgoldenrod"
-  },
-  {
-    "value":"#FFB90F",
-    "name":"darkgoldenrod 1"
-  },
-  {
-    "value":"#EEAD0E",
-    "name":"darkgoldenrod 2"
-  },
-  {
-    "value":"#CD950C",
-    "name":"darkgoldenrod 3"
-  },
-  {
-    "value":"#8B6508",
-    "name":"darkgoldenrod 4"
-  },
-  {
-    "value":"#FFA500",
-    "name":"orange 1"
-  },
-  {
-    "value":"#FF8000",
-    "css":true,
-    "name":"orange"
-  },
-  {
-    "value":"#EE9A00",
-    "name":"orange 2"
-  },
-  {
-    "value":"#CD8500",
-    "name":"orange 3"
-  },
-  {
-    "value":"#8B5A00",
-    "name":"orange 4"
-  },
-  {
-    "value":"#FFFAF0",
-    "css":true,
-    "name":"floralwhite"
-  },
-  {
-    "value":"#FDF5E6",
-    "css":true,
-    "name":"oldlace"
-  },
-  {
-    "value":"#F5DEB3",
-    "css":true,
-    "name":"wheat"
-  },
-  {
-    "value":"#FFE7BA",
-    "name":"wheat 1"
-  },
-  {
-    "value":"#EED8AE",
-    "name":"wheat 2"
-  },
-  {
-    "value":"#CDBA96",
-    "name":"wheat 3"
-  },
-  {
-    "value":"#8B7E66",
-    "name":"wheat 4"
-  },
-  {
-    "value":"#FFE4B5",
-    "css":true,
-    "name":"moccasin"
-  },
-  {
-    "value":"#FFEFD5",
-    "css":true,
-    "name":"papayawhip"
-  },
-  {
-    "value":"#FFEBCD",
-    "css":true,
-    "name":"blanchedalmond"
-  },
-  {
-    "value":"#FFDEAD",
-    "name":"navajowhite 1"
-  },
-  {
-    "value":"#FFDEAD",
-    "css":true,
-    "name":"navajowhite"
-  },
-  {
-    "value":"#EECFA1",
-    "name":"navajowhite 2"
-  },
-  {
-    "value":"#CDB38B",
-    "name":"navajowhite 3"
-  },
-  {
-    "value":"#8B795E",
-    "name":"navajowhite 4"
-  },
-  {
-    "value":"#FCE6C9",
-    "name":"eggshell"
-  },
-  {
-    "value":"#D2B48C",
-    "css":true,
-    "name":"tan"
-  },
-  {
-    "value":"#9C661F",
-    "name":"brick"
-  },
-  {
-    "value":"#FF9912",
-    "name":"cadmiumyellow"
-  },
-  {
-    "value":"#FAEBD7",
-    "css":true,
-    "name":"antiquewhite"
-  },
-  {
-    "value":"#FFEFDB",
-    "name":"antiquewhite 1"
-  },
-  {
-    "value":"#EEDFCC",
-    "name":"antiquewhite 2"
-  },
-  {
-    "value":"#CDC0B0",
-    "name":"antiquewhite 3"
-  },
-  {
-    "value":"#8B8378",
-    "name":"antiquewhite 4"
-  },
-  {
-    "value":"#DEB887",
-    "css":true,
-    "name":"burlywood"
-  },
-  {
-    "value":"#FFD39B",
-    "name":"burlywood 1"
-  },
-  {
-    "value":"#EEC591",
-    "name":"burlywood 2"
-  },
-  {
-    "value":"#CDAA7D",
-    "name":"burlywood 3"
-  },
-  {
-    "value":"#8B7355",
-    "name":"burlywood 4"
-  },
-  {
-    "value":"#FFE4C4",
-    "name":"bisque 1"
-  },
-  {
-    "value":"#FFE4C4",
-    "css":true,
-    "name":"bisque"
-  },
-  {
-    "value":"#EED5B7",
-    "name":"bisque 2"
-  },
-  {
-    "value":"#CDB79E",
-    "name":"bisque 3"
-  },
-  {
-    "value":"#8B7D6B",
-    "name":"bisque 4"
-  },
-  {
-    "value":"#E3A869",
-    "name":"melon"
-  },
-  {
-    "value":"#ED9121",
-    "name":"carrot"
-  },
-  {
-    "value":"#FF8C00",
-    "css":true,
-    "name":"darkorange"
-  },
-  {
-    "value":"#FF7F00",
-    "name":"darkorange 1"
-  },
-  {
-    "value":"#EE7600",
-    "name":"darkorange 2"
-  },
-  {
-    "value":"#CD6600",
-    "name":"darkorange 3"
-  },
-  {
-    "value":"#8B4500",
-    "name":"darkorange 4"
-  },
-  {
-    "value":"#FFA54F",
-    "name":"tan 1"
-  },
-  {
-    "value":"#EE9A49",
-    "name":"tan 2"
-  },
-  {
-    "value":"#CD853F",
-    "name":"tan 3"
-  },
-  {
-    "value":"#CD853F",
-    "css":true,
-    "name":"peru"
-  },
-  {
-    "value":"#8B5A2B",
-    "name":"tan 4"
-  },
-  {
-    "value":"#FAF0E6",
-    "css":true,
-    "name":"linen"
-  },
-  {
-    "value":"#FFDAB9",
-    "name":"peachpuff 1"
-  },
-  {
-    "value":"#FFDAB9",
-    "css":true,
-    "name":"peachpuff"
-  },
-  {
-    "value":"#EECBAD",
-    "name":"peachpuff 2"
-  },
-  {
-    "value":"#CDAF95",
-    "name":"peachpuff 3"
-  },
-  {
-    "value":"#8B7765",
-    "name":"peachpuff 4"
-  },
-  {
-    "value":"#FFF5EE",
-    "name":"seashell 1"
-  },
-  {
-    "value":"#FFF5EE",
-    "css":true,
-    "name":"seashell"
-  },
-  {
-    "value":"#EEE5DE",
-    "name":"seashell 2"
-  },
-  {
-    "value":"#CDC5BF",
-    "name":"seashell 3"
-  },
-  {
-    "value":"#8B8682",
-    "name":"seashell 4"
-  },
-  {
-    "value":"#F4A460",
-    "css":true,
-    "name":"sandybrown"
-  },
-  {
-    "value":"#C76114",
-    "name":"rawsienna"
-  },
-  {
-    "value":"#D2691E",
-    "css":true,
-    "name":"chocolate"
-  },
-  {
-    "value":"#FF7F24",
-    "name":"chocolate 1"
-  },
-  {
-    "value":"#EE7621",
-    "name":"chocolate 2"
-  },
-  {
-    "value":"#CD661D",
-    "name":"chocolate 3"
-  },
-  {
-    "value":"#8B4513",
-    "name":"chocolate 4"
-  },
-  {
-    "value":"#8B4513",
-    "css":true,
-    "name":"saddlebrown"
-  },
-  {
-    "value":"#292421",
-    "name":"ivoryblack"
-  },
-  {
-    "value":"#FF7D40",
-    "name":"flesh"
-  },
-  {
-    "value":"#FF6103",
-    "name":"cadmiumorange"
-  },
-  {
-    "value":"#8A360F",
-    "name":"burntsienna"
-  },
-  {
-    "value":"#A0522D",
-    "css":true,
-    "name":"sienna"
-  },
-  {
-    "value":"#FF8247",
-    "name":"sienna 1"
-  },
-  {
-    "value":"#EE7942",
-    "name":"sienna 2"
-  },
-  {
-    "value":"#CD6839",
-    "name":"sienna 3"
-  },
-  {
-    "value":"#8B4726",
-    "name":"sienna 4"
-  },
-  {
-    "value":"#FFA07A",
-    "name":"lightsalmon 1"
-  },
-  {
-    "value":"#FFA07A",
-    "css":true,
-    "name":"lightsalmon"
-  },
-  {
-    "value":"#EE9572",
-    "name":"lightsalmon 2"
-  },
-  {
-    "value":"#CD8162",
-    "name":"lightsalmon 3"
-  },
-  {
-    "value":"#8B5742",
-    "name":"lightsalmon 4"
-  },
-  {
-    "value":"#FF7F50",
-    "css":true,
-    "name":"coral"
-  },
-  {
-    "value":"#FF4500",
-    "name":"orangered 1"
-  },
-  {
-    "value":"#FF4500",
-    "css":true,
-    "name":"orangered"
-  },
-  {
-    "value":"#EE4000",
-    "name":"orangered 2"
-  },
-  {
-    "value":"#CD3700",
-    "name":"orangered 3"
-  },
-  {
-    "value":"#8B2500",
-    "name":"orangered 4"
-  },
-  {
-    "value":"#5E2612",
-    "name":"sepia"
-  },
-  {
-    "value":"#E9967A",
-    "css":true,
-    "name":"darksalmon"
-  },
-  {
-    "value":"#FF8C69",
-    "name":"salmon 1"
-  },
-  {
-    "value":"#EE8262",
-    "name":"salmon 2"
-  },
-  {
-    "value":"#CD7054",
-    "name":"salmon 3"
-  },
-  {
-    "value":"#8B4C39",
-    "name":"salmon 4"
-  },
-  {
-    "value":"#FF7256",
-    "name":"coral 1"
-  },
-  {
-    "value":"#EE6A50",
-    "name":"coral 2"
-  },
-  {
-    "value":"#CD5B45",
-    "name":"coral 3"
-  },
-  {
-    "value":"#8B3E2F",
-    "name":"coral 4"
-  },
-  {
-    "value":"#8A3324",
-    "name":"burntumber"
-  },
-  {
-    "value":"#FF6347",
-    "name":"tomato 1"
-  },
-  {
-    "value":"#FF6347",
-    "css":true,
-    "name":"tomato"
-  },
-  {
-    "value":"#EE5C42",
-    "name":"tomato 2"
-  },
-  {
-    "value":"#CD4F39",
-    "name":"tomato 3"
-  },
-  {
-    "value":"#8B3626",
-    "name":"tomato 4"
-  },
-  {
-    "value":"#FA8072",
-    "css":true,
-    "name":"salmon"
-  },
-  {
-    "value":"#FFE4E1",
-    "name":"mistyrose 1"
-  },
-  {
-    "value":"#FFE4E1",
-    "css":true,
-    "name":"mistyrose"
-  },
-  {
-    "value":"#EED5D2",
-    "name":"mistyrose 2"
-  },
-  {
-    "value":"#CDB7B5",
-    "name":"mistyrose 3"
-  },
-  {
-    "value":"#8B7D7B",
-    "name":"mistyrose 4"
-  },
-  {
-    "value":"#FFFAFA",
-    "name":"snow 1"
-  },
-  {
-    "value":"#FFFAFA",
-    "css":true,
-    "name":"snow"
-  },
-  {
-    "value":"#EEE9E9",
-    "name":"snow 2"
-  },
-  {
-    "value":"#CDC9C9",
-    "name":"snow 3"
-  },
-  {
-    "value":"#8B8989",
-    "name":"snow 4"
-  },
-  {
-    "value":"#BC8F8F",
-    "css":true,
-    "name":"rosybrown"
-  },
-  {
-    "value":"#FFC1C1",
-    "name":"rosybrown 1"
-  },
-  {
-    "value":"#EEB4B4",
-    "name":"rosybrown 2"
-  },
-  {
-    "value":"#CD9B9B",
-    "name":"rosybrown 3"
-  },
-  {
-    "value":"#8B6969",
-    "name":"rosybrown 4"
-  },
-  {
-    "value":"#F08080",
-    "css":true,
-    "name":"lightcoral"
-  },
-  {
-    "value":"#CD5C5C",
-    "css":true,
-    "name":"indianred"
-  },
-  {
-    "value":"#FF6A6A",
-    "name":"indianred 1"
-  },
-  {
-    "value":"#EE6363",
-    "name":"indianred 2"
-  },
-  {
-    "value":"#8B3A3A",
-    "name":"indianred 4"
-  },
-  {
-    "value":"#CD5555",
-    "name":"indianred 3"
-  },
-  {
-    "value":"#A52A2A",
-    "css":true,
-    "name":"brown"
-  },
-  {
-    "value":"#FF4040",
-    "name":"brown 1"
-  },
-  {
-    "value":"#EE3B3B",
-    "name":"brown 2"
-  },
-  {
-    "value":"#CD3333",
-    "name":"brown 3"
-  },
-  {
-    "value":"#8B2323",
-    "name":"brown 4"
-  },
-  {
-    "value":"#B22222",
-    "css":true,
-    "name":"firebrick"
-  },
-  {
-    "value":"#FF3030",
-    "name":"firebrick 1"
-  },
-  {
-    "value":"#EE2C2C",
-    "name":"firebrick 2"
-  },
-  {
-    "value":"#CD2626",
-    "name":"firebrick 3"
-  },
-  {
-    "value":"#8B1A1A",
-    "name":"firebrick 4"
-  },
-  {
-    "value":"#FF0000",
-    "vga":true,
-    "name":"red 1"
-  },
-  {
-    "value":"#FF0000",
-    "vga":true,
-    "css":true,
-    "name":"red"
-  },
-  {
-    "value":"#EE0000",
-    "name":"red 2"
-  },
-  {
-    "value":"#CD0000",
-    "name":"red 3"
-  },
-  {
-    "value":"#8B0000",
-    "name":"red 4"
-  },
-  {
-    "value":"#8B0000",
-    "css":true,
-    "name":"darkred"
-  },
-  {
-    "value":"#800000",
-    "vga":true,
-    "css":true,
-    "name":"maroon"
-  },
-  {
-    "value":"#8E388E",
-    "name":"sgi beet"
-  },
-  {
-    "value":"#7171C6",
-    "name":"sgi slateblue"
-  },
-  {
-    "value":"#7D9EC0",
-    "name":"sgi lightblue"
-  },
-  {
-    "value":"#388E8E",
-    "name":"sgi teal"
-  },
-  {
-    "value":"#71C671",
-    "name":"sgi chartreuse"
-  },
-  {
-    "value":"#8E8E38",
-    "name":"sgi olivedrab"
-  },
-  {
-    "value":"#C5C1AA",
-    "name":"sgi brightgray"
-  },
-  {
-    "value":"#C67171",
-    "name":"sgi salmon"
-  },
-  {
-    "value":"#555555",
-    "name":"sgi darkgray"
-  },
-  {
-    "value":"#1E1E1E",
-    "name":"sgi gray 12"
-  },
-  {
-    "value":"#282828",
-    "name":"sgi gray 16"
-  },
-  {
-    "value":"#515151",
-    "name":"sgi gray 32"
-  },
-  {
-    "value":"#5B5B5B",
-    "name":"sgi gray 36"
-  },
-  {
-    "value":"#848484",
-    "name":"sgi gray 52"
-  },
-  {
-    "value":"#8E8E8E",
-    "name":"sgi gray 56"
-  },
-  {
-    "value":"#AAAAAA",
-    "name":"sgi lightgray"
-  },
-  {
-    "value":"#B7B7B7",
-    "name":"sgi gray 72"
-  },
-  {
-    "value":"#C1C1C1",
-    "name":"sgi gray 76"
-  },
-  {
-    "value":"#EAEAEA",
-    "name":"sgi gray 92"
-  },
-  {
-    "value":"#F4F4F4",
-    "name":"sgi gray 96"
-  },
-  {
-    "value":"#FFFFFF",
-    "vga":true,
-    "css":true,
-    "name":"white"
-  },
-  {
-    "value":"#F5F5F5",
-    "name":"white smoke"
-  },
-  {
-    "value":"#F5F5F5",
-    "name":"gray 96"
-  },
-  {
-    "value":"#DCDCDC",
-    "css":true,
-    "name":"gainsboro"
-  },
-  {
-    "value":"#D3D3D3",
-    "css":true,
-    "name":"lightgrey"
-  },
-  {
-    "value":"#C0C0C0",
-    "vga":true,
-    "css":true,
-    "name":"silver"
-  },
-  {
-    "value":"#A9A9A9",
-    "css":true,
-    "name":"darkgray"
-  },
-  {
-    "value":"#808080",
-    "vga":true,
-    "css":true,
-    "name":"gray"
-  },
-  {
-    "value":"#696969",
-    "css":true,
-    "name":"dimgray"
-  },
-  {
-    "value":"#696969",
-    "name":"gray 42"
-  },
-  {
-    "value":"#000000",
-    "vga":true,
-    "css":true,
-    "name":"black"
-  },
-  {
-    "value":"#FCFCFC",
-    "name":"gray 99"
-  },
-  {
-    "value":"#FAFAFA",
-    "name":"gray 98"
-  },
-  {
-    "value":"#F7F7F7",
-    "name":"gray 97"
-  },
-  {
-    "value":"#F2F2F2",
-    "name":"gray 95"
-  },
-  {
-    "value":"#F0F0F0",
-    "name":"gray 94"
-  },
-  {
-    "value":"#EDEDED",
-    "name":"gray 93"
-  },
-  {
-    "value":"#EBEBEB",
-    "name":"gray 92"
-  },
-  {
-    "value":"#E8E8E8",
-    "name":"gray 91"
-  },
-  {
-    "value":"#E5E5E5",
-    "name":"gray 90"
-  },
-  {
-    "value":"#E3E3E3",
-    "name":"gray 89"
-  },
-  {
-    "value":"#E0E0E0",
-    "name":"gray 88"
-  },
-  {
-    "value":"#DEDEDE",
-    "name":"gray 87"
-  },
-  {
-    "value":"#DBDBDB",
-    "name":"gray 86"
-  },
-  {
-    "value":"#D9D9D9",
-    "name":"gray 85"
-  },
-  {
-    "value":"#D6D6D6",
-    "name":"gray 84"
-  },
-  {
-    "value":"#D4D4D4",
-    "name":"gray 83"
-  },
-  {
-    "value":"#D1D1D1",
-    "name":"gray 82"
-  },
-  {
-    "value":"#CFCFCF",
-    "name":"gray 81"
-  },
-  {
-    "value":"#CCCCCC",
-    "name":"gray 80"
-  },
-  {
-    "value":"#C9C9C9",
-    "name":"gray 79"
-  },
-  {
-    "value":"#C7C7C7",
-    "name":"gray 78"
-  },
-  {
-    "value":"#C4C4C4",
-    "name":"gray 77"
-  },
-  {
-    "value":"#C2C2C2",
-    "name":"gray 76"
-  },
-  {
-    "value":"#BFBFBF",
-    "name":"gray 75"
-  },
-  {
-    "value":"#BDBDBD",
-    "name":"gray 74"
-  },
-  {
-    "value":"#BABABA",
-    "name":"gray 73"
-  },
-  {
-    "value":"#B8B8B8",
-    "name":"gray 72"
-  },
-  {
-    "value":"#B5B5B5",
-    "name":"gray 71"
-  },
-  {
-    "value":"#B3B3B3",
-    "name":"gray 70"
-  },
-  {
-    "value":"#B0B0B0",
-    "name":"gray 69"
-  },
-  {
-    "value":"#ADADAD",
-    "name":"gray 68"
-  },
-  {
-    "value":"#ABABAB",
-    "name":"gray 67"
-  },
-  {
-    "value":"#A8A8A8",
-    "name":"gray 66"
-  },
-  {
-    "value":"#A6A6A6",
-    "name":"gray 65"
-  },
-  {
-    "value":"#A3A3A3",
-    "name":"gray 64"
-  },
-  {
-    "value":"#A1A1A1",
-    "name":"gray 63"
-  },
-  {
-    "value":"#9E9E9E",
-    "name":"gray 62"
-  },
-  {
-    "value":"#9C9C9C",
-    "name":"gray 61"
-  },
-  {
-    "value":"#999999",
-    "name":"gray 60"
-  },
-  {
-    "value":"#969696",
-    "name":"gray 59"
-  },
-  {
-    "value":"#949494",
-    "name":"gray 58"
-  },
-  {
-    "value":"#919191",
-    "name":"gray 57"
-  },
-  {
-    "value":"#8F8F8F",
-    "name":"gray 56"
-  },
-  {
-    "value":"#8C8C8C",
-    "name":"gray 55"
-  },
-  {
-    "value":"#8A8A8A",
-    "name":"gray 54"
-  },
-  {
-    "value":"#878787",
-    "name":"gray 53"
-  },
-  {
-    "value":"#858585",
-    "name":"gray 52"
-  },
-  {
-    "value":"#828282",
-    "name":"gray 51"
-  },
-  {
-    "value":"#7F7F7F",
-    "name":"gray 50"
-  },
-  {
-    "value":"#7D7D7D",
-    "name":"gray 49"
-  },
-  {
-    "value":"#7A7A7A",
-    "name":"gray 48"
-  },
-  {
-    "value":"#787878",
-    "name":"gray 47"
-  },
-  {
-    "value":"#757575",
-    "name":"gray 46"
-  },
-  {
-    "value":"#737373",
-    "name":"gray 45"
-  },
-  {
-    "value":"#707070",
-    "name":"gray 44"
-  },
-  {
-    "value":"#6E6E6E",
-    "name":"gray 43"
-  },
-  {
-    "value":"#666666",
-    "name":"gray 40"
-  },
-  {
-    "value":"#636363",
-    "name":"gray 39"
-  },
-  {
-    "value":"#616161",
-    "name":"gray 38"
-  },
-  {
-    "value":"#5E5E5E",
-    "name":"gray 37"
-  },
-  {
-    "value":"#5C5C5C",
-    "name":"gray 36"
-  },
-  {
-    "value":"#595959",
-    "name":"gray 35"
-  },
-  {
-    "value":"#575757",
-    "name":"gray 34"
-  },
-  {
-    "value":"#545454",
-    "name":"gray 33"
-  },
-  {
-    "value":"#525252",
-    "name":"gray 32"
-  },
-  {
-    "value":"#4F4F4F",
-    "name":"gray 31"
-  },
-  {
-    "value":"#4D4D4D",
-    "name":"gray 30"
-  },
-  {
-    "value":"#4A4A4A",
-    "name":"gray 29"
-  },
-  {
-    "value":"#474747",
-    "name":"gray 28"
-  },
-  {
-    "value":"#454545",
-    "name":"gray 27"
-  },
-  {
-    "value":"#424242",
-    "name":"gray 26"
-  },
-  {
-    "value":"#404040",
-    "name":"gray 25"
-  },
-  {
-    "value":"#3D3D3D",
-    "name":"gray 24"
-  },
-  {
-    "value":"#3B3B3B",
-    "name":"gray 23"
-  },
-  {
-    "value":"#383838",
-    "name":"gray 22"
-  },
-  {
-    "value":"#363636",
-    "name":"gray 21"
-  },
-  {
-    "value":"#333333",
-    "name":"gray 20"
-  },
-  {
-    "value":"#303030",
-    "name":"gray 19"
-  },
-  {
-    "value":"#2E2E2E",
-    "name":"gray 18"
-  },
-  {
-    "value":"#2B2B2B",
-    "name":"gray 17"
-  },
-  {
-    "value":"#292929",
-    "name":"gray 16"
-  },
-  {
-    "value":"#262626",
-    "name":"gray 15"
-  },
-  {
-    "value":"#242424",
-    "name":"gray 14"
-  },
-  {
-    "value":"#212121",
-    "name":"gray 13"
-  },
-  {
-    "value":"#1F1F1F",
-    "name":"gray 12"
-  },
-  {
-    "value":"#1C1C1C",
-    "name":"gray 11"
-  },
-  {
-    "value":"#1A1A1A",
-    "name":"gray 10"
-  },
-  {
-    "value":"#171717",
-    "name":"gray 9"
-  },
-  {
-    "value":"#141414",
-    "name":"gray 8"
-  },
-  {
-    "value":"#121212",
-    "name":"gray 7"
-  },
-  {
-    "value":"#0F0F0F",
-    "name":"gray 6"
-  },
-  {
-    "value":"#0D0D0D",
-    "name":"gray 5"
-  },
-  {
-    "value":"#0A0A0A",
-    "name":"gray 4"
-  },
-  {
-    "value":"#080808",
-    "name":"gray 3"
-  },
-  {
-    "value":"#050505",
-    "name":"gray 2"
-  },
-  {
-    "value":"#030303",
-    "name":"gray 1"
-  },
-  {
-    "value":"#F5F5F5",
-    "css":true,
-    "name":"whitesmoke"
-  }
-]
-
-
-/***/ }),
-
-/***/ 697:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-/**
- * Module dependencies
- */
-var colors = __nccwpck_require__(7740)
-
-var cssColors = colors.filter(function(color){
-  return !! color.css
-})
-
-var vgaColors = colors.filter(function(color){
-  return !! color.vga
-})
-
-
-/**
- * Get color value for a certain name.
- * @param name {String}
- * @return {String} Hex color value
- * @api public
- */
-
-module.exports = function(name) {
-  var color = module.exports.get(name)
-  return color && color.value
-}
-
-/**
- * Get color object.
- *
- * @param name {String}
- * @return {Object} Color object
- * @api public
- */
-
-module.exports.get = function(name) {
-  name = name || ''
-  name = name.trim().toLowerCase()
-  return colors.filter(function(color){
-    return color.name.toLowerCase() === name
-  }).pop()
-}
-
-/**
- * Get all color object.
- *
- * @return {Array}
- * @api public
- */
-
-module.exports.all = module.exports.get.all = function() {
- return colors
-}
-
-/**
- * Get color object compatible with CSS.
- *
- * @return {Array}
- * @api public
- */
-
-module.exports.get.css = function(name) {
-  if (!name) return cssColors
-  name = name || ''
-  name = name.trim().toLowerCase()
-  return cssColors.filter(function(color){
-    return color.name.toLowerCase() === name
-  }).pop()
-}
-
-
-
-module.exports.get.vga = function(name) {
-  if (!name) return vgaColors
-  name = name || ''
-  name = name.trim().toLowerCase()
-  return vgaColors.filter(function(color){
-    return color.name.toLowerCase() === name
-  }).pop()
-}
-
-
-/***/ }),
-
-/***/ 3595:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-/*
-
-The MIT License (MIT)
-
-Original Library
-  - Copyright (c) Marak Squires
-
-Additional functionality
- - Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-
-*/
-
-var colors = {};
-module['exports'] = colors;
-
-colors.themes = {};
-
-var util = __nccwpck_require__(3837);
-var ansiStyles = colors.styles = __nccwpck_require__(3104);
-var defineProps = Object.defineProperties;
-var newLineRegex = new RegExp(/[\r\n]+/g);
-
-colors.supportsColor = (__nccwpck_require__(662).supportsColor);
-
-if (typeof colors.enabled === 'undefined') {
-  colors.enabled = colors.supportsColor() !== false;
-}
-
-colors.enable = function() {
-  colors.enabled = true;
-};
-
-colors.disable = function() {
-  colors.enabled = false;
-};
-
-colors.stripColors = colors.strip = function(str) {
-  return ('' + str).replace(/\x1B\[\d+m/g, '');
-};
-
-// eslint-disable-next-line no-unused-vars
-var stylize = colors.stylize = function stylize(str, style) {
-  if (!colors.enabled) {
-    return str+'';
-  }
-
-  var styleMap = ansiStyles[style];
-
-  // Stylize should work for non-ANSI styles, too
-  if(!styleMap && style in colors){
-    // Style maps like trap operate as functions on strings;
-    // they don't have properties like open or close.
-    return colors[style](str);
-  }
-
-  return styleMap.open + str + styleMap.close;
-};
-
-var matchOperatorsRe = /[|\\{}()[\]^$+*?.]/g;
-var escapeStringRegexp = function(str) {
-  if (typeof str !== 'string') {
-    throw new TypeError('Expected a string');
-  }
-  return str.replace(matchOperatorsRe, '\\$&');
-};
-
-function build(_styles) {
-  var builder = function builder() {
-    return applyStyle.apply(builder, arguments);
-  };
-  builder._styles = _styles;
-  // __proto__ is used because we must return a function, but there is
-  // no way to create a function with a different prototype.
-  builder.__proto__ = proto;
-  return builder;
-}
-
-var styles = (function() {
-  var ret = {};
-  ansiStyles.grey = ansiStyles.gray;
-  Object.keys(ansiStyles).forEach(function(key) {
-    ansiStyles[key].closeRe =
-      new RegExp(escapeStringRegexp(ansiStyles[key].close), 'g');
-    ret[key] = {
-      get: function() {
-        return build(this._styles.concat(key));
-      },
-    };
-  });
-  return ret;
-})();
-
-var proto = defineProps(function colors() {}, styles);
-
-function applyStyle() {
-  var args = Array.prototype.slice.call(arguments);
-
-  var str = args.map(function(arg) {
-    // Use weak equality check so we can colorize null/undefined in safe mode
-    if (arg != null && arg.constructor === String) {
-      return arg;
-    } else {
-      return util.inspect(arg);
-    }
-  }).join(' ');
-
-  if (!colors.enabled || !str) {
-    return str;
-  }
-
-  var newLinesPresent = str.indexOf('\n') != -1;
-
-  var nestedStyles = this._styles;
-
-  var i = nestedStyles.length;
-  while (i--) {
-    var code = ansiStyles[nestedStyles[i]];
-    str = code.open + str.replace(code.closeRe, code.open) + code.close;
-    if (newLinesPresent) {
-      str = str.replace(newLineRegex, function(match) {
-        return code.close + match + code.open;
-      });
-    }
-  }
-
-  return str;
-}
-
-colors.setTheme = function(theme) {
-  if (typeof theme === 'string') {
-    console.log('colors.setTheme now only accepts an object, not a string.  ' +
-      'If you are trying to set a theme from a file, it is now your (the ' +
-      'caller\'s) responsibility to require the file.  The old syntax ' +
-      'looked like colors.setTheme(__dirname + ' +
-      '\'/../themes/generic-logging.js\'); The new syntax looks like '+
-      'colors.setTheme(require(__dirname + ' +
-      '\'/../themes/generic-logging.js\'));');
-    return;
-  }
-  for (var style in theme) {
-    (function(style) {
-      colors[style] = function(str) {
-        if (typeof theme[style] === 'object') {
-          var out = str;
-          for (var i in theme[style]) {
-            out = colors[theme[style][i]](out);
-          }
-          return out;
-        }
-        return colors[theme[style]](str);
-      };
-    })(style);
-  }
-};
-
-function init() {
-  var ret = {};
-  Object.keys(styles).forEach(function(name) {
-    ret[name] = {
-      get: function() {
-        return build([name]);
-      },
-    };
-  });
-  return ret;
-}
-
-var sequencer = function sequencer(map, str) {
-  var exploded = str.split('');
-  exploded = exploded.map(map);
-  return exploded.join('');
-};
-
-// custom formatter methods
-colors.trap = __nccwpck_require__(1302);
-colors.zalgo = __nccwpck_require__(7743);
-
-// maps
-colors.maps = {};
-colors.maps.america = __nccwpck_require__(6936)(colors);
-colors.maps.zebra = __nccwpck_require__(2989)(colors);
-colors.maps.rainbow = __nccwpck_require__(5210)(colors);
-colors.maps.random = __nccwpck_require__(3441)(colors);
-
-for (var map in colors.maps) {
-  (function(map) {
-    colors[map] = function(str) {
-      return sequencer(colors.maps[map], str);
-    };
-  })(map);
-}
-
-defineProps(colors, init());
-
-
-/***/ }),
-
-/***/ 1302:
-/***/ ((module) => {
-
-module['exports'] = function runTheTrap(text, options) {
-  var result = '';
-  text = text || 'Run the trap, drop the bass';
-  text = text.split('');
-  var trap = {
-    a: ['\u0040', '\u0104', '\u023a', '\u0245', '\u0394', '\u039b', '\u0414'],
-    b: ['\u00df', '\u0181', '\u0243', '\u026e', '\u03b2', '\u0e3f'],
-    c: ['\u00a9', '\u023b', '\u03fe'],
-    d: ['\u00d0', '\u018a', '\u0500', '\u0501', '\u0502', '\u0503'],
-    e: ['\u00cb', '\u0115', '\u018e', '\u0258', '\u03a3', '\u03be', '\u04bc',
-      '\u0a6c'],
-    f: ['\u04fa'],
-    g: ['\u0262'],
-    h: ['\u0126', '\u0195', '\u04a2', '\u04ba', '\u04c7', '\u050a'],
-    i: ['\u0f0f'],
-    j: ['\u0134'],
-    k: ['\u0138', '\u04a0', '\u04c3', '\u051e'],
-    l: ['\u0139'],
-    m: ['\u028d', '\u04cd', '\u04ce', '\u0520', '\u0521', '\u0d69'],
-    n: ['\u00d1', '\u014b', '\u019d', '\u0376', '\u03a0', '\u048a'],
-    o: ['\u00d8', '\u00f5', '\u00f8', '\u01fe', '\u0298', '\u047a', '\u05dd',
-      '\u06dd', '\u0e4f'],
-    p: ['\u01f7', '\u048e'],
-    q: ['\u09cd'],
-    r: ['\u00ae', '\u01a6', '\u0210', '\u024c', '\u0280', '\u042f'],
-    s: ['\u00a7', '\u03de', '\u03df', '\u03e8'],
-    t: ['\u0141', '\u0166', '\u0373'],
-    u: ['\u01b1', '\u054d'],
-    v: ['\u05d8'],
-    w: ['\u0428', '\u0460', '\u047c', '\u0d70'],
-    x: ['\u04b2', '\u04fe', '\u04fc', '\u04fd'],
-    y: ['\u00a5', '\u04b0', '\u04cb'],
-    z: ['\u01b5', '\u0240'],
-  };
-  text.forEach(function(c) {
-    c = c.toLowerCase();
-    var chars = trap[c] || [' '];
-    var rand = Math.floor(Math.random() * chars.length);
-    if (typeof trap[c] !== 'undefined') {
-      result += trap[c][rand];
-    } else {
-      result += c;
-    }
-  });
-  return result;
-};
-
-
-/***/ }),
-
-/***/ 7743:
-/***/ ((module) => {
-
-// please no
-module['exports'] = function zalgo(text, options) {
-  text = text || '   he is here   ';
-  var soul = {
-    'up': [
-      '̍', '̎', '̄', '̅',
-      '̿', '̑', '̆', '̐',
-      '͒', '͗', '͑', '̇',
-      '̈', '̊', '͂', '̓',
-      '̈', '͊', '͋', '͌',
-      '̃', '̂', '̌', '͐',
-      '̀', '́', '̋', '̏',
-      '̒', '̓', '̔', '̽',
-      '̉', 'ͣ', 'ͤ', 'ͥ',
-      'ͦ', 'ͧ', 'ͨ', 'ͩ',
-      'ͪ', 'ͫ', 'ͬ', 'ͭ',
-      'ͮ', 'ͯ', '̾', '͛',
-      '͆', '̚',
-    ],
-    'down': [
-      '̖', '̗', '̘', '̙',
-      '̜', '̝', '̞', '̟',
-      '̠', '̤', '̥', '̦',
-      '̩', '̪', '̫', '̬',
-      '̭', '̮', '̯', '̰',
-      '̱', '̲', '̳', '̹',
-      '̺', '̻', '̼', 'ͅ',
-      '͇', '͈', '͉', '͍',
-      '͎', '͓', '͔', '͕',
-      '͖', '͙', '͚', '̣',
-    ],
-    'mid': [
-      '̕', '̛', '̀', '́',
-      '͘', '̡', '̢', '̧',
-      '̨', '̴', '̵', '̶',
-      '͜', '͝', '͞',
-      '͟', '͠', '͢', '̸',
-      '̷', '͡', ' ҉',
-    ],
-  };
-  var all = [].concat(soul.up, soul.down, soul.mid);
-
-  function randomNumber(range) {
-    var r = Math.floor(Math.random() * range);
-    return r;
-  }
-
-  function isChar(character) {
-    var bool = false;
-    all.filter(function(i) {
-      bool = (i === character);
-    });
-    return bool;
-  }
-
-
-  function heComes(text, options) {
-    var result = '';
-    var counts;
-    var l;
-    options = options || {};
-    options['up'] =
-      typeof options['up'] !== 'undefined' ? options['up'] : true;
-    options['mid'] =
-      typeof options['mid'] !== 'undefined' ? options['mid'] : true;
-    options['down'] =
-      typeof options['down'] !== 'undefined' ? options['down'] : true;
-    options['size'] =
-      typeof options['size'] !== 'undefined' ? options['size'] : 'maxi';
-    text = text.split('');
-    for (l in text) {
-      if (isChar(l)) {
-        continue;
-      }
-      result = result + text[l];
-      counts = {'up': 0, 'down': 0, 'mid': 0};
-      switch (options.size) {
-        case 'mini':
-          counts.up = randomNumber(8);
-          counts.mid = randomNumber(2);
-          counts.down = randomNumber(8);
-          break;
-        case 'maxi':
-          counts.up = randomNumber(16) + 3;
-          counts.mid = randomNumber(4) + 1;
-          counts.down = randomNumber(64) + 3;
-          break;
-        default:
-          counts.up = randomNumber(8) + 1;
-          counts.mid = randomNumber(6) / 2;
-          counts.down = randomNumber(8) + 1;
-          break;
-      }
-
-      var arr = ['up', 'mid', 'down'];
-      for (var d in arr) {
-        var index = arr[d];
-        for (var i = 0; i <= counts[index]; i++) {
-          if (options[index]) {
-            result = result + soul[index][randomNumber(soul[index].length)];
-          }
-        }
-      }
-    }
-    return result;
-  }
-  // don't summon him
-  return heComes(text, options);
-};
-
-
-
-/***/ }),
-
-/***/ 6936:
-/***/ ((module) => {
-
-module['exports'] = function(colors) {
-  return function(letter, i, exploded) {
-    if (letter === ' ') return letter;
-    switch (i%3) {
-      case 0: return colors.red(letter);
-      case 1: return colors.white(letter);
-      case 2: return colors.blue(letter);
-    }
-  };
-};
-
-
-/***/ }),
-
-/***/ 5210:
-/***/ ((module) => {
-
-module['exports'] = function(colors) {
-  // RoY G BiV
-  var rainbowColors = ['red', 'yellow', 'green', 'blue', 'magenta'];
-  return function(letter, i, exploded) {
-    if (letter === ' ') {
-      return letter;
-    } else {
-      return colors[rainbowColors[i++ % rainbowColors.length]](letter);
-    }
-  };
-};
-
-
-
-/***/ }),
-
-/***/ 3441:
-/***/ ((module) => {
-
-module['exports'] = function(colors) {
-  var available = ['underline', 'inverse', 'grey', 'yellow', 'red', 'green',
-    'blue', 'white', 'cyan', 'magenta', 'brightYellow', 'brightRed',
-    'brightGreen', 'brightBlue', 'brightWhite', 'brightCyan', 'brightMagenta'];
-  return function(letter, i, exploded) {
-    return letter === ' ' ? letter :
-      colors[
-          available[Math.round(Math.random() * (available.length - 2))]
-      ](letter);
-  };
-};
-
-
-/***/ }),
-
-/***/ 2989:
-/***/ ((module) => {
-
-module['exports'] = function(colors) {
-  return function(letter, i, exploded) {
-    return i % 2 === 0 ? letter : colors.inverse(letter);
-  };
-};
-
-
-/***/ }),
-
-/***/ 3104:
-/***/ ((module) => {
-
-/*
-The MIT License (MIT)
-
-Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-
-*/
-
-var styles = {};
-module['exports'] = styles;
-
-var codes = {
-  reset: [0, 0],
-
-  bold: [1, 22],
-  dim: [2, 22],
-  italic: [3, 23],
-  underline: [4, 24],
-  inverse: [7, 27],
-  hidden: [8, 28],
-  strikethrough: [9, 29],
-
-  black: [30, 39],
-  red: [31, 39],
-  green: [32, 39],
-  yellow: [33, 39],
-  blue: [34, 39],
-  magenta: [35, 39],
-  cyan: [36, 39],
-  white: [37, 39],
-  gray: [90, 39],
-  grey: [90, 39],
-
-  brightRed: [91, 39],
-  brightGreen: [92, 39],
-  brightYellow: [93, 39],
-  brightBlue: [94, 39],
-  brightMagenta: [95, 39],
-  brightCyan: [96, 39],
-  brightWhite: [97, 39],
-
-  bgBlack: [40, 49],
-  bgRed: [41, 49],
-  bgGreen: [42, 49],
-  bgYellow: [43, 49],
-  bgBlue: [44, 49],
-  bgMagenta: [45, 49],
-  bgCyan: [46, 49],
-  bgWhite: [47, 49],
-  bgGray: [100, 49],
-  bgGrey: [100, 49],
-
-  bgBrightRed: [101, 49],
-  bgBrightGreen: [102, 49],
-  bgBrightYellow: [103, 49],
-  bgBrightBlue: [104, 49],
-  bgBrightMagenta: [105, 49],
-  bgBrightCyan: [106, 49],
-  bgBrightWhite: [107, 49],
-
-  // legacy styles for colors pre v1.0.0
-  blackBG: [40, 49],
-  redBG: [41, 49],
-  greenBG: [42, 49],
-  yellowBG: [43, 49],
-  blueBG: [44, 49],
-  magentaBG: [45, 49],
-  cyanBG: [46, 49],
-  whiteBG: [47, 49],
-
-};
-
-Object.keys(codes).forEach(function(key) {
-  var val = codes[key];
-  var style = styles[key] = [];
-  style.open = '\u001b[' + val[0] + 'm';
-  style.close = '\u001b[' + val[1] + 'm';
-});
-
-
-/***/ }),
-
-/***/ 223:
-/***/ ((module) => {
-
-"use strict";
-/*
-MIT License
-
-Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of
-this software and associated documentation files (the "Software"), to deal in
-the Software without restriction, including without limitation the rights to
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
-of the Software, and to permit persons to whom the Software is furnished to do
-so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-*/
-
-
-
-module.exports = function(flag, argv) {
-  argv = argv || process.argv;
-
-  var terminatorPos = argv.indexOf('--');
-  var prefix = /^-{1,2}/.test(flag) ? '' : '--';
-  var pos = argv.indexOf(prefix + flag);
-
-  return pos !== -1 && (terminatorPos === -1 ? true : pos < terminatorPos);
-};
-
-
-/***/ }),
-
-/***/ 662:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-/*
-The MIT License (MIT)
-
-Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-
-*/
-
-
-
-var os = __nccwpck_require__(2037);
-var hasFlag = __nccwpck_require__(223);
-
-var env = process.env;
-
-var forceColor = void 0;
-if (hasFlag('no-color') || hasFlag('no-colors') || hasFlag('color=false')) {
-  forceColor = false;
-} else if (hasFlag('color') || hasFlag('colors') || hasFlag('color=true')
-           || hasFlag('color=always')) {
-  forceColor = true;
-}
-if ('FORCE_COLOR' in env) {
-  forceColor = env.FORCE_COLOR.length === 0
-    || parseInt(env.FORCE_COLOR, 10) !== 0;
-}
-
-function translateLevel(level) {
-  if (level === 0) {
-    return false;
-  }
-
-  return {
-    level: level,
-    hasBasic: true,
-    has256: level >= 2,
-    has16m: level >= 3,
-  };
-}
-
-function supportsColor(stream) {
-  if (forceColor === false) {
-    return 0;
-  }
-
-  if (hasFlag('color=16m') || hasFlag('color=full')
-      || hasFlag('color=truecolor')) {
-    return 3;
-  }
-
-  if (hasFlag('color=256')) {
-    return 2;
-  }
-
-  if (stream && !stream.isTTY && forceColor !== true) {
-    return 0;
-  }
-
-  var min = forceColor ? 1 : 0;
-
-  if (process.platform === 'win32') {
-    // Node.js 7.5.0 is the first version of Node.js to include a patch to
-    // libuv that enables 256 color output on Windows. Anything earlier and it
-    // won't work. However, here we target Node.js 8 at minimum as it is an LTS
-    // release, and Node.js 7 is not. Windows 10 build 10586 is the first
-    // Windows release that supports 256 colors. Windows 10 build 14931 is the
-    // first release that supports 16m/TrueColor.
-    var osRelease = os.release().split('.');
-    if (Number(process.versions.node.split('.')[0]) >= 8
-        && Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
-      return Number(osRelease[2]) >= 14931 ? 3 : 2;
-    }
-
-    return 1;
-  }
-
-  if ('CI' in env) {
-    if (['TRAVIS', 'CIRCLECI', 'APPVEYOR', 'GITLAB_CI'].some(function(sign) {
-      return sign in env;
-    }) || env.CI_NAME === 'codeship') {
-      return 1;
-    }
-
-    return min;
-  }
-
-  if ('TEAMCITY_VERSION' in env) {
-    return (/^(9\.(0*[1-9]\d*)\.|\d{2,}\.)/.test(env.TEAMCITY_VERSION) ? 1 : 0
-    );
-  }
-
-  if ('TERM_PROGRAM' in env) {
-    var version = parseInt((env.TERM_PROGRAM_VERSION || '').split('.')[0], 10);
-
-    switch (env.TERM_PROGRAM) {
-      case 'iTerm.app':
-        return version >= 3 ? 3 : 2;
-      case 'Hyper':
-        return 3;
-      case 'Apple_Terminal':
-        return 2;
-      // No default
-    }
-  }
-
-  if (/-256(color)?$/i.test(env.TERM)) {
-    return 2;
-  }
-
-  if (/^screen|^xterm|^vt100|^rxvt|color|ansi|cygwin|linux/i.test(env.TERM)) {
-    return 1;
-  }
-
-  if ('COLORTERM' in env) {
-    return 1;
-  }
-
-  if (env.TERM === 'dumb') {
-    return min;
-  }
-
-  return min;
-}
-
-function getSupportLevel(stream) {
-  var level = supportsColor(stream);
-  return translateLevel(level);
-}
-
-module.exports = {
-  supportsColor: getSupportLevel,
-  stdout: getSupportLevel(process.stdout),
-  stderr: getSupportLevel(process.stderr),
-};
-
-
-/***/ }),
-
-/***/ 1997:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-//
-// Remark: Requiring this file will use the "safe" colors API,
-// which will not touch String.prototype.
-//
-//   var colors = require('colors/safe');
-//   colors.red("foo")
-//
-//
-var colors = __nccwpck_require__(3595);
-module['exports'] = colors;
 
 
 /***/ }),
@@ -32612,120 +29746,6 @@ module.exports = function resolve(pathOrFiles) {
 
 /***/ }),
 
-/***/ 5009:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-var colorspace = __nccwpck_require__(5917)
-  , enabled = __nccwpck_require__(3495)
-  , kuler = __nccwpck_require__(6287)
-  , util = __nccwpck_require__(3837);
-
-/**
- * Check if the terminal we're using allows the use of colors.
- *
- * @type {Boolean}
- * @private
- */
-var tty = (__nccwpck_require__(6224).isatty)(1);
-
-/**
- * The default stream instance we should be writing against.
- *
- * @type {Stream}
- * @public
- */
-var stream = process.stdout;
-
-/**
- * A simple environment based logger.
- *
- * Options:
- *
- * - colors: Force the use of colors or forcefully disable them. If this option
- *   is not supplied the colors will be based on your terminal.
- * - stream: The Stream instance we should write our logs to, defaults to
- *   process.stdout but can be anything you like.
- *
- * @param {String} name The namespace of your log function.
- * @param {Object} options Logger configuration.
- * @returns {Function} Configured logging method.
- * @api public
- */
-function factory(name, options) {
-  if (!enabled(name)) return function diagnopes() {};
-
-  options = options || {};
-  options.colors = 'colors' in options ? options.colors : tty;
-  options.ansi = options.colors ? kuler(name, colorspace(name)) : name;
-  options.stream = options.stream || stream;
-
-  //
-  // Allow multiple streams, so make sure it's an array which makes iteration
-  // easier.
-  //
-  if (!Array.isArray(options.stream)) {
-    options.stream = [options.stream];
-  }
-
-  //
-  // The actual debug function which does the logging magic.
-  //
-  return function debug(line) {
-    //
-    // Better formatting for error instances.
-    //
-    if (line instanceof Error) line = line.stack || line.message || line;
-
-    line = [
-      //
-      // Add the colorized namespace.
-      //
-      options.ansi,
-
-      //
-      // The total time we took to execute the next debug statement.
-      //
-      ' ',
-      line
-    ].join('');
-
-    //
-    // Use util.format so we can follow the same API as console.log.
-    //
-    line = util.format.apply(this, [line].concat(
-        Array.prototype.slice.call(arguments, 1)
-    )) + '\n';
-
-    options.stream.forEach(function each(stream) {
-      stream.write(line);
-    });
-  };
-}
-
-/**
- * Override the "default" stream that we write to. This allows you to globally
- * configure the steams.
- *
- * @param {Stream} output
- * @returns {function} Factory
- * @api private
- */
-factory.to = function to(output) {
-  stream = output;
-  return factory;
-};
-
-//
-// Expose the module.
-//
-module.exports = factory;
-
-
-/***/ }),
-
 /***/ 1932:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -35145,36 +32165,24 @@ if (process.env.READABLE_STREAM === 'disable' && Stream) {
 /***/ }),
 
 /***/ 3495:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+/***/ ((module) => {
 
 "use strict";
 
 
-var env = __nccwpck_require__(4819);
-
 /**
- * Checks if a given namespace is allowed by the environment variables.
+ * Checks if a given namespace is allowed by the given variable.
  *
  * @param {String} name namespace that should be included.
- * @param {Array} variables
- * @returns {Boolean}
- * @api public
+ * @param {String} variable Value that needs to be tested.
+ * @returns {Boolean} Indication if namespace is enabled.
+ * @public
  */
-module.exports = function enabled(name, variables) {
-  var envy = env()
-    , variable
-    , i = 0;
-
-  variables = variables || ['diagnostics', 'debug'];
-
-  for (; i < variables.length; i++) {
-    if ((variable = envy[variables[i]])) break;
-  }
-
+module.exports = function enabled(name, variable) {
   if (!variable) return false;
 
-  variables = variable.split(/[\s,]+/);
-  i = 0;
+  var variables = variable.split(/[\s,]+/)
+    , i = 0;
 
   for (; i < variables.length; i++) {
     variable = variables[i].replace('*', '.*?');
@@ -35299,619 +32307,476 @@ module.exports = eos;
 
 /***/ }),
 
-/***/ 4819:
-/***/ ((module) => {
+/***/ 4513:
+/***/ (function(__unused_webpack_module, exports) {
 
-"use strict";
+(function (global, factory) {
+   true ? factory(exports) :
+  0;
+}(this, (function (exports) { 'use strict';
 
-
-var has = Object.prototype.hasOwnProperty;
-
-/**
- * Gather environment variables from various locations.
- *
- * @param {Object} environment The default environment variables.
- * @returns {Object} environment.
- * @api public
- */
-function env(environment) {
-  environment = environment || {};
-
-  if ('object' === typeof process && 'object' === typeof process.env) {
-    env.merge(environment, process.env);
-  }
-
-  if ('undefined' !== typeof window) {
-    if ('string' === window.name && window.name.length) {
-      env.merge(environment, env.parse(window.name));
-    }
-
-    try {
-      if (window.localStorage) {
-        env.merge(environment, env.parse(window.localStorage.env || window.localStorage.debug));
-      }
-    } catch (e) {}
-
-    if (
-         'object' === typeof window.location
-      && 'string' === typeof window.location.hash
-      && window.location.hash.length
-    ) {
-      env.merge(environment, env.parse(window.location.hash.charAt(0) === '#'
-        ? window.location.hash.slice(1)
-        : window.location.hash
-      ));
-    }
-  }
-
-  //
-  // Also add lower case variants to the object for easy access.
-  //
-  var key, lower;
-  for (key in environment) {
-    lower = key.toLowerCase();
-
-    if (!(lower in environment)) {
-      environment[lower] = environment[key];
-    }
-  }
-
-  return environment;
-}
-
-/**
- * A poor man's merge utility.
- *
- * @param {Object} base Object where the add object is merged in.
- * @param {Object} add Object that needs to be added to the base object.
- * @returns {Object} base
- * @api private
- */
-env.merge = function merge(base, add) {
-  for (var key in add) {
-    if (has.call(add, key)) {
-      base[key] = add[key];
-    }
-  }
-
-  return base;
-};
-
-/**
- * A poor man's query string parser.
- *
- * @param {String} query The query string that needs to be parsed.
- * @returns {Object} Key value mapped query string.
- * @api private
- */
-env.parse = function parse(query) {
-  var parser = /([^=?&]+)=([^&]*)/g
-    , result = {}
-    , part;
-
-  if (!query) return result;
-
-  for (;
-    part = parser.exec(query);
-    result[decodeURIComponent(part[1])] = decodeURIComponent(part[2])
-  );
-
-  return result.env || result;
-};
-
-//
-// Expose the module
-//
-module.exports = env;
-
-
-/***/ }),
-
-/***/ 7676:
-/***/ ((module) => {
-
-module.exports = stringify
-stringify.default = stringify
-stringify.stable = deterministicStringify
-stringify.stableStringify = deterministicStringify
-
-var arr = []
-var replacerStack = []
-
-// Regular stringify
-function stringify (obj, replacer, spacer) {
-  decirc(obj, '', [], undefined)
-  var res
-  if (replacerStack.length === 0) {
-    res = JSON.stringify(obj, replacer, spacer)
-  } else {
-    res = JSON.stringify(obj, replaceGetterValues(replacer), spacer)
-  }
-  while (arr.length !== 0) {
-    var part = arr.pop()
-    if (part.length === 4) {
-      Object.defineProperty(part[0], part[1], part[3])
-    } else {
-      part[0][part[1]] = part[2]
-    }
-  }
-  return res
-}
-function decirc (val, k, stack, parent) {
-  var i
-  if (typeof val === 'object' && val !== null) {
-    for (i = 0; i < stack.length; i++) {
-      if (stack[i] === val) {
-        var propertyDescriptor = Object.getOwnPropertyDescriptor(parent, k)
-        if (propertyDescriptor.get !== undefined) {
-          if (propertyDescriptor.configurable) {
-            Object.defineProperty(parent, k, { value: '[Circular]' })
-            arr.push([parent, k, val, propertyDescriptor])
-          } else {
-            replacerStack.push([val, k])
-          }
-        } else {
-          parent[k] = '[Circular]'
-          arr.push([parent, k, val])
-        }
-        return
-      }
-    }
-    stack.push(val)
-    // Optimize for Arrays. Big arrays could kill the performance otherwise!
-    if (Array.isArray(val)) {
-      for (i = 0; i < val.length; i++) {
-        decirc(val[i], i, stack, val)
-      }
-    } else {
-      var keys = Object.keys(val)
-      for (i = 0; i < keys.length; i++) {
-        var key = keys[i]
-        decirc(val[key], key, stack, val)
-      }
-    }
-    stack.pop()
-  }
-}
-
-// Stable-stringify
-function compareFunction (a, b) {
-  if (a < b) {
-    return -1
-  }
-  if (a > b) {
-    return 1
-  }
-  return 0
-}
-
-function deterministicStringify (obj, replacer, spacer) {
-  var tmp = deterministicDecirc(obj, '', [], undefined) || obj
-  var res
-  if (replacerStack.length === 0) {
-    res = JSON.stringify(tmp, replacer, spacer)
-  } else {
-    res = JSON.stringify(tmp, replaceGetterValues(replacer), spacer)
-  }
-  while (arr.length !== 0) {
-    var part = arr.pop()
-    if (part.length === 4) {
-      Object.defineProperty(part[0], part[1], part[3])
-    } else {
-      part[0][part[1]] = part[2]
-    }
-  }
-  return res
-}
-
-function deterministicDecirc (val, k, stack, parent) {
-  var i
-  if (typeof val === 'object' && val !== null) {
-    for (i = 0; i < stack.length; i++) {
-      if (stack[i] === val) {
-        var propertyDescriptor = Object.getOwnPropertyDescriptor(parent, k)
-        if (propertyDescriptor.get !== undefined) {
-          if (propertyDescriptor.configurable) {
-            Object.defineProperty(parent, k, { value: '[Circular]' })
-            arr.push([parent, k, val, propertyDescriptor])
-          } else {
-            replacerStack.push([val, k])
-          }
-        } else {
-          parent[k] = '[Circular]'
-          arr.push([parent, k, val])
-        }
-        return
-      }
-    }
-    if (typeof val.toJSON === 'function') {
-      return
-    }
-    stack.push(val)
-    // Optimize for Arrays. Big arrays could kill the performance otherwise!
-    if (Array.isArray(val)) {
-      for (i = 0; i < val.length; i++) {
-        deterministicDecirc(val[i], i, stack, val)
-      }
-    } else {
-      // Create a temporary object in the required way
-      var tmp = {}
-      var keys = Object.keys(val).sort(compareFunction)
-      for (i = 0; i < keys.length; i++) {
-        var key = keys[i]
-        deterministicDecirc(val[key], key, stack, val)
-        tmp[key] = val[key]
-      }
-      if (parent !== undefined) {
-        arr.push([parent, k, val])
-        parent[k] = tmp
-      } else {
-        return tmp
-      }
-    }
-    stack.pop()
-  }
-}
-
-// wraps replacer function to handle values we couldn't replace
-// and mark them as [Circular]
-function replaceGetterValues (replacer) {
-  replacer = replacer !== undefined ? replacer : function (k, v) { return v }
-  return function (key, val) {
-    if (replacerStack.length > 0) {
-      for (var i = 0; i < replacerStack.length; i++) {
-        var part = replacerStack[i]
-        if (part[1] === key && part[0] === val) {
-          val = '[Circular]'
-          replacerStack.splice(i, 1)
-          break
-        }
-      }
-    }
-    return replacer.call(this, key, val)
-  }
-}
-
-
-/***/ }),
-
-/***/ 8583:
-/***/ (function(module) {
-
-(function (main) {
-  'use strict';
-
-  /**
-   * Parse or format dates
-   * @class fecha
-   */
-  var fecha = {};
-  var token = /d{1,4}|M{1,4}|YY(?:YY)?|S{1,3}|Do|ZZ|([HhMsDm])\1?|[aA]|"[^"]*"|'[^']*'/g;
-  var twoDigits = /\d\d?/;
-  var threeDigits = /\d{3}/;
-  var fourDigits = /\d{4}/;
-  var word = /[0-9]*['a-z\u00A0-\u05FF\u0700-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]+|[\u0600-\u06FF\/]+(\s*?[\u0600-\u06FF]+){1,2}/i;
+  var token = /d{1,4}|M{1,4}|YY(?:YY)?|S{1,3}|Do|ZZ|Z|([HhMsDm])\1?|[aA]|"[^"]*"|'[^']*'/g;
+  var twoDigitsOptional = "\\d\\d?";
+  var twoDigits = "\\d\\d";
+  var threeDigits = "\\d{3}";
+  var fourDigits = "\\d{4}";
+  var word = "[^\\s]+";
   var literal = /\[([^]*?)\]/gm;
-  var noop = function () {
-  };
-
   function shorten(arr, sLen) {
-    var newArr = [];
-    for (var i = 0, len = arr.length; i < len; i++) {
-      newArr.push(arr[i].substr(0, sLen));
-    }
-    return newArr;
-  }
-
-  function monthUpdate(arrName) {
-    return function (d, v, i18n) {
-      var index = i18n[arrName].indexOf(v.charAt(0).toUpperCase() + v.substr(1).toLowerCase());
-      if (~index) {
-        d.month = index;
+      var newArr = [];
+      for (var i = 0, len = arr.length; i < len; i++) {
+          newArr.push(arr[i].substr(0, sLen));
       }
-    };
+      return newArr;
   }
-
-  function pad(val, len) {
-    val = String(val);
-    len = len || 2;
-    while (val.length < len) {
-      val = '0' + val;
-    }
-    return val;
+  var monthUpdate = function (arrName) { return function (v, i18n) {
+      var lowerCaseArr = i18n[arrName].map(function (v) { return v.toLowerCase(); });
+      var index = lowerCaseArr.indexOf(v.toLowerCase());
+      if (index > -1) {
+          return index;
+      }
+      return null;
+  }; };
+  function assign(origObj) {
+      var args = [];
+      for (var _i = 1; _i < arguments.length; _i++) {
+          args[_i - 1] = arguments[_i];
+      }
+      for (var _a = 0, args_1 = args; _a < args_1.length; _a++) {
+          var obj = args_1[_a];
+          for (var key in obj) {
+              // @ts-ignore ex
+              origObj[key] = obj[key];
+          }
+      }
+      return origObj;
   }
-
-  var dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  var monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  var dayNames = [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday"
+  ];
+  var monthNames = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December"
+  ];
   var monthNamesShort = shorten(monthNames, 3);
   var dayNamesShort = shorten(dayNames, 3);
-  fecha.i18n = {
-    dayNamesShort: dayNamesShort,
-    dayNames: dayNames,
-    monthNamesShort: monthNamesShort,
-    monthNames: monthNames,
-    amPm: ['am', 'pm'],
-    DoFn: function DoFn(D) {
-      return D + ['th', 'st', 'nd', 'rd'][D % 10 > 3 ? 0 : (D - D % 10 !== 10) * D % 10];
-    }
+  var defaultI18n = {
+      dayNamesShort: dayNamesShort,
+      dayNames: dayNames,
+      monthNamesShort: monthNamesShort,
+      monthNames: monthNames,
+      amPm: ["am", "pm"],
+      DoFn: function (dayOfMonth) {
+          return (dayOfMonth +
+              ["th", "st", "nd", "rd"][dayOfMonth % 10 > 3
+                  ? 0
+                  : ((dayOfMonth - (dayOfMonth % 10) !== 10 ? 1 : 0) * dayOfMonth) % 10]);
+      }
   };
-
+  var globalI18n = assign({}, defaultI18n);
+  var setGlobalDateI18n = function (i18n) {
+      return (globalI18n = assign(globalI18n, i18n));
+  };
+  var regexEscape = function (str) {
+      return str.replace(/[|\\{()[^$+*?.-]/g, "\\$&");
+  };
+  var pad = function (val, len) {
+      if (len === void 0) { len = 2; }
+      val = String(val);
+      while (val.length < len) {
+          val = "0" + val;
+      }
+      return val;
+  };
   var formatFlags = {
-    D: function(dateObj) {
-      return dateObj.getDate();
-    },
-    DD: function(dateObj) {
-      return pad(dateObj.getDate());
-    },
-    Do: function(dateObj, i18n) {
-      return i18n.DoFn(dateObj.getDate());
-    },
-    d: function(dateObj) {
-      return dateObj.getDay();
-    },
-    dd: function(dateObj) {
-      return pad(dateObj.getDay());
-    },
-    ddd: function(dateObj, i18n) {
-      return i18n.dayNamesShort[dateObj.getDay()];
-    },
-    dddd: function(dateObj, i18n) {
-      return i18n.dayNames[dateObj.getDay()];
-    },
-    M: function(dateObj) {
-      return dateObj.getMonth() + 1;
-    },
-    MM: function(dateObj) {
-      return pad(dateObj.getMonth() + 1);
-    },
-    MMM: function(dateObj, i18n) {
-      return i18n.monthNamesShort[dateObj.getMonth()];
-    },
-    MMMM: function(dateObj, i18n) {
-      return i18n.monthNames[dateObj.getMonth()];
-    },
-    YY: function(dateObj) {
-      return String(dateObj.getFullYear()).substr(2);
-    },
-    YYYY: function(dateObj) {
-      return pad(dateObj.getFullYear(), 4);
-    },
-    h: function(dateObj) {
-      return dateObj.getHours() % 12 || 12;
-    },
-    hh: function(dateObj) {
-      return pad(dateObj.getHours() % 12 || 12);
-    },
-    H: function(dateObj) {
-      return dateObj.getHours();
-    },
-    HH: function(dateObj) {
-      return pad(dateObj.getHours());
-    },
-    m: function(dateObj) {
-      return dateObj.getMinutes();
-    },
-    mm: function(dateObj) {
-      return pad(dateObj.getMinutes());
-    },
-    s: function(dateObj) {
-      return dateObj.getSeconds();
-    },
-    ss: function(dateObj) {
-      return pad(dateObj.getSeconds());
-    },
-    S: function(dateObj) {
-      return Math.round(dateObj.getMilliseconds() / 100);
-    },
-    SS: function(dateObj) {
-      return pad(Math.round(dateObj.getMilliseconds() / 10), 2);
-    },
-    SSS: function(dateObj) {
-      return pad(dateObj.getMilliseconds(), 3);
-    },
-    a: function(dateObj, i18n) {
-      return dateObj.getHours() < 12 ? i18n.amPm[0] : i18n.amPm[1];
-    },
-    A: function(dateObj, i18n) {
-      return dateObj.getHours() < 12 ? i18n.amPm[0].toUpperCase() : i18n.amPm[1].toUpperCase();
-    },
-    ZZ: function(dateObj) {
-      var o = dateObj.getTimezoneOffset();
-      return (o > 0 ? '-' : '+') + pad(Math.floor(Math.abs(o) / 60) * 100 + Math.abs(o) % 60, 4);
-    }
+      D: function (dateObj) { return String(dateObj.getDate()); },
+      DD: function (dateObj) { return pad(dateObj.getDate()); },
+      Do: function (dateObj, i18n) {
+          return i18n.DoFn(dateObj.getDate());
+      },
+      d: function (dateObj) { return String(dateObj.getDay()); },
+      dd: function (dateObj) { return pad(dateObj.getDay()); },
+      ddd: function (dateObj, i18n) {
+          return i18n.dayNamesShort[dateObj.getDay()];
+      },
+      dddd: function (dateObj, i18n) {
+          return i18n.dayNames[dateObj.getDay()];
+      },
+      M: function (dateObj) { return String(dateObj.getMonth() + 1); },
+      MM: function (dateObj) { return pad(dateObj.getMonth() + 1); },
+      MMM: function (dateObj, i18n) {
+          return i18n.monthNamesShort[dateObj.getMonth()];
+      },
+      MMMM: function (dateObj, i18n) {
+          return i18n.monthNames[dateObj.getMonth()];
+      },
+      YY: function (dateObj) {
+          return pad(String(dateObj.getFullYear()), 4).substr(2);
+      },
+      YYYY: function (dateObj) { return pad(dateObj.getFullYear(), 4); },
+      h: function (dateObj) { return String(dateObj.getHours() % 12 || 12); },
+      hh: function (dateObj) { return pad(dateObj.getHours() % 12 || 12); },
+      H: function (dateObj) { return String(dateObj.getHours()); },
+      HH: function (dateObj) { return pad(dateObj.getHours()); },
+      m: function (dateObj) { return String(dateObj.getMinutes()); },
+      mm: function (dateObj) { return pad(dateObj.getMinutes()); },
+      s: function (dateObj) { return String(dateObj.getSeconds()); },
+      ss: function (dateObj) { return pad(dateObj.getSeconds()); },
+      S: function (dateObj) {
+          return String(Math.round(dateObj.getMilliseconds() / 100));
+      },
+      SS: function (dateObj) {
+          return pad(Math.round(dateObj.getMilliseconds() / 10), 2);
+      },
+      SSS: function (dateObj) { return pad(dateObj.getMilliseconds(), 3); },
+      a: function (dateObj, i18n) {
+          return dateObj.getHours() < 12 ? i18n.amPm[0] : i18n.amPm[1];
+      },
+      A: function (dateObj, i18n) {
+          return dateObj.getHours() < 12
+              ? i18n.amPm[0].toUpperCase()
+              : i18n.amPm[1].toUpperCase();
+      },
+      ZZ: function (dateObj) {
+          var offset = dateObj.getTimezoneOffset();
+          return ((offset > 0 ? "-" : "+") +
+              pad(Math.floor(Math.abs(offset) / 60) * 100 + (Math.abs(offset) % 60), 4));
+      },
+      Z: function (dateObj) {
+          var offset = dateObj.getTimezoneOffset();
+          return ((offset > 0 ? "-" : "+") +
+              pad(Math.floor(Math.abs(offset) / 60), 2) +
+              ":" +
+              pad(Math.abs(offset) % 60, 2));
+      }
   };
-
+  var monthParse = function (v) { return +v - 1; };
+  var emptyDigits = [null, twoDigitsOptional];
+  var emptyWord = [null, word];
+  var amPm = [
+      "isPm",
+      word,
+      function (v, i18n) {
+          var val = v.toLowerCase();
+          if (val === i18n.amPm[0]) {
+              return 0;
+          }
+          else if (val === i18n.amPm[1]) {
+              return 1;
+          }
+          return null;
+      }
+  ];
+  var timezoneOffset = [
+      "timezoneOffset",
+      "[^\\s]*?[\\+\\-]\\d\\d:?\\d\\d|[^\\s]*?Z?",
+      function (v) {
+          var parts = (v + "").match(/([+-]|\d\d)/gi);
+          if (parts) {
+              var minutes = +parts[1] * 60 + parseInt(parts[2], 10);
+              return parts[0] === "+" ? minutes : -minutes;
+          }
+          return 0;
+      }
+  ];
   var parseFlags = {
-    D: [twoDigits, function (d, v) {
-      d.day = v;
-    }],
-    Do: [new RegExp(twoDigits.source + word.source), function (d, v) {
-      d.day = parseInt(v, 10);
-    }],
-    M: [twoDigits, function (d, v) {
-      d.month = v - 1;
-    }],
-    YY: [twoDigits, function (d, v) {
-      var da = new Date(), cent = +('' + da.getFullYear()).substr(0, 2);
-      d.year = '' + (v > 68 ? cent - 1 : cent) + v;
-    }],
-    h: [twoDigits, function (d, v) {
-      d.hour = v;
-    }],
-    m: [twoDigits, function (d, v) {
-      d.minute = v;
-    }],
-    s: [twoDigits, function (d, v) {
-      d.second = v;
-    }],
-    YYYY: [fourDigits, function (d, v) {
-      d.year = v;
-    }],
-    S: [/\d/, function (d, v) {
-      d.millisecond = v * 100;
-    }],
-    SS: [/\d{2}/, function (d, v) {
-      d.millisecond = v * 10;
-    }],
-    SSS: [threeDigits, function (d, v) {
-      d.millisecond = v;
-    }],
-    d: [twoDigits, noop],
-    ddd: [word, noop],
-    MMM: [word, monthUpdate('monthNamesShort')],
-    MMMM: [word, monthUpdate('monthNames')],
-    a: [word, function (d, v, i18n) {
-      var val = v.toLowerCase();
-      if (val === i18n.amPm[0]) {
-        d.isPm = false;
-      } else if (val === i18n.amPm[1]) {
-        d.isPm = true;
-      }
-    }],
-    ZZ: [/([\+\-]\d\d:?\d\d|Z)/, function (d, v) {
-      if (v === 'Z') v = '+00:00';
-      var parts = (v + '').match(/([\+\-]|\d\d)/gi), minutes;
-
-      if (parts) {
-        minutes = +(parts[1] * 60) + parseInt(parts[2], 10);
-        d.timezoneOffset = parts[0] === '+' ? minutes : -minutes;
-      }
-    }]
+      D: ["day", twoDigitsOptional],
+      DD: ["day", twoDigits],
+      Do: ["day", twoDigitsOptional + word, function (v) { return parseInt(v, 10); }],
+      M: ["month", twoDigitsOptional, monthParse],
+      MM: ["month", twoDigits, monthParse],
+      YY: [
+          "year",
+          twoDigits,
+          function (v) {
+              var now = new Date();
+              var cent = +("" + now.getFullYear()).substr(0, 2);
+              return +("" + (+v > 68 ? cent - 1 : cent) + v);
+          }
+      ],
+      h: ["hour", twoDigitsOptional, undefined, "isPm"],
+      hh: ["hour", twoDigits, undefined, "isPm"],
+      H: ["hour", twoDigitsOptional],
+      HH: ["hour", twoDigits],
+      m: ["minute", twoDigitsOptional],
+      mm: ["minute", twoDigits],
+      s: ["second", twoDigitsOptional],
+      ss: ["second", twoDigits],
+      YYYY: ["year", fourDigits],
+      S: ["millisecond", "\\d", function (v) { return +v * 100; }],
+      SS: ["millisecond", twoDigits, function (v) { return +v * 10; }],
+      SSS: ["millisecond", threeDigits],
+      d: emptyDigits,
+      dd: emptyDigits,
+      ddd: emptyWord,
+      dddd: emptyWord,
+      MMM: ["month", word, monthUpdate("monthNamesShort")],
+      MMMM: ["month", word, monthUpdate("monthNames")],
+      a: amPm,
+      A: amPm,
+      ZZ: timezoneOffset,
+      Z: timezoneOffset
   };
-  parseFlags.dd = parseFlags.d;
-  parseFlags.dddd = parseFlags.ddd;
-  parseFlags.DD = parseFlags.D;
-  parseFlags.mm = parseFlags.m;
-  parseFlags.hh = parseFlags.H = parseFlags.HH = parseFlags.h;
-  parseFlags.MM = parseFlags.M;
-  parseFlags.ss = parseFlags.s;
-  parseFlags.A = parseFlags.a;
-
-
   // Some common format strings
-  fecha.masks = {
-    default: 'ddd MMM DD YYYY HH:mm:ss',
-    shortDate: 'M/D/YY',
-    mediumDate: 'MMM D, YYYY',
-    longDate: 'MMMM D, YYYY',
-    fullDate: 'dddd, MMMM D, YYYY',
-    shortTime: 'HH:mm',
-    mediumTime: 'HH:mm:ss',
-    longTime: 'HH:mm:ss.SSS'
+  var globalMasks = {
+      default: "ddd MMM DD YYYY HH:mm:ss",
+      shortDate: "M/D/YY",
+      mediumDate: "MMM D, YYYY",
+      longDate: "MMMM D, YYYY",
+      fullDate: "dddd, MMMM D, YYYY",
+      isoDate: "YYYY-MM-DD",
+      isoDateTime: "YYYY-MM-DDTHH:mm:ssZ",
+      shortTime: "HH:mm",
+      mediumTime: "HH:mm:ss",
+      longTime: "HH:mm:ss.SSS"
   };
-
+  var setGlobalDateMasks = function (masks) { return assign(globalMasks, masks); };
   /***
    * Format a date
    * @method format
    * @param {Date|number} dateObj
    * @param {string} mask Format of the date, i.e. 'mm-dd-yy' or 'shortDate'
+   * @returns {string} Formatted date string
    */
-  fecha.format = function (dateObj, mask, i18nSettings) {
-    var i18n = i18nSettings || fecha.i18n;
-
-    if (typeof dateObj === 'number') {
-      dateObj = new Date(dateObj);
-    }
-
-    if (Object.prototype.toString.call(dateObj) !== '[object Date]' || isNaN(dateObj.getTime())) {
-      throw new Error('Invalid Date in fecha.format');
-    }
-
-    mask = fecha.masks[mask] || mask || fecha.masks['default'];
-
-    var literals = [];
-
-    // Make literals inactive by replacing them with ??
-    mask = mask.replace(literal, function($0, $1) {
-      literals.push($1);
-      return '??';
-    });
-    // Apply formatting rules
-    mask = mask.replace(token, function ($0) {
-      return $0 in formatFlags ? formatFlags[$0](dateObj, i18n) : $0.slice(1, $0.length - 1);
-    });
-    // Inline literal values back into the formatted value
-    return mask.replace(/\?\?/g, function() {
-      return literals.shift();
-    });
+  var format = function (dateObj, mask, i18n) {
+      if (mask === void 0) { mask = globalMasks["default"]; }
+      if (i18n === void 0) { i18n = {}; }
+      if (typeof dateObj === "number") {
+          dateObj = new Date(dateObj);
+      }
+      if (Object.prototype.toString.call(dateObj) !== "[object Date]" ||
+          isNaN(dateObj.getTime())) {
+          throw new Error("Invalid Date pass to format");
+      }
+      mask = globalMasks[mask] || mask;
+      var literals = [];
+      // Make literals inactive by replacing them with @@@
+      mask = mask.replace(literal, function ($0, $1) {
+          literals.push($1);
+          return "@@@";
+      });
+      var combinedI18nSettings = assign(assign({}, globalI18n), i18n);
+      // Apply formatting rules
+      mask = mask.replace(token, function ($0) {
+          return formatFlags[$0](dateObj, combinedI18nSettings);
+      });
+      // Inline literal values back into the formatted value
+      return mask.replace(/@@@/g, function () { return literals.shift(); });
   };
-
   /**
-   * Parse a date string into an object, changes - into /
+   * Parse a date string into a Javascript Date object /
    * @method parse
    * @param {string} dateStr Date string
    * @param {string} format Date parse format
-   * @returns {Date|boolean}
+   * @param {i18n} I18nSettingsOptional Full or subset of I18N settings
+   * @returns {Date|null} Returns Date object. Returns null what date string is invalid or doesn't match format
    */
-  fecha.parse = function (dateStr, format, i18nSettings) {
-    var i18n = i18nSettings || fecha.i18n;
-
-    if (typeof format !== 'string') {
-      throw new Error('Invalid format in fecha.parse');
-    }
-
-    format = fecha.masks[format] || format;
-
-    // Avoid regular expression denial of service, fail early for really long strings
-    // https://www.owasp.org/index.php/Regular_expression_Denial_of_Service_-_ReDoS
-    if (dateStr.length > 1000) {
-      return false;
-    }
-
-    var isValid = true;
-    var dateInfo = {};
-    format.replace(token, function ($0) {
-      if (parseFlags[$0]) {
-        var info = parseFlags[$0];
-        var index = dateStr.search(info[0]);
-        if (!~index) {
-          isValid = false;
-        } else {
-          dateStr.replace(info[0], function (result) {
-            info[1](dateInfo, result, i18n);
-            dateStr = dateStr.substr(index + result.length);
-            return result;
-          });
-        }
+  function parse(dateStr, format, i18n) {
+      if (i18n === void 0) { i18n = {}; }
+      if (typeof format !== "string") {
+          throw new Error("Invalid format in fecha parse");
       }
-
-      return parseFlags[$0] ? '' : $0.slice(1, $0.length - 1);
-    });
-
-    if (!isValid) {
-      return false;
-    }
-
-    var today = new Date();
-    if (dateInfo.isPm === true && dateInfo.hour != null && +dateInfo.hour !== 12) {
-      dateInfo.hour = +dateInfo.hour + 12;
-    } else if (dateInfo.isPm === false && +dateInfo.hour === 12) {
-      dateInfo.hour = 0;
-    }
-
-    var date;
-    if (dateInfo.timezoneOffset != null) {
-      dateInfo.minute = +(dateInfo.minute || 0) - +dateInfo.timezoneOffset;
-      date = new Date(Date.UTC(dateInfo.year || today.getFullYear(), dateInfo.month || 0, dateInfo.day || 1,
-        dateInfo.hour || 0, dateInfo.minute || 0, dateInfo.second || 0, dateInfo.millisecond || 0));
-    } else {
-      date = new Date(dateInfo.year || today.getFullYear(), dateInfo.month || 0, dateInfo.day || 1,
-        dateInfo.hour || 0, dateInfo.minute || 0, dateInfo.second || 0, dateInfo.millisecond || 0);
-    }
-    return date;
+      // Check to see if the format is actually a mask
+      format = globalMasks[format] || format;
+      // Avoid regular expression denial of service, fail early for really long strings
+      // https://www.owasp.org/index.php/Regular_expression_Denial_of_Service_-_ReDoS
+      if (dateStr.length > 1000) {
+          return null;
+      }
+      // Default to the beginning of the year.
+      var today = new Date();
+      var dateInfo = {
+          year: today.getFullYear(),
+          month: 0,
+          day: 1,
+          hour: 0,
+          minute: 0,
+          second: 0,
+          millisecond: 0,
+          isPm: null,
+          timezoneOffset: null
+      };
+      var parseInfo = [];
+      var literals = [];
+      // Replace all the literals with @@@. Hopefully a string that won't exist in the format
+      var newFormat = format.replace(literal, function ($0, $1) {
+          literals.push(regexEscape($1));
+          return "@@@";
+      });
+      var specifiedFields = {};
+      var requiredFields = {};
+      // Change every token that we find into the correct regex
+      newFormat = regexEscape(newFormat).replace(token, function ($0) {
+          var info = parseFlags[$0];
+          var field = info[0], regex = info[1], requiredField = info[3];
+          // Check if the person has specified the same field twice. This will lead to confusing results.
+          if (specifiedFields[field]) {
+              throw new Error("Invalid format. " + field + " specified twice in format");
+          }
+          specifiedFields[field] = true;
+          // Check if there are any required fields. For instance, 12 hour time requires AM/PM specified
+          if (requiredField) {
+              requiredFields[requiredField] = true;
+          }
+          parseInfo.push(info);
+          return "(" + regex + ")";
+      });
+      // Check all the required fields are present
+      Object.keys(requiredFields).forEach(function (field) {
+          if (!specifiedFields[field]) {
+              throw new Error("Invalid format. " + field + " is required in specified format");
+          }
+      });
+      // Add back all the literals after
+      newFormat = newFormat.replace(/@@@/g, function () { return literals.shift(); });
+      // Check if the date string matches the format. If it doesn't return null
+      var matches = dateStr.match(new RegExp(newFormat, "i"));
+      if (!matches) {
+          return null;
+      }
+      var combinedI18nSettings = assign(assign({}, globalI18n), i18n);
+      // For each match, call the parser function for that date part
+      for (var i = 1; i < matches.length; i++) {
+          var _a = parseInfo[i - 1], field = _a[0], parser = _a[2];
+          var value = parser
+              ? parser(matches[i], combinedI18nSettings)
+              : +matches[i];
+          // If the parser can't make sense of the value, return null
+          if (value == null) {
+              return null;
+          }
+          dateInfo[field] = value;
+      }
+      if (dateInfo.isPm === 1 && dateInfo.hour != null && +dateInfo.hour !== 12) {
+          dateInfo.hour = +dateInfo.hour + 12;
+      }
+      else if (dateInfo.isPm === 0 && +dateInfo.hour === 12) {
+          dateInfo.hour = 0;
+      }
+      var dateTZ;
+      if (dateInfo.timezoneOffset == null) {
+          dateTZ = new Date(dateInfo.year, dateInfo.month, dateInfo.day, dateInfo.hour, dateInfo.minute, dateInfo.second, dateInfo.millisecond);
+          var validateFields = [
+              ["month", "getMonth"],
+              ["day", "getDate"],
+              ["hour", "getHours"],
+              ["minute", "getMinutes"],
+              ["second", "getSeconds"]
+          ];
+          for (var i = 0, len = validateFields.length; i < len; i++) {
+              // Check to make sure the date field is within the allowed range. Javascript dates allows values
+              // outside the allowed range. If the values don't match the value was invalid
+              if (specifiedFields[validateFields[i][0]] &&
+                  dateInfo[validateFields[i][0]] !== dateTZ[validateFields[i][1]]()) {
+                  return null;
+              }
+          }
+      }
+      else {
+          dateTZ = new Date(Date.UTC(dateInfo.year, dateInfo.month, dateInfo.day, dateInfo.hour, dateInfo.minute - dateInfo.timezoneOffset, dateInfo.second, dateInfo.millisecond));
+          // We can't validate dates in another timezone unfortunately. Do a basic check instead
+          if (dateInfo.month > 11 ||
+              dateInfo.month < 0 ||
+              dateInfo.day > 31 ||
+              dateInfo.day < 1 ||
+              dateInfo.hour > 23 ||
+              dateInfo.hour < 0 ||
+              dateInfo.minute > 59 ||
+              dateInfo.minute < 0 ||
+              dateInfo.second > 59 ||
+              dateInfo.second < 0) {
+              return null;
+          }
+      }
+      // Don't allow invalid dates
+      return dateTZ;
+  }
+  var fecha = {
+      format: format,
+      parse: parse,
+      defaultI18n: defaultI18n,
+      setGlobalDateI18n: setGlobalDateI18n,
+      setGlobalDateMasks: setGlobalDateMasks
   };
 
-  /* istanbul ignore next */
-  if ( true && module.exports) {
-    module.exports = fecha;
-  } else if (typeof define === 'function' && define.amd) {
-    define(function () {
-      return fecha;
-    });
-  } else {
-    main.fecha = fecha;
+  exports.assign = assign;
+  exports.default = fecha;
+  exports.format = format;
+  exports.parse = parse;
+  exports.defaultI18n = defaultI18n;
+  exports.setGlobalDateI18n = setGlobalDateI18n;
+  exports.setGlobalDateMasks = setGlobalDateMasks;
+
+  Object.defineProperty(exports, '__esModule', { value: true });
+
+})));
+//# sourceMappingURL=fecha.umd.js.map
+
+
+/***/ }),
+
+/***/ 2743:
+/***/ ((module) => {
+
+"use strict";
+
+
+var toString = Object.prototype.toString;
+
+/**
+ * Extract names from functions.
+ *
+ * @param {Function} fn The function who's name we need to extract.
+ * @returns {String} The name of the function.
+ * @public
+ */
+module.exports = function name(fn) {
+  if ('string' === typeof fn.displayName && fn.constructor.name) {
+    return fn.displayName;
+  } else if ('string' === typeof fn.name && fn.name) {
+    return fn.name;
   }
-})(this);
+
+  //
+  // Check to see if the constructor has a name.
+  //
+  if (
+       'object' === typeof fn
+    && fn.constructor
+    && 'string' === typeof fn.constructor.name
+  ) return fn.constructor.name;
+
+  //
+  // toString the given function and attempt to parse it out of it, or determine
+  // the class.
+  //
+  var named = fn.toString()
+    , type = toString.call(fn).slice(8, -1);
+
+  if ('Function' === type) {
+    named = named.substring(named.indexOf('(') + 1, named.indexOf(')'));
+  } else {
+    named = type;
+  }
+
+  return named || 'anonymous';
+};
 
 
 /***/ }),
@@ -35924,7 +32789,7 @@ module.exports = (__nccwpck_require__(7147).constants) || __nccwpck_require__(20
 
 /***/ }),
 
-/***/ 3338:
+/***/ 9618:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
@@ -35932,14 +32797,13 @@ module.exports = (__nccwpck_require__(7147).constants) || __nccwpck_require__(20
 
 const fs = __nccwpck_require__(7758)
 const path = __nccwpck_require__(1017)
-const mkdirpSync = (__nccwpck_require__(8605).mkdirsSync)
-const utimesSync = (__nccwpck_require__(2548).utimesMillisSync)
-
-const notExist = Symbol('notExist')
+const mkdirsSync = (__nccwpck_require__(8605).mkdirsSync)
+const utimesMillisSync = (__nccwpck_require__(2548).utimesMillisSync)
+const stat = __nccwpck_require__(3901)
 
 function copySync (src, dest, opts) {
   if (typeof opts === 'function') {
-    opts = {filter: opts}
+    opts = { filter: opts }
   }
 
   opts = opts || {}
@@ -35948,17 +32812,23 @@ function copySync (src, dest, opts) {
 
   // Warn about using preserveTimestamps on 32-bit node
   if (opts.preserveTimestamps && process.arch === 'ia32') {
-    console.warn(`fs-extra: Using the preserveTimestamps option in 32-bit node is not recommended;\n
-    see https://github.com/jprichardson/node-fs-extra/issues/269`)
+    process.emitWarning(
+      'Using the preserveTimestamps option in 32-bit node is not recommended;\n\n' +
+      '\tsee https://github.com/jprichardson/node-fs-extra/issues/269',
+      'Warning', 'fs-extra-WARN0002'
+    )
   }
 
-  const destStat = checkPaths(src, dest)
+  const { srcStat, destStat } = stat.checkPathsSync(src, dest, 'copy', opts)
+  stat.checkParentPathsSync(src, srcStat, dest, 'copy')
+  return handleFilterAndCopy(destStat, src, dest, opts)
+}
 
+function handleFilterAndCopy (destStat, src, dest, opts) {
   if (opts.filter && !opts.filter(src, dest)) return
-
   const destParent = path.dirname(dest)
-  if (!fs.existsSync(destParent)) mkdirpSync(destParent)
-  return startCopy(destStat, src, dest, opts)
+  if (!fs.existsSync(destParent)) mkdirsSync(destParent)
+  return getStats(destStat, src, dest, opts)
 }
 
 function startCopy (destStat, src, dest, opts) {
@@ -35975,10 +32845,13 @@ function getStats (destStat, src, dest, opts) {
            srcStat.isCharacterDevice() ||
            srcStat.isBlockDevice()) return onFile(srcStat, destStat, src, dest, opts)
   else if (srcStat.isSymbolicLink()) return onLink(destStat, src, dest, opts)
+  else if (srcStat.isSocket()) throw new Error(`Cannot copy a socket file: ${src}`)
+  else if (srcStat.isFIFO()) throw new Error(`Cannot copy a FIFO pipe: ${src}`)
+  throw new Error(`Unknown file: ${src}`)
 }
 
 function onFile (srcStat, destStat, src, dest, opts) {
-  if (destStat === notExist) return copyFile(srcStat, src, dest, opts)
+  if (!destStat) return copyFile(srcStat, src, dest, opts)
   return mayCopyFile(srcStat, src, dest, opts)
 }
 
@@ -35992,49 +32865,48 @@ function mayCopyFile (srcStat, src, dest, opts) {
 }
 
 function copyFile (srcStat, src, dest, opts) {
-  if (typeof fs.copyFileSync === 'function') {
-    fs.copyFileSync(src, dest)
-    fs.chmodSync(dest, srcStat.mode)
-    if (opts.preserveTimestamps) {
-      return utimesSync(dest, srcStat.atime, srcStat.mtime)
-    }
-    return
-  }
-  return copyFileFallback(srcStat, src, dest, opts)
+  fs.copyFileSync(src, dest)
+  if (opts.preserveTimestamps) handleTimestamps(srcStat.mode, src, dest)
+  return setDestMode(dest, srcStat.mode)
 }
 
-function copyFileFallback (srcStat, src, dest, opts) {
-  const BUF_LENGTH = 64 * 1024
-  const _buff = __nccwpck_require__(7696)(BUF_LENGTH)
+function handleTimestamps (srcMode, src, dest) {
+  // Make sure the file is writable before setting the timestamp
+  // otherwise open fails with EPERM when invoked with 'r+'
+  // (through utimes call)
+  if (fileIsNotWritable(srcMode)) makeFileWritable(dest, srcMode)
+  return setDestTimestamps(src, dest)
+}
 
-  const fdr = fs.openSync(src, 'r')
-  const fdw = fs.openSync(dest, 'w', srcStat.mode)
-  let pos = 0
+function fileIsNotWritable (srcMode) {
+  return (srcMode & 0o200) === 0
+}
 
-  while (pos < srcStat.size) {
-    const bytesRead = fs.readSync(fdr, _buff, 0, BUF_LENGTH, pos)
-    fs.writeSync(fdw, _buff, 0, bytesRead)
-    pos += bytesRead
-  }
+function makeFileWritable (dest, srcMode) {
+  return setDestMode(dest, srcMode | 0o200)
+}
 
-  if (opts.preserveTimestamps) fs.futimesSync(fdw, srcStat.atime, srcStat.mtime)
+function setDestMode (dest, srcMode) {
+  return fs.chmodSync(dest, srcMode)
+}
 
-  fs.closeSync(fdr)
-  fs.closeSync(fdw)
+function setDestTimestamps (src, dest) {
+  // The initial srcStat.atime cannot be trusted
+  // because it is modified by the read(2) system call
+  // (See https://nodejs.org/api/fs.html#fs_stat_time_values)
+  const updatedSrcStat = fs.statSync(src)
+  return utimesMillisSync(dest, updatedSrcStat.atime, updatedSrcStat.mtime)
 }
 
 function onDir (srcStat, destStat, src, dest, opts) {
-  if (destStat === notExist) return mkDirAndCopy(srcStat, src, dest, opts)
-  if (destStat && !destStat.isDirectory()) {
-    throw new Error(`Cannot overwrite non-directory '${dest}' with directory '${src}'.`)
-  }
+  if (!destStat) return mkDirAndCopy(srcStat.mode, src, dest, opts)
   return copyDir(src, dest, opts)
 }
 
-function mkDirAndCopy (srcStat, src, dest, opts) {
+function mkDirAndCopy (srcMode, src, dest, opts) {
   fs.mkdirSync(dest)
   copyDir(src, dest, opts)
-  return fs.chmodSync(dest, srcStat.mode)
+  return setDestMode(dest, srcMode)
 }
 
 function copyDir (src, dest, opts) {
@@ -36044,18 +32916,17 @@ function copyDir (src, dest, opts) {
 function copyDirItem (item, src, dest, opts) {
   const srcItem = path.join(src, item)
   const destItem = path.join(dest, item)
-  const destStat = checkPaths(srcItem, destItem)
+  const { destStat } = stat.checkPathsSync(srcItem, destItem, 'copy', opts)
   return startCopy(destStat, srcItem, destItem, opts)
 }
 
 function onLink (destStat, src, dest, opts) {
   let resolvedSrc = fs.readlinkSync(src)
-
   if (opts.dereference) {
     resolvedSrc = path.resolve(process.cwd(), resolvedSrc)
   }
 
-  if (destStat === notExist) {
+  if (!destStat) {
     return fs.symlinkSync(resolvedSrc, dest)
   } else {
     let resolvedDest
@@ -36071,14 +32942,14 @@ function onLink (destStat, src, dest, opts) {
     if (opts.dereference) {
       resolvedDest = path.resolve(process.cwd(), resolvedDest)
     }
-    if (isSrcSubdir(resolvedSrc, resolvedDest)) {
+    if (stat.isSrcSubdir(resolvedSrc, resolvedDest)) {
       throw new Error(`Cannot copy '${resolvedSrc}' to a subdirectory of itself, '${resolvedDest}'.`)
     }
 
     // prevent copy if src is a subdir of dest since unlinking
     // dest in this case would result in removing src contents
     // and therefore a broken symlink would be created.
-    if (fs.statSync(dest).isDirectory() && isSrcSubdir(resolvedDest, resolvedSrc)) {
+    if (fs.statSync(dest).isDirectory() && stat.isSrcSubdir(resolvedDest, resolvedSrc)) {
       throw new Error(`Cannot overwrite '${resolvedDest}' with '${resolvedSrc}'.`)
     }
     return copyLink(resolvedSrc, dest)
@@ -36090,50 +32961,7 @@ function copyLink (resolvedSrc, dest) {
   return fs.symlinkSync(resolvedSrc, dest)
 }
 
-// return true if dest is a subdir of src, otherwise false.
-function isSrcSubdir (src, dest) {
-  const srcArray = path.resolve(src).split(path.sep)
-  const destArray = path.resolve(dest).split(path.sep)
-  return srcArray.reduce((acc, current, i) => acc && destArray[i] === current, true)
-}
-
-function checkStats (src, dest) {
-  const srcStat = fs.statSync(src)
-  let destStat
-  try {
-    destStat = fs.statSync(dest)
-  } catch (err) {
-    if (err.code === 'ENOENT') return {srcStat, destStat: notExist}
-    throw err
-  }
-  return {srcStat, destStat}
-}
-
-function checkPaths (src, dest) {
-  const {srcStat, destStat} = checkStats(src, dest)
-  if (destStat.ino && destStat.ino === srcStat.ino) {
-    throw new Error('Source and destination must not be the same.')
-  }
-  if (srcStat.isDirectory() && isSrcSubdir(src, dest)) {
-    throw new Error(`Cannot copy '${src}' to a subdirectory of itself, '${dest}'.`)
-  }
-  return destStat
-}
-
 module.exports = copySync
-
-
-/***/ }),
-
-/***/ 1135:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-module.exports = {
-  copySync: __nccwpck_require__(3338)
-}
 
 
 /***/ }),
@@ -36146,18 +32974,17 @@ module.exports = {
 
 const fs = __nccwpck_require__(7758)
 const path = __nccwpck_require__(1017)
-const mkdirp = (__nccwpck_require__(8605).mkdirs)
+const mkdirs = (__nccwpck_require__(8605).mkdirs)
 const pathExists = (__nccwpck_require__(3835).pathExists)
-const utimes = (__nccwpck_require__(2548).utimesMillis)
-
-const notExist = Symbol('notExist')
+const utimesMillis = (__nccwpck_require__(2548).utimesMillis)
+const stat = __nccwpck_require__(3901)
 
 function copy (src, dest, opts, cb) {
   if (typeof opts === 'function' && !cb) {
     cb = opts
     opts = {}
   } else if (typeof opts === 'function') {
-    opts = {filter: opts}
+    opts = { filter: opts }
   }
 
   cb = cb || function () {}
@@ -36168,14 +32995,21 @@ function copy (src, dest, opts, cb) {
 
   // Warn about using preserveTimestamps on 32-bit node
   if (opts.preserveTimestamps && process.arch === 'ia32') {
-    console.warn(`fs-extra: Using the preserveTimestamps option in 32-bit node is not recommended;\n
-    see https://github.com/jprichardson/node-fs-extra/issues/269`)
+    process.emitWarning(
+      'Using the preserveTimestamps option in 32-bit node is not recommended;\n\n' +
+      '\tsee https://github.com/jprichardson/node-fs-extra/issues/269',
+      'Warning', 'fs-extra-WARN0001'
+    )
   }
 
-  checkPaths(src, dest, (err, destStat) => {
+  stat.checkPaths(src, dest, 'copy', opts, (err, stats) => {
     if (err) return cb(err)
-    if (opts.filter) return handleFilter(checkParentDir, destStat, src, dest, opts, cb)
-    return checkParentDir(destStat, src, dest, opts, cb)
+    const { srcStat, destStat } = stats
+    stat.checkParentPaths(src, srcStat, dest, 'copy', err => {
+      if (err) return cb(err)
+      if (opts.filter) return handleFilter(checkParentDir, destStat, src, dest, opts, cb)
+      return checkParentDir(destStat, src, dest, opts, cb)
+    })
   })
 }
 
@@ -36183,20 +33017,17 @@ function checkParentDir (destStat, src, dest, opts, cb) {
   const destParent = path.dirname(dest)
   pathExists(destParent, (err, dirExists) => {
     if (err) return cb(err)
-    if (dirExists) return startCopy(destStat, src, dest, opts, cb)
-    mkdirp(destParent, err => {
+    if (dirExists) return getStats(destStat, src, dest, opts, cb)
+    mkdirs(destParent, err => {
       if (err) return cb(err)
-      return startCopy(destStat, src, dest, opts, cb)
+      return getStats(destStat, src, dest, opts, cb)
     })
   })
 }
 
 function handleFilter (onInclude, destStat, src, dest, opts, cb) {
   Promise.resolve(opts.filter(src, dest)).then(include => {
-    if (include) {
-      if (destStat) return onInclude(destStat, src, dest, opts, cb)
-      return onInclude(src, dest, opts, cb)
-    }
+    if (include) return onInclude(destStat, src, dest, opts, cb)
     return cb()
   }, error => cb(error))
 }
@@ -36216,11 +33047,14 @@ function getStats (destStat, src, dest, opts, cb) {
              srcStat.isCharacterDevice() ||
              srcStat.isBlockDevice()) return onFile(srcStat, destStat, src, dest, opts, cb)
     else if (srcStat.isSymbolicLink()) return onLink(destStat, src, dest, opts, cb)
+    else if (srcStat.isSocket()) return cb(new Error(`Cannot copy a socket file: ${src}`))
+    else if (srcStat.isFIFO()) return cb(new Error(`Cannot copy a FIFO pipe: ${src}`))
+    return cb(new Error(`Unknown file: ${src}`))
   })
 }
 
 function onFile (srcStat, destStat, src, dest, opts, cb) {
-  if (destStat === notExist) return copyFile(srcStat, src, dest, opts, cb)
+  if (!destStat) return copyFile(srcStat, src, dest, opts, cb)
   return mayCopyFile(srcStat, src, dest, opts, cb)
 }
 
@@ -36236,49 +33070,66 @@ function mayCopyFile (srcStat, src, dest, opts, cb) {
 }
 
 function copyFile (srcStat, src, dest, opts, cb) {
-  if (typeof fs.copyFile === 'function') {
-    return fs.copyFile(src, dest, err => {
-      if (err) return cb(err)
-      return setDestModeAndTimestamps(srcStat, dest, opts, cb)
-    })
-  }
-  return copyFileFallback(srcStat, src, dest, opts, cb)
-}
-
-function copyFileFallback (srcStat, src, dest, opts, cb) {
-  const rs = fs.createReadStream(src)
-  rs.on('error', err => cb(err)).once('open', () => {
-    const ws = fs.createWriteStream(dest, { mode: srcStat.mode })
-    ws.on('error', err => cb(err))
-      .on('open', () => rs.pipe(ws))
-      .once('close', () => setDestModeAndTimestamps(srcStat, dest, opts, cb))
+  fs.copyFile(src, dest, err => {
+    if (err) return cb(err)
+    if (opts.preserveTimestamps) return handleTimestampsAndMode(srcStat.mode, src, dest, cb)
+    return setDestMode(dest, srcStat.mode, cb)
   })
 }
 
-function setDestModeAndTimestamps (srcStat, dest, opts, cb) {
-  fs.chmod(dest, srcStat.mode, err => {
+function handleTimestampsAndMode (srcMode, src, dest, cb) {
+  // Make sure the file is writable before setting the timestamp
+  // otherwise open fails with EPERM when invoked with 'r+'
+  // (through utimes call)
+  if (fileIsNotWritable(srcMode)) {
+    return makeFileWritable(dest, srcMode, err => {
+      if (err) return cb(err)
+      return setDestTimestampsAndMode(srcMode, src, dest, cb)
+    })
+  }
+  return setDestTimestampsAndMode(srcMode, src, dest, cb)
+}
+
+function fileIsNotWritable (srcMode) {
+  return (srcMode & 0o200) === 0
+}
+
+function makeFileWritable (dest, srcMode, cb) {
+  return setDestMode(dest, srcMode | 0o200, cb)
+}
+
+function setDestTimestampsAndMode (srcMode, src, dest, cb) {
+  setDestTimestamps(src, dest, err => {
     if (err) return cb(err)
-    if (opts.preserveTimestamps) {
-      return utimes(dest, srcStat.atime, srcStat.mtime, cb)
-    }
-    return cb()
+    return setDestMode(dest, srcMode, cb)
+  })
+}
+
+function setDestMode (dest, srcMode, cb) {
+  return fs.chmod(dest, srcMode, cb)
+}
+
+function setDestTimestamps (src, dest, cb) {
+  // The initial srcStat.atime cannot be trusted
+  // because it is modified by the read(2) system call
+  // (See https://nodejs.org/api/fs.html#fs_stat_time_values)
+  fs.stat(src, (err, updatedSrcStat) => {
+    if (err) return cb(err)
+    return utimesMillis(dest, updatedSrcStat.atime, updatedSrcStat.mtime, cb)
   })
 }
 
 function onDir (srcStat, destStat, src, dest, opts, cb) {
-  if (destStat === notExist) return mkDirAndCopy(srcStat, src, dest, opts, cb)
-  if (destStat && !destStat.isDirectory()) {
-    return cb(new Error(`Cannot overwrite non-directory '${dest}' with directory '${src}'.`))
-  }
+  if (!destStat) return mkDirAndCopy(srcStat.mode, src, dest, opts, cb)
   return copyDir(src, dest, opts, cb)
 }
 
-function mkDirAndCopy (srcStat, src, dest, opts, cb) {
+function mkDirAndCopy (srcMode, src, dest, opts, cb) {
   fs.mkdir(dest, err => {
     if (err) return cb(err)
     copyDir(src, dest, opts, err => {
       if (err) return cb(err)
-      return fs.chmod(dest, srcStat.mode, cb)
+      return setDestMode(dest, srcMode, cb)
     })
   })
 }
@@ -36299,8 +33150,9 @@ function copyDirItems (items, src, dest, opts, cb) {
 function copyDirItem (items, item, src, dest, opts, cb) {
   const srcItem = path.join(src, item)
   const destItem = path.join(dest, item)
-  checkPaths(srcItem, destItem, (err, destStat) => {
+  stat.checkPaths(srcItem, destItem, 'copy', opts, (err, stats) => {
     if (err) return cb(err)
+    const { destStat } = stats
     startCopy(destStat, srcItem, destItem, opts, err => {
       if (err) return cb(err)
       return copyDirItems(items, src, dest, opts, cb)
@@ -36311,12 +33163,11 @@ function copyDirItem (items, item, src, dest, opts, cb) {
 function onLink (destStat, src, dest, opts, cb) {
   fs.readlink(src, (err, resolvedSrc) => {
     if (err) return cb(err)
-
     if (opts.dereference) {
       resolvedSrc = path.resolve(process.cwd(), resolvedSrc)
     }
 
-    if (destStat === notExist) {
+    if (!destStat) {
       return fs.symlink(resolvedSrc, dest, cb)
     } else {
       fs.readlink(dest, (err, resolvedDest) => {
@@ -36330,14 +33181,14 @@ function onLink (destStat, src, dest, opts, cb) {
         if (opts.dereference) {
           resolvedDest = path.resolve(process.cwd(), resolvedDest)
         }
-        if (isSrcSubdir(resolvedSrc, resolvedDest)) {
+        if (stat.isSrcSubdir(resolvedSrc, resolvedDest)) {
           return cb(new Error(`Cannot copy '${resolvedSrc}' to a subdirectory of itself, '${resolvedDest}'.`))
         }
 
         // do not copy if src is a subdir of dest since unlinking
         // dest in this case would result in removing src contents
         // and therefore a broken symlink would be created.
-        if (destStat.isDirectory() && isSrcSubdir(resolvedDest, resolvedSrc)) {
+        if (destStat.isDirectory() && stat.isSrcSubdir(resolvedDest, resolvedSrc)) {
           return cb(new Error(`Cannot overwrite '${resolvedDest}' with '${resolvedSrc}'.`))
         }
         return copyLink(resolvedSrc, dest, cb)
@@ -36353,40 +33204,6 @@ function copyLink (resolvedSrc, dest, cb) {
   })
 }
 
-// return true if dest is a subdir of src, otherwise false.
-function isSrcSubdir (src, dest) {
-  const srcArray = path.resolve(src).split(path.sep)
-  const destArray = path.resolve(dest).split(path.sep)
-  return srcArray.reduce((acc, current, i) => acc && destArray[i] === current, true)
-}
-
-function checkStats (src, dest, cb) {
-  fs.stat(src, (err, srcStat) => {
-    if (err) return cb(err)
-    fs.stat(dest, (err, destStat) => {
-      if (err) {
-        if (err.code === 'ENOENT') return cb(null, {srcStat, destStat: notExist})
-        return cb(err)
-      }
-      return cb(null, {srcStat, destStat})
-    })
-  })
-}
-
-function checkPaths (src, dest, cb) {
-  checkStats(src, dest, (err, stats) => {
-    if (err) return cb(err)
-    const {srcStat, destStat} = stats
-    if (destStat.ino && destStat.ino === srcStat.ino) {
-      return cb(new Error('Source and destination must not be the same.'))
-    }
-    if (srcStat.isDirectory() && isSrcSubdir(src, dest)) {
-      return cb(new Error(`Cannot copy '${src}' to a subdirectory of itself, '${dest}'.`))
-    }
-    return cb(null, destStat)
-  })
-}
-
 module.exports = copy
 
 
@@ -36398,9 +33215,10 @@ module.exports = copy
 "use strict";
 
 
-const u = (__nccwpck_require__(9046)/* .fromCallback */ .E)
+const u = (__nccwpck_require__(9046).fromCallback)
 module.exports = {
-  copy: u(__nccwpck_require__(8834))
+  copy: u(__nccwpck_require__(8834)),
+  copySync: __nccwpck_require__(9618)
 }
 
 
@@ -36412,37 +33230,28 @@ module.exports = {
 "use strict";
 
 
-const u = (__nccwpck_require__(9046)/* .fromCallback */ .E)
-const fs = __nccwpck_require__(7147)
+const u = (__nccwpck_require__(9046).fromPromise)
+const fs = __nccwpck_require__(1176)
 const path = __nccwpck_require__(1017)
 const mkdir = __nccwpck_require__(8605)
 const remove = __nccwpck_require__(7357)
 
-const emptyDir = u(function emptyDir (dir, callback) {
-  callback = callback || function () {}
-  fs.readdir(dir, (err, items) => {
-    if (err) return mkdir.mkdirs(dir, callback)
+const emptyDir = u(async function emptyDir (dir) {
+  let items
+  try {
+    items = await fs.readdir(dir)
+  } catch {
+    return mkdir.mkdirs(dir)
+  }
 
-    items = items.map(item => path.join(dir, item))
-
-    deleteItem()
-
-    function deleteItem () {
-      const item = items.pop()
-      if (!item) return callback()
-      remove.remove(item, err => {
-        if (err) return callback(err)
-        deleteItem()
-      })
-    }
-  })
+  return Promise.all(items.map(item => remove.remove(path.join(dir, item))))
 })
 
 function emptyDirSync (dir) {
   let items
   try {
     items = fs.readdirSync(dir)
-  } catch (err) {
+  } catch {
     return mkdir.mkdirsSync(dir)
   }
 
@@ -36468,11 +33277,10 @@ module.exports = {
 "use strict";
 
 
-const u = (__nccwpck_require__(9046)/* .fromCallback */ .E)
+const u = (__nccwpck_require__(9046).fromCallback)
 const path = __nccwpck_require__(1017)
 const fs = __nccwpck_require__(7758)
 const mkdir = __nccwpck_require__(8605)
-const pathExists = (__nccwpck_require__(3835).pathExists)
 
 function createFile (file, callback) {
   function makeFile () {
@@ -36485,13 +33293,26 @@ function createFile (file, callback) {
   fs.stat(file, (err, stats) => { // eslint-disable-line handle-callback-err
     if (!err && stats.isFile()) return callback()
     const dir = path.dirname(file)
-    pathExists(dir, (err, dirExists) => {
-      if (err) return callback(err)
-      if (dirExists) return makeFile()
-      mkdir.mkdirs(dir, err => {
-        if (err) return callback(err)
-        makeFile()
-      })
+    fs.stat(dir, (err, stats) => {
+      if (err) {
+        // if the directory doesn't exist, make it
+        if (err.code === 'ENOENT') {
+          return mkdir.mkdirs(dir, err => {
+            if (err) return callback(err)
+            makeFile()
+          })
+        }
+        return callback(err)
+      }
+
+      if (stats.isDirectory()) makeFile()
+      else {
+        // parent is not a directory
+        // This is just to cause an internal ENOTDIR error to be thrown
+        fs.readdir(dir, err => {
+          if (err) return callback(err)
+        })
+      }
     })
   })
 }
@@ -36500,12 +33321,20 @@ function createFileSync (file) {
   let stats
   try {
     stats = fs.statSync(file)
-  } catch (e) {}
+  } catch {}
   if (stats && stats.isFile()) return
 
   const dir = path.dirname(file)
-  if (!fs.existsSync(dir)) {
-    mkdir.mkdirsSync(dir)
+  try {
+    if (!fs.statSync(dir).isDirectory()) {
+      // parent is not a directory
+      // This is just to cause an internal ENOTDIR error to be thrown
+      fs.readdirSync(dir)
+    }
+  } catch (err) {
+    // If the stat call above failed because the directory doesn't exist, create it
+    if (err && err.code === 'ENOENT') mkdir.mkdirsSync(dir)
+    else throw err
   }
 
   fs.writeFileSync(file, '')
@@ -36525,26 +33354,26 @@ module.exports = {
 "use strict";
 
 
-const file = __nccwpck_require__(2164)
-const link = __nccwpck_require__(3797)
-const symlink = __nccwpck_require__(2549)
+const { createFile, createFileSync } = __nccwpck_require__(2164)
+const { createLink, createLinkSync } = __nccwpck_require__(3797)
+const { createSymlink, createSymlinkSync } = __nccwpck_require__(2549)
 
 module.exports = {
   // file
-  createFile: file.createFile,
-  createFileSync: file.createFileSync,
-  ensureFile: file.createFile,
-  ensureFileSync: file.createFileSync,
+  createFile,
+  createFileSync,
+  ensureFile: createFile,
+  ensureFileSync: createFileSync,
   // link
-  createLink: link.createLink,
-  createLinkSync: link.createLinkSync,
-  ensureLink: link.createLink,
-  ensureLinkSync: link.createLinkSync,
+  createLink,
+  createLinkSync,
+  ensureLink: createLink,
+  ensureLinkSync: createLinkSync,
   // symlink
-  createSymlink: symlink.createSymlink,
-  createSymlinkSync: symlink.createSymlinkSync,
-  ensureSymlink: symlink.createSymlink,
-  ensureSymlinkSync: symlink.createSymlinkSync
+  createSymlink,
+  createSymlinkSync,
+  ensureSymlink: createSymlink,
+  ensureSymlinkSync: createSymlinkSync
 }
 
 
@@ -36556,11 +33385,12 @@ module.exports = {
 "use strict";
 
 
-const u = (__nccwpck_require__(9046)/* .fromCallback */ .E)
+const u = (__nccwpck_require__(9046).fromCallback)
 const path = __nccwpck_require__(1017)
 const fs = __nccwpck_require__(7758)
 const mkdir = __nccwpck_require__(8605)
 const pathExists = (__nccwpck_require__(3835).pathExists)
+const { areIdentical } = __nccwpck_require__(3901)
 
 function createLink (srcpath, dstpath, callback) {
   function makeLink (srcpath, dstpath) {
@@ -36570,14 +33400,13 @@ function createLink (srcpath, dstpath, callback) {
     })
   }
 
-  pathExists(dstpath, (err, destinationExists) => {
-    if (err) return callback(err)
-    if (destinationExists) return callback(null)
-    fs.lstat(srcpath, (err) => {
+  fs.lstat(dstpath, (_, dstStat) => {
+    fs.lstat(srcpath, (err, srcStat) => {
       if (err) {
         err.message = err.message.replace('lstat', 'ensureLink')
         return callback(err)
       }
+      if (dstStat && areIdentical(srcStat, dstStat)) return callback(null)
 
       const dir = path.dirname(dstpath)
       pathExists(dir, (err, dirExists) => {
@@ -36593,11 +33422,14 @@ function createLink (srcpath, dstpath, callback) {
 }
 
 function createLinkSync (srcpath, dstpath) {
-  const destinationExists = fs.existsSync(dstpath)
-  if (destinationExists) return undefined
+  let dstStat
+  try {
+    dstStat = fs.lstatSync(dstpath)
+  } catch {}
 
   try {
-    fs.lstatSync(srcpath)
+    const srcStat = fs.lstatSync(srcpath)
+    if (dstStat && areIdentical(srcStat, dstStat)) return
   } catch (err) {
     err.message = err.message.replace('lstat', 'ensureLink')
     throw err
@@ -36659,8 +33491,8 @@ function symlinkPaths (srcpath, dstpath, callback) {
         return callback(err)
       }
       return callback(null, {
-        'toCwd': srcpath,
-        'toDst': srcpath
+        toCwd: srcpath,
+        toDst: srcpath
       })
     })
   } else {
@@ -36670,8 +33502,8 @@ function symlinkPaths (srcpath, dstpath, callback) {
       if (err) return callback(err)
       if (exists) {
         return callback(null, {
-          'toCwd': relativeToDst,
-          'toDst': srcpath
+          toCwd: relativeToDst,
+          toDst: srcpath
         })
       } else {
         return fs.lstat(srcpath, (err) => {
@@ -36680,8 +33512,8 @@ function symlinkPaths (srcpath, dstpath, callback) {
             return callback(err)
           }
           return callback(null, {
-            'toCwd': srcpath,
-            'toDst': path.relative(dstdir, srcpath)
+            toCwd: srcpath,
+            toDst: path.relative(dstdir, srcpath)
           })
         })
       }
@@ -36695,8 +33527,8 @@ function symlinkPathsSync (srcpath, dstpath) {
     exists = fs.existsSync(srcpath)
     if (!exists) throw new Error('absolute srcpath does not exist')
     return {
-      'toCwd': srcpath,
-      'toDst': srcpath
+      toCwd: srcpath,
+      toDst: srcpath
     }
   } else {
     const dstdir = path.dirname(dstpath)
@@ -36704,15 +33536,15 @@ function symlinkPathsSync (srcpath, dstpath) {
     exists = fs.existsSync(relativeToDst)
     if (exists) {
       return {
-        'toCwd': relativeToDst,
-        'toDst': srcpath
+        toCwd: relativeToDst,
+        toDst: srcpath
       }
     } else {
       exists = fs.existsSync(srcpath)
       if (!exists) throw new Error('relative srcpath does not exist')
       return {
-        'toCwd': srcpath,
-        'toDst': path.relative(dstdir, srcpath)
+        toCwd: srcpath,
+        toDst: path.relative(dstdir, srcpath)
       }
     }
   }
@@ -36751,7 +33583,7 @@ function symlinkTypeSync (srcpath, type) {
   if (type) return type
   try {
     stats = fs.lstatSync(srcpath)
-  } catch (e) {
+  } catch {
     return 'file'
   }
   return (stats && stats.isDirectory()) ? 'dir' : 'file'
@@ -36771,9 +33603,9 @@ module.exports = {
 "use strict";
 
 
-const u = (__nccwpck_require__(9046)/* .fromCallback */ .E)
+const u = (__nccwpck_require__(9046).fromCallback)
 const path = __nccwpck_require__(1017)
-const fs = __nccwpck_require__(7758)
+const fs = __nccwpck_require__(1176)
 const _mkdirs = __nccwpck_require__(8605)
 const mkdirs = _mkdirs.mkdirs
 const mkdirsSync = _mkdirs.mkdirsSync
@@ -36788,26 +33620,38 @@ const symlinkTypeSync = _symlinkType.symlinkTypeSync
 
 const pathExists = (__nccwpck_require__(3835).pathExists)
 
+const { areIdentical } = __nccwpck_require__(3901)
+
 function createSymlink (srcpath, dstpath, type, callback) {
   callback = (typeof type === 'function') ? type : callback
   type = (typeof type === 'function') ? false : type
 
-  pathExists(dstpath, (err, destinationExists) => {
+  fs.lstat(dstpath, (err, stats) => {
+    if (!err && stats.isSymbolicLink()) {
+      Promise.all([
+        fs.stat(srcpath),
+        fs.stat(dstpath)
+      ]).then(([srcStat, dstStat]) => {
+        if (areIdentical(srcStat, dstStat)) return callback(null)
+        _createSymlink(srcpath, dstpath, type, callback)
+      })
+    } else _createSymlink(srcpath, dstpath, type, callback)
+  })
+}
+
+function _createSymlink (srcpath, dstpath, type, callback) {
+  symlinkPaths(srcpath, dstpath, (err, relative) => {
     if (err) return callback(err)
-    if (destinationExists) return callback(null)
-    symlinkPaths(srcpath, dstpath, (err, relative) => {
+    srcpath = relative.toDst
+    symlinkType(relative.toCwd, type, (err, type) => {
       if (err) return callback(err)
-      srcpath = relative.toDst
-      symlinkType(relative.toCwd, type, (err, type) => {
+      const dir = path.dirname(dstpath)
+      pathExists(dir, (err, dirExists) => {
         if (err) return callback(err)
-        const dir = path.dirname(dstpath)
-        pathExists(dir, (err, dirExists) => {
+        if (dirExists) return fs.symlink(srcpath, dstpath, type, callback)
+        mkdirs(dir, err => {
           if (err) return callback(err)
-          if (dirExists) return fs.symlink(srcpath, dstpath, type, callback)
-          mkdirs(dir, err => {
-            if (err) return callback(err)
-            fs.symlink(srcpath, dstpath, type, callback)
-          })
+          fs.symlink(srcpath, dstpath, type, callback)
         })
       })
     })
@@ -36815,8 +33659,15 @@ function createSymlink (srcpath, dstpath, type, callback) {
 }
 
 function createSymlinkSync (srcpath, dstpath, type) {
-  const destinationExists = fs.existsSync(dstpath)
-  if (destinationExists) return undefined
+  let stats
+  try {
+    stats = fs.lstatSync(dstpath)
+  } catch {}
+  if (stats && stats.isSymbolicLink()) {
+    const srcStat = fs.statSync(srcpath)
+    const dstStat = fs.statSync(dstpath)
+    if (areIdentical(srcStat, dstStat)) return
+  }
 
   const relative = symlinkPathsSync(srcpath, dstpath)
   srcpath = relative.toDst
@@ -36843,7 +33694,7 @@ module.exports = {
 
 // This is adapted from https://github.com/normalize/mz
 // Copyright (c) 2014-2016 Jonathan Ong me@jongleberry.com and Contributors
-const u = (__nccwpck_require__(9046)/* .fromCallback */ .E)
+const u = (__nccwpck_require__(9046).fromCallback)
 const fs = __nccwpck_require__(7758)
 
 const api = [
@@ -36860,18 +33711,20 @@ const api = [
   'fsync',
   'ftruncate',
   'futimes',
-  'lchown',
   'lchmod',
+  'lchown',
   'link',
   'lstat',
   'mkdir',
   'mkdtemp',
   'open',
-  'readFile',
+  'opendir',
   'readdir',
+  'readFile',
   'readlink',
   'realpath',
   'rename',
+  'rm',
   'rmdir',
   'stat',
   'symlink',
@@ -36881,21 +33734,14 @@ const api = [
   'writeFile'
 ].filter(key => {
   // Some commands are not available on some systems. Ex:
-  // fs.copyFile was added in Node.js v8.5.0
-  // fs.mkdtemp was added in Node.js v5.10.0
+  // fs.opendir was added in Node.js v12.12.0
+  // fs.rm was added in Node.js v14.14.0
   // fs.lchown is not available on at least some Linux
   return typeof fs[key] === 'function'
 })
 
-// Export all keys:
-Object.keys(fs).forEach(key => {
-  if (key === 'promises') {
-    // fs.promises is a getter property that triggers ExperimentalWarning
-    // Don't re-export it here, the getter is defined in "lib/index.js"
-    return
-  }
-  exports[key] = fs[key]
-})
+// Export cloned fs:
+Object.assign(exports, fs)
 
 // Universalify async methods:
 api.forEach(method => {
@@ -36913,7 +33759,7 @@ exports.exists = function (filename, callback) {
   })
 }
 
-// fs.read() & fs.write need special treatment due to multiple callback args
+// fs.read(), fs.write(), & fs.writev() need special treatment due to multiple callback args
 
 exports.read = function (fd, buffer, offset, length, position, callback) {
   if (typeof callback === 'function') {
@@ -36945,6 +33791,35 @@ exports.write = function (fd, buffer, ...args) {
   })
 }
 
+// fs.writev only available in Node v12.9.0+
+if (typeof fs.writev === 'function') {
+  // Function signature is
+  // s.writev(fd, buffers[, position], callback)
+  // We need to handle the optional arg, so we use ...args
+  exports.writev = function (fd, buffers, ...args) {
+    if (typeof args[args.length - 1] === 'function') {
+      return fs.writev(fd, buffers, ...args)
+    }
+
+    return new Promise((resolve, reject) => {
+      fs.writev(fd, buffers, ...args, (err, bytesWritten, buffers) => {
+        if (err) return reject(err)
+        resolve({ bytesWritten, buffers })
+      })
+    })
+  }
+}
+
+// fs.realpath.native sometimes not available if fs is monkey-patched
+if (typeof fs.realpath.native === 'function') {
+  exports.realpath.native = u(fs.realpath.native)
+} else {
+  process.emitWarning(
+    'fs.realpath.native is not a function. Is fs being monkey-patched?',
+    'Warning', 'fs-extra-WARN0003'
+  )
+}
+
 
 /***/ }),
 
@@ -36954,31 +33829,19 @@ exports.write = function (fd, buffer, ...args) {
 "use strict";
 
 
-module.exports = Object.assign(
-  {},
+module.exports = {
   // Export promiseified graceful-fs:
-  __nccwpck_require__(1176),
+  ...__nccwpck_require__(1176),
   // Export extra methods:
-  __nccwpck_require__(1135),
-  __nccwpck_require__(1335),
-  __nccwpck_require__(6970),
-  __nccwpck_require__(55),
-  __nccwpck_require__(213),
-  __nccwpck_require__(8605),
-  __nccwpck_require__(9665),
-  __nccwpck_require__(1497),
-  __nccwpck_require__(6570),
-  __nccwpck_require__(3835),
-  __nccwpck_require__(7357)
-)
-
-// Export fs.promises as a getter property so that we don't trigger
-// ExperimentalWarning before fs.promises is actually accessed.
-const fs = __nccwpck_require__(7147)
-if (Object.getOwnPropertyDescriptor(fs, 'promises')) {
-  Object.defineProperty(module.exports, "promises", ({
-    get () { return fs.promises }
-  }))
+  ...__nccwpck_require__(1335),
+  ...__nccwpck_require__(6970),
+  ...__nccwpck_require__(55),
+  ...__nccwpck_require__(213),
+  ...__nccwpck_require__(8605),
+  ...__nccwpck_require__(1497),
+  ...__nccwpck_require__(1832),
+  ...__nccwpck_require__(3835),
+  ...__nccwpck_require__(7357)
 }
 
 
@@ -36990,7 +33853,7 @@ if (Object.getOwnPropertyDescriptor(fs, 'promises')) {
 "use strict";
 
 
-const u = (__nccwpck_require__(9046)/* .fromCallback */ .E)
+const u = (__nccwpck_require__(9046).fromPromise)
 const jsonFile = __nccwpck_require__(8970)
 
 jsonFile.outputJson = u(__nccwpck_require__(531))
@@ -37014,14 +33877,13 @@ module.exports = jsonFile
 "use strict";
 
 
-const u = (__nccwpck_require__(9046)/* .fromCallback */ .E)
 const jsonFile = __nccwpck_require__(6160)
 
 module.exports = {
   // jsonfile exports
-  readJson: u(jsonFile.readFile),
+  readJson: jsonFile.readFile,
   readJsonSync: jsonFile.readFileSync,
-  writeJson: u(jsonFile.writeFile),
+  writeJson: jsonFile.writeFile,
   writeJsonSync: jsonFile.writeFileSync
 }
 
@@ -37034,19 +33896,13 @@ module.exports = {
 "use strict";
 
 
-const fs = __nccwpck_require__(7758)
-const path = __nccwpck_require__(1017)
-const mkdir = __nccwpck_require__(8605)
-const jsonFile = __nccwpck_require__(8970)
+const { stringify } = __nccwpck_require__(5902)
+const { outputFileSync } = __nccwpck_require__(1832)
 
 function outputJsonSync (file, data, options) {
-  const dir = path.dirname(file)
+  const str = stringify(data, options)
 
-  if (!fs.existsSync(dir)) {
-    mkdir.mkdirsSync(dir)
-  }
-
-  jsonFile.writeJsonSync(file, data, options)
+  outputFileSync(file, str, options)
 }
 
 module.exports = outputJsonSync
@@ -37060,28 +33916,13 @@ module.exports = outputJsonSync
 "use strict";
 
 
-const path = __nccwpck_require__(1017)
-const mkdir = __nccwpck_require__(8605)
-const pathExists = (__nccwpck_require__(3835).pathExists)
-const jsonFile = __nccwpck_require__(8970)
+const { stringify } = __nccwpck_require__(5902)
+const { outputFile } = __nccwpck_require__(1832)
 
-function outputJson (file, data, options, callback) {
-  if (typeof options === 'function') {
-    callback = options
-    options = {}
-  }
+async function outputJson (file, data, options = {}) {
+  const str = stringify(data, options)
 
-  const dir = path.dirname(file)
-
-  pathExists(dir, (err, itDoes) => {
-    if (err) return callback(err)
-    if (itDoes) return jsonFile.writeJson(file, data, options, callback)
-
-    mkdir.mkdirs(dir, err => {
-      if (err) return callback(err)
-      jsonFile.writeJson(file, data, options, callback)
-    })
-  })
+  await outputFile(file, str, options)
 }
 
 module.exports = outputJson
@@ -37094,309 +33935,82 @@ module.exports = outputJson
 
 "use strict";
 
-const u = (__nccwpck_require__(9046)/* .fromCallback */ .E)
-const mkdirs = u(__nccwpck_require__(9677))
-const mkdirsSync = __nccwpck_require__(684)
+const u = (__nccwpck_require__(9046).fromPromise)
+const { makeDir: _makeDir, makeDirSync } = __nccwpck_require__(2751)
+const makeDir = u(_makeDir)
 
 module.exports = {
-  mkdirs,
-  mkdirsSync,
+  mkdirs: makeDir,
+  mkdirsSync: makeDirSync,
   // alias
-  mkdirp: mkdirs,
-  mkdirpSync: mkdirsSync,
-  ensureDir: mkdirs,
-  ensureDirSync: mkdirsSync
+  mkdirp: makeDir,
+  mkdirpSync: makeDirSync,
+  ensureDir: makeDir,
+  ensureDirSync: makeDirSync
 }
 
 
 /***/ }),
 
-/***/ 684:
+/***/ 2751:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
+const fs = __nccwpck_require__(1176)
+const { checkPath } = __nccwpck_require__(9907)
 
-const fs = __nccwpck_require__(7758)
-const path = __nccwpck_require__(1017)
-const invalidWin32Path = (__nccwpck_require__(1590).invalidWin32Path)
-
-const o777 = parseInt('0777', 8)
-
-function mkdirsSync (p, opts, made) {
-  if (!opts || typeof opts !== 'object') {
-    opts = { mode: opts }
-  }
-
-  let mode = opts.mode
-  const xfs = opts.fs || fs
-
-  if (process.platform === 'win32' && invalidWin32Path(p)) {
-    const errInval = new Error(p + ' contains invalid WIN32 path characters.')
-    errInval.code = 'EINVAL'
-    throw errInval
-  }
-
-  if (mode === undefined) {
-    mode = o777 & (~process.umask())
-  }
-  if (!made) made = null
-
-  p = path.resolve(p)
-
-  try {
-    xfs.mkdirSync(p, mode)
-    made = made || p
-  } catch (err0) {
-    if (err0.code === 'ENOENT') {
-      if (path.dirname(p) === p) throw err0
-      made = mkdirsSync(path.dirname(p), opts, made)
-      mkdirsSync(p, opts, made)
-    } else {
-      // In the case of any other error, just see if there's a dir there
-      // already. If so, then hooray!  If not, then something is borked.
-      let stat
-      try {
-        stat = xfs.statSync(p)
-      } catch (err1) {
-        throw err0
-      }
-      if (!stat.isDirectory()) throw err0
-    }
-  }
-
-  return made
+const getMode = options => {
+  const defaults = { mode: 0o777 }
+  if (typeof options === 'number') return options
+  return ({ ...defaults, ...options }).mode
 }
 
-module.exports = mkdirsSync
+module.exports.makeDir = async (dir, options) => {
+  checkPath(dir)
 
-
-/***/ }),
-
-/***/ 9677:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const fs = __nccwpck_require__(7758)
-const path = __nccwpck_require__(1017)
-const invalidWin32Path = (__nccwpck_require__(1590).invalidWin32Path)
-
-const o777 = parseInt('0777', 8)
-
-function mkdirs (p, opts, callback, made) {
-  if (typeof opts === 'function') {
-    callback = opts
-    opts = {}
-  } else if (!opts || typeof opts !== 'object') {
-    opts = { mode: opts }
-  }
-
-  if (process.platform === 'win32' && invalidWin32Path(p)) {
-    const errInval = new Error(p + ' contains invalid WIN32 path characters.')
-    errInval.code = 'EINVAL'
-    return callback(errInval)
-  }
-
-  let mode = opts.mode
-  const xfs = opts.fs || fs
-
-  if (mode === undefined) {
-    mode = o777 & (~process.umask())
-  }
-  if (!made) made = null
-
-  callback = callback || function () {}
-  p = path.resolve(p)
-
-  xfs.mkdir(p, mode, er => {
-    if (!er) {
-      made = made || p
-      return callback(null, made)
-    }
-    switch (er.code) {
-      case 'ENOENT':
-        if (path.dirname(p) === p) return callback(er)
-        mkdirs(path.dirname(p), opts, (er, made) => {
-          if (er) callback(er, made)
-          else mkdirs(p, opts, callback, made)
-        })
-        break
-
-      // In the case of any other error, just see if there's a dir
-      // there already.  If so, then hooray!  If not, then something
-      // is borked.
-      default:
-        xfs.stat(p, (er2, stat) => {
-          // if the stat fails, then that's super weird.
-          // let the original error be the failure reason.
-          if (er2 || !stat.isDirectory()) callback(er, made)
-          else callback(null, made)
-        })
-        break
-    }
+  return fs.mkdir(dir, {
+    mode: getMode(options),
+    recursive: true
   })
 }
 
-module.exports = mkdirs
+module.exports.makeDirSync = (dir, options) => {
+  checkPath(dir)
 
-
-/***/ }),
-
-/***/ 1590:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const path = __nccwpck_require__(1017)
-
-// get drive on windows
-function getRootPath (p) {
-  p = path.normalize(path.resolve(p)).split(path.sep)
-  if (p.length > 0) return p[0]
-  return null
-}
-
-// http://stackoverflow.com/a/62888/10333 contains more accurate
-// TODO: expand to include the rest
-const INVALID_PATH_CHARS = /[<>:"|?*]/
-
-function invalidWin32Path (p) {
-  const rp = getRootPath(p)
-  p = p.replace(rp, '')
-  return INVALID_PATH_CHARS.test(p)
-}
-
-module.exports = {
-  getRootPath,
-  invalidWin32Path
+  return fs.mkdirSync(dir, {
+    mode: getMode(options),
+    recursive: true
+  })
 }
 
 
 /***/ }),
 
-/***/ 9665:
+/***/ 9907:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
+// Adapted from https://github.com/sindresorhus/make-dir
+// Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+// Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+// The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-
-const fs = __nccwpck_require__(7758)
 const path = __nccwpck_require__(1017)
-const copySync = (__nccwpck_require__(1135).copySync)
-const removeSync = (__nccwpck_require__(7357).removeSync)
-const mkdirpSync = (__nccwpck_require__(8605).mkdirsSync)
-const buffer = __nccwpck_require__(7696)
 
-function moveSync (src, dest, options) {
-  options = options || {}
-  const overwrite = options.overwrite || options.clobber || false
+// https://github.com/nodejs/node/issues/8987
+// https://github.com/libuv/libuv/pull/1088
+module.exports.checkPath = function checkPath (pth) {
+  if (process.platform === 'win32') {
+    const pathHasInvalidWinCharacters = /[<>:"|?*]/.test(pth.replace(path.parse(pth).root, ''))
 
-  src = path.resolve(src)
-  dest = path.resolve(dest)
-
-  if (src === dest) return fs.accessSync(src)
-
-  if (isSrcSubdir(src, dest)) throw new Error(`Cannot move '${src}' into itself '${dest}'.`)
-
-  mkdirpSync(path.dirname(dest))
-  tryRenameSync()
-
-  function tryRenameSync () {
-    if (overwrite) {
-      try {
-        return fs.renameSync(src, dest)
-      } catch (err) {
-        if (err.code === 'ENOTEMPTY' || err.code === 'EEXIST' || err.code === 'EPERM') {
-          removeSync(dest)
-          options.overwrite = false // just overwriteed it, no need to do it again
-          return moveSync(src, dest, options)
-        }
-
-        if (err.code !== 'EXDEV') throw err
-        return moveSyncAcrossDevice(src, dest, overwrite)
-      }
-    } else {
-      try {
-        fs.linkSync(src, dest)
-        return fs.unlinkSync(src)
-      } catch (err) {
-        if (err.code === 'EXDEV' || err.code === 'EISDIR' || err.code === 'EPERM' || err.code === 'ENOTSUP') {
-          return moveSyncAcrossDevice(src, dest, overwrite)
-        }
-        throw err
-      }
+    if (pathHasInvalidWinCharacters) {
+      const error = new Error(`Path contains invalid characters: ${pth}`)
+      error.code = 'EINVAL'
+      throw error
     }
   }
-}
-
-function moveSyncAcrossDevice (src, dest, overwrite) {
-  const stat = fs.statSync(src)
-
-  if (stat.isDirectory()) {
-    return moveDirSyncAcrossDevice(src, dest, overwrite)
-  } else {
-    return moveFileSyncAcrossDevice(src, dest, overwrite)
-  }
-}
-
-function moveFileSyncAcrossDevice (src, dest, overwrite) {
-  const BUF_LENGTH = 64 * 1024
-  const _buff = buffer(BUF_LENGTH)
-
-  const flags = overwrite ? 'w' : 'wx'
-
-  const fdr = fs.openSync(src, 'r')
-  const stat = fs.fstatSync(fdr)
-  const fdw = fs.openSync(dest, flags, stat.mode)
-  let pos = 0
-
-  while (pos < stat.size) {
-    const bytesRead = fs.readSync(fdr, _buff, 0, BUF_LENGTH, pos)
-    fs.writeSync(fdw, _buff, 0, bytesRead)
-    pos += bytesRead
-  }
-
-  fs.closeSync(fdr)
-  fs.closeSync(fdw)
-  return fs.unlinkSync(src)
-}
-
-function moveDirSyncAcrossDevice (src, dest, overwrite) {
-  const options = {
-    overwrite: false
-  }
-
-  if (overwrite) {
-    removeSync(dest)
-    tryCopySync()
-  } else {
-    tryCopySync()
-  }
-
-  function tryCopySync () {
-    copySync(src, dest, options)
-    return removeSync(src)
-  }
-}
-
-// return true if dest is a subdir of src, otherwise false.
-// extract dest base dir and check if that is the same as src basename
-function isSrcSubdir (src, dest) {
-  try {
-    return fs.statSync(src).isDirectory() &&
-           src !== dest &&
-           dest.indexOf(src) > -1 &&
-           dest.split(path.dirname(src) + path.sep)[1].split(path.sep)[0] === path.basename(src)
-  } catch (e) {
-    return false
-  }
-}
-
-module.exports = {
-  moveSync
 }
 
 
@@ -37408,13 +34022,90 @@ module.exports = {
 "use strict";
 
 
-const u = (__nccwpck_require__(9046)/* .fromCallback */ .E)
+const u = (__nccwpck_require__(9046).fromCallback)
+module.exports = {
+  move: u(__nccwpck_require__(2231)),
+  moveSync: __nccwpck_require__(2047)
+}
+
+
+/***/ }),
+
+/***/ 2047:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+const fs = __nccwpck_require__(7758)
+const path = __nccwpck_require__(1017)
+const copySync = (__nccwpck_require__(1335).copySync)
+const removeSync = (__nccwpck_require__(7357).removeSync)
+const mkdirpSync = (__nccwpck_require__(8605).mkdirpSync)
+const stat = __nccwpck_require__(3901)
+
+function moveSync (src, dest, opts) {
+  opts = opts || {}
+  const overwrite = opts.overwrite || opts.clobber || false
+
+  const { srcStat, isChangingCase = false } = stat.checkPathsSync(src, dest, 'move', opts)
+  stat.checkParentPathsSync(src, srcStat, dest, 'move')
+  if (!isParentRoot(dest)) mkdirpSync(path.dirname(dest))
+  return doRename(src, dest, overwrite, isChangingCase)
+}
+
+function isParentRoot (dest) {
+  const parent = path.dirname(dest)
+  const parsedPath = path.parse(parent)
+  return parsedPath.root === parent
+}
+
+function doRename (src, dest, overwrite, isChangingCase) {
+  if (isChangingCase) return rename(src, dest, overwrite)
+  if (overwrite) {
+    removeSync(dest)
+    return rename(src, dest, overwrite)
+  }
+  if (fs.existsSync(dest)) throw new Error('dest already exists.')
+  return rename(src, dest, overwrite)
+}
+
+function rename (src, dest, overwrite) {
+  try {
+    fs.renameSync(src, dest)
+  } catch (err) {
+    if (err.code !== 'EXDEV') throw err
+    return moveAcrossDevice(src, dest, overwrite)
+  }
+}
+
+function moveAcrossDevice (src, dest, overwrite) {
+  const opts = {
+    overwrite,
+    errorOnExist: true
+  }
+  copySync(src, dest, opts)
+  return removeSync(src)
+}
+
+module.exports = moveSync
+
+
+/***/ }),
+
+/***/ 2231:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
 const fs = __nccwpck_require__(7758)
 const path = __nccwpck_require__(1017)
 const copy = (__nccwpck_require__(1335).copy)
 const remove = (__nccwpck_require__(7357).remove)
 const mkdirp = (__nccwpck_require__(8605).mkdirp)
 const pathExists = (__nccwpck_require__(3835).pathExists)
+const stat = __nccwpck_require__(3901)
 
 function move (src, dest, opts, cb) {
   if (typeof opts === 'function') {
@@ -37422,27 +34113,32 @@ function move (src, dest, opts, cb) {
     opts = {}
   }
 
+  opts = opts || {}
+
   const overwrite = opts.overwrite || opts.clobber || false
 
-  src = path.resolve(src)
-  dest = path.resolve(dest)
-
-  if (src === dest) return fs.access(src, cb)
-
-  fs.stat(src, (err, st) => {
+  stat.checkPaths(src, dest, 'move', opts, (err, stats) => {
     if (err) return cb(err)
-
-    if (st.isDirectory() && isSrcSubdir(src, dest)) {
-      return cb(new Error(`Cannot move '${src}' to a subdirectory of itself, '${dest}'.`))
-    }
-    mkdirp(path.dirname(dest), err => {
+    const { srcStat, isChangingCase = false } = stats
+    stat.checkParentPaths(src, srcStat, dest, 'move', err => {
       if (err) return cb(err)
-      return doRename(src, dest, overwrite, cb)
+      if (isParentRoot(dest)) return doRename(src, dest, overwrite, isChangingCase, cb)
+      mkdirp(path.dirname(dest), err => {
+        if (err) return cb(err)
+        return doRename(src, dest, overwrite, isChangingCase, cb)
+      })
     })
   })
 }
 
-function doRename (src, dest, overwrite, cb) {
+function isParentRoot (dest) {
+  const parent = path.dirname(dest)
+  const parsedPath = path.parse(parent)
+  return parsedPath.root === parent
+}
+
+function doRename (src, dest, overwrite, isChangingCase, cb) {
+  if (isChangingCase) return rename(src, dest, overwrite, cb)
   if (overwrite) {
     return remove(dest, err => {
       if (err) return cb(err)
@@ -37469,36 +34165,24 @@ function moveAcrossDevice (src, dest, overwrite, cb) {
     overwrite,
     errorOnExist: true
   }
-
   copy(src, dest, opts, err => {
     if (err) return cb(err)
     return remove(src, cb)
   })
 }
 
-function isSrcSubdir (src, dest) {
-  const srcArray = src.split(path.sep)
-  const destArray = dest.split(path.sep)
-
-  return srcArray.reduce((acc, current, i) => {
-    return acc && destArray[i] === current
-  }, true)
-}
-
-module.exports = {
-  move: u(move)
-}
+module.exports = move
 
 
 /***/ }),
 
-/***/ 6570:
+/***/ 1832:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
-const u = (__nccwpck_require__(9046)/* .fromCallback */ .E)
+const u = (__nccwpck_require__(9046).fromCallback)
 const fs = __nccwpck_require__(7758)
 const path = __nccwpck_require__(1017)
 const mkdir = __nccwpck_require__(8605)
@@ -37545,7 +34229,7 @@ module.exports = {
 
 "use strict";
 
-const u = (__nccwpck_require__(9046)/* .fromPromise */ .p)
+const u = (__nccwpck_require__(9046).fromPromise)
 const fs = __nccwpck_require__(1176)
 
 function pathExists (path) {
@@ -37566,12 +34250,25 @@ module.exports = {
 "use strict";
 
 
-const u = (__nccwpck_require__(9046)/* .fromCallback */ .E)
+const fs = __nccwpck_require__(7758)
+const u = (__nccwpck_require__(9046).fromCallback)
 const rimraf = __nccwpck_require__(8761)
 
+function remove (path, callback) {
+  // Node 14.14.0+
+  if (fs.rm) return fs.rm(path, { recursive: true, force: true }, callback)
+  rimraf(path, callback)
+}
+
+function removeSync (path) {
+  // Node 14.14.0+
+  if (fs.rmSync) return fs.rmSync(path, { recursive: true, force: true })
+  rimraf.sync(path)
+}
+
 module.exports = {
-  remove: u(rimraf),
-  removeSync: rimraf.sync
+  remove: u(remove),
+  removeSync
 }
 
 
@@ -37696,9 +34393,6 @@ function fixWinEPERM (p, options, er, cb) {
   assert(p)
   assert(options)
   assert(typeof cb === 'function')
-  if (er) {
-    assert(er instanceof Error)
-  }
 
   options.chmod(p, 0o666, er2 => {
     if (er2) {
@@ -37722,9 +34416,6 @@ function fixWinEPERMSync (p, options, er) {
 
   assert(p)
   assert(options)
-  if (er) {
-    assert(er instanceof Error)
-  }
 
   try {
     options.chmodSync(p, 0o666)
@@ -37756,9 +34447,6 @@ function fixWinEPERMSync (p, options, er) {
 function rmdir (p, options, originalEr, cb) {
   assert(p)
   assert(options)
-  if (originalEr) {
-    assert(originalEr instanceof Error)
-  }
   assert(typeof cb === 'function')
 
   // try to rmdir first, and only readdir on ENOTEMPTY or EEXIST (SunOS)
@@ -37851,9 +34539,6 @@ function rimrafSync (p, options) {
 function rmdirSync (p, options, originalEr) {
   assert(p)
   assert(options)
-  if (originalEr) {
-    assert(originalEr instanceof Error)
-  }
 
   try {
     options.rmdirSync(p)
@@ -37885,7 +34570,7 @@ function rmkidsSync (p, options) {
       try {
         const ret = options.rmdirSync(p, options)
         return ret
-      } catch (er) { }
+      } catch {}
     } while (Date.now() - startTime < 500) // give up after 500ms
   } else {
     const ret = options.rmdirSync(p, options)
@@ -37899,21 +34584,163 @@ rimraf.sync = rimrafSync
 
 /***/ }),
 
-/***/ 7696:
-/***/ ((module) => {
+/***/ 3901:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
-/* eslint-disable node/no-deprecated-api */
-module.exports = function (size) {
-  if (typeof Buffer.allocUnsafe === 'function') {
-    try {
-      return Buffer.allocUnsafe(size)
-    } catch (e) {
-      return new Buffer(size)
+
+const fs = __nccwpck_require__(1176)
+const path = __nccwpck_require__(1017)
+const util = __nccwpck_require__(3837)
+
+function getStats (src, dest, opts) {
+  const statFunc = opts.dereference
+    ? (file) => fs.stat(file, { bigint: true })
+    : (file) => fs.lstat(file, { bigint: true })
+  return Promise.all([
+    statFunc(src),
+    statFunc(dest).catch(err => {
+      if (err.code === 'ENOENT') return null
+      throw err
+    })
+  ]).then(([srcStat, destStat]) => ({ srcStat, destStat }))
+}
+
+function getStatsSync (src, dest, opts) {
+  let destStat
+  const statFunc = opts.dereference
+    ? (file) => fs.statSync(file, { bigint: true })
+    : (file) => fs.lstatSync(file, { bigint: true })
+  const srcStat = statFunc(src)
+  try {
+    destStat = statFunc(dest)
+  } catch (err) {
+    if (err.code === 'ENOENT') return { srcStat, destStat: null }
+    throw err
+  }
+  return { srcStat, destStat }
+}
+
+function checkPaths (src, dest, funcName, opts, cb) {
+  util.callbackify(getStats)(src, dest, opts, (err, stats) => {
+    if (err) return cb(err)
+    const { srcStat, destStat } = stats
+
+    if (destStat) {
+      if (areIdentical(srcStat, destStat)) {
+        const srcBaseName = path.basename(src)
+        const destBaseName = path.basename(dest)
+        if (funcName === 'move' &&
+          srcBaseName !== destBaseName &&
+          srcBaseName.toLowerCase() === destBaseName.toLowerCase()) {
+          return cb(null, { srcStat, destStat, isChangingCase: true })
+        }
+        return cb(new Error('Source and destination must not be the same.'))
+      }
+      if (srcStat.isDirectory() && !destStat.isDirectory()) {
+        return cb(new Error(`Cannot overwrite non-directory '${dest}' with directory '${src}'.`))
+      }
+      if (!srcStat.isDirectory() && destStat.isDirectory()) {
+        return cb(new Error(`Cannot overwrite directory '${dest}' with non-directory '${src}'.`))
+      }
+    }
+
+    if (srcStat.isDirectory() && isSrcSubdir(src, dest)) {
+      return cb(new Error(errMsg(src, dest, funcName)))
+    }
+    return cb(null, { srcStat, destStat })
+  })
+}
+
+function checkPathsSync (src, dest, funcName, opts) {
+  const { srcStat, destStat } = getStatsSync(src, dest, opts)
+
+  if (destStat) {
+    if (areIdentical(srcStat, destStat)) {
+      const srcBaseName = path.basename(src)
+      const destBaseName = path.basename(dest)
+      if (funcName === 'move' &&
+        srcBaseName !== destBaseName &&
+        srcBaseName.toLowerCase() === destBaseName.toLowerCase()) {
+        return { srcStat, destStat, isChangingCase: true }
+      }
+      throw new Error('Source and destination must not be the same.')
+    }
+    if (srcStat.isDirectory() && !destStat.isDirectory()) {
+      throw new Error(`Cannot overwrite non-directory '${dest}' with directory '${src}'.`)
+    }
+    if (!srcStat.isDirectory() && destStat.isDirectory()) {
+      throw new Error(`Cannot overwrite directory '${dest}' with non-directory '${src}'.`)
     }
   }
-  return new Buffer(size)
+
+  if (srcStat.isDirectory() && isSrcSubdir(src, dest)) {
+    throw new Error(errMsg(src, dest, funcName))
+  }
+  return { srcStat, destStat }
+}
+
+// recursively check if dest parent is a subdirectory of src.
+// It works for all file types including symlinks since it
+// checks the src and dest inodes. It starts from the deepest
+// parent and stops once it reaches the src parent or the root path.
+function checkParentPaths (src, srcStat, dest, funcName, cb) {
+  const srcParent = path.resolve(path.dirname(src))
+  const destParent = path.resolve(path.dirname(dest))
+  if (destParent === srcParent || destParent === path.parse(destParent).root) return cb()
+  fs.stat(destParent, { bigint: true }, (err, destStat) => {
+    if (err) {
+      if (err.code === 'ENOENT') return cb()
+      return cb(err)
+    }
+    if (areIdentical(srcStat, destStat)) {
+      return cb(new Error(errMsg(src, dest, funcName)))
+    }
+    return checkParentPaths(src, srcStat, destParent, funcName, cb)
+  })
+}
+
+function checkParentPathsSync (src, srcStat, dest, funcName) {
+  const srcParent = path.resolve(path.dirname(src))
+  const destParent = path.resolve(path.dirname(dest))
+  if (destParent === srcParent || destParent === path.parse(destParent).root) return
+  let destStat
+  try {
+    destStat = fs.statSync(destParent, { bigint: true })
+  } catch (err) {
+    if (err.code === 'ENOENT') return
+    throw err
+  }
+  if (areIdentical(srcStat, destStat)) {
+    throw new Error(errMsg(src, dest, funcName))
+  }
+  return checkParentPathsSync(src, srcStat, destParent, funcName)
+}
+
+function areIdentical (srcStat, destStat) {
+  return destStat.ino && destStat.dev && destStat.ino === srcStat.ino && destStat.dev === srcStat.dev
+}
+
+// return true if dest is a subdir of src, otherwise false.
+// It only checks the path strings.
+function isSrcSubdir (src, dest) {
+  const srcArr = path.resolve(src).split(path.sep).filter(i => i)
+  const destArr = path.resolve(dest).split(path.sep).filter(i => i)
+  return srcArr.reduce((acc, cur, i) => acc && destArr[i] === cur, true)
+}
+
+function errMsg (src, dest, funcName) {
+  return `Cannot ${funcName} '${src}' to a subdirectory of itself, '${dest}'.`
+}
+
+module.exports = {
+  checkPaths,
+  checkPathsSync,
+  checkParentPaths,
+  checkParentPathsSync,
+  isSrcSubdir,
+  areIdentical
 }
 
 
@@ -37926,56 +34753,6 @@ module.exports = function (size) {
 
 
 const fs = __nccwpck_require__(7758)
-const os = __nccwpck_require__(2037)
-const path = __nccwpck_require__(1017)
-
-// HFS, ext{2,3}, FAT do not, Node.js v0.10 does not
-function hasMillisResSync () {
-  let tmpfile = path.join('millis-test-sync' + Date.now().toString() + Math.random().toString().slice(2))
-  tmpfile = path.join(os.tmpdir(), tmpfile)
-
-  // 550 millis past UNIX epoch
-  const d = new Date(1435410243862)
-  fs.writeFileSync(tmpfile, 'https://github.com/jprichardson/node-fs-extra/pull/141')
-  const fd = fs.openSync(tmpfile, 'r+')
-  fs.futimesSync(fd, d, d)
-  fs.closeSync(fd)
-  return fs.statSync(tmpfile).mtime > 1435410243000
-}
-
-function hasMillisRes (callback) {
-  let tmpfile = path.join('millis-test' + Date.now().toString() + Math.random().toString().slice(2))
-  tmpfile = path.join(os.tmpdir(), tmpfile)
-
-  // 550 millis past UNIX epoch
-  const d = new Date(1435410243862)
-  fs.writeFile(tmpfile, 'https://github.com/jprichardson/node-fs-extra/pull/141', err => {
-    if (err) return callback(err)
-    fs.open(tmpfile, 'r+', (err, fd) => {
-      if (err) return callback(err)
-      fs.futimes(fd, d, d, err => {
-        if (err) return callback(err)
-        fs.close(fd, err => {
-          if (err) return callback(err)
-          fs.stat(tmpfile, (err, stats) => {
-            if (err) return callback(err)
-            callback(null, stats.mtime > 1435410243000)
-          })
-        })
-      })
-    })
-  })
-}
-
-function timeRemoveMillis (timestamp) {
-  if (typeof timestamp === 'number') {
-    return Math.floor(timestamp / 1000) * 1000
-  } else if (timestamp instanceof Date) {
-    return new Date(Math.floor(timestamp.getTime() / 1000) * 1000)
-  } else {
-    throw new Error('fs-extra: timeRemoveMillis() unknown parameter type')
-  }
-}
 
 function utimesMillis (path, atime, mtime, callback) {
   // if (!HAS_MILLIS_RES) return fs.utimes(path, atime, mtime, callback)
@@ -37996,9 +34773,6 @@ function utimesMillisSync (path, atime, mtime) {
 }
 
 module.exports = {
-  hasMillisRes,
-  hasMillisResSync,
-  timeRemoveMillis,
   utimesMillis,
   utimesMillisSync
 }
@@ -43345,31 +40119,54 @@ if (typeof Object.create === 'function') {
 
 /***/ }),
 
+/***/ 7604:
+/***/ ((module) => {
+
+module.exports = function isArrayish(obj) {
+	if (!obj || typeof obj === 'string') {
+		return false;
+	}
+
+	return obj instanceof Array || Array.isArray(obj) ||
+		(obj.length >= 0 && (obj.splice instanceof Function ||
+			(Object.getOwnPropertyDescriptor(obj, (obj.length - 1)) && obj.constructor.name !== 'String')));
+};
+
+
+/***/ }),
+
 /***/ 1554:
 /***/ ((module) => {
 
 "use strict";
 
 
-var isStream = module.exports = function (stream) {
-	return stream !== null && typeof stream === 'object' && typeof stream.pipe === 'function';
-};
+const isStream = stream =>
+	stream !== null &&
+	typeof stream === 'object' &&
+	typeof stream.pipe === 'function';
 
-isStream.writable = function (stream) {
-	return isStream(stream) && stream.writable !== false && typeof stream._write === 'function' && typeof stream._writableState === 'object';
-};
+isStream.writable = stream =>
+	isStream(stream) &&
+	stream.writable !== false &&
+	typeof stream._write === 'function' &&
+	typeof stream._writableState === 'object';
 
-isStream.readable = function (stream) {
-	return isStream(stream) && stream.readable !== false && typeof stream._read === 'function' && typeof stream._readableState === 'object';
-};
+isStream.readable = stream =>
+	isStream(stream) &&
+	stream.readable !== false &&
+	typeof stream._read === 'function' &&
+	typeof stream._readableState === 'object';
 
-isStream.duplex = function (stream) {
-	return isStream.writable(stream) && isStream.readable(stream);
-};
+isStream.duplex = stream =>
+	isStream.writable(stream) &&
+	isStream.readable(stream);
 
-isStream.transform = function (stream) {
-	return isStream.duplex(stream) && typeof stream._transform === 'function' && typeof stream._transformState === 'object';
-};
+isStream.transform = stream =>
+	isStream.duplex(stream) &&
+	typeof stream._transform === 'function';
+
+module.exports = isStream;
 
 
 /***/ }),
@@ -43389,72 +40186,61 @@ module.exports = Array.isArray || function (arr) {
 /***/ 6160:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var _fs
+let _fs
 try {
   _fs = __nccwpck_require__(7758)
 } catch (_) {
   _fs = __nccwpck_require__(7147)
 }
+const universalify = __nccwpck_require__(9046)
+const { stringify, stripBom } = __nccwpck_require__(5902)
 
-function readFile (file, options, callback) {
-  if (callback == null) {
-    callback = options
-    options = {}
-  }
-
+async function _readFile (file, options = {}) {
   if (typeof options === 'string') {
-    options = {encoding: options}
+    options = { encoding: options }
   }
 
-  options = options || {}
-  var fs = options.fs || _fs
+  const fs = options.fs || _fs
 
-  var shouldThrow = true
-  if ('throws' in options) {
-    shouldThrow = options.throws
-  }
+  const shouldThrow = 'throws' in options ? options.throws : true
 
-  fs.readFile(file, options, function (err, data) {
-    if (err) return callback(err)
+  let data = await universalify.fromCallback(fs.readFile)(file, options)
 
-    data = stripBom(data)
+  data = stripBom(data)
 
-    var obj
-    try {
-      obj = JSON.parse(data, options ? options.reviver : null)
-    } catch (err2) {
-      if (shouldThrow) {
-        err2.message = file + ': ' + err2.message
-        return callback(err2)
-      } else {
-        return callback(null, null)
-      }
+  let obj
+  try {
+    obj = JSON.parse(data, options ? options.reviver : null)
+  } catch (err) {
+    if (shouldThrow) {
+      err.message = `${file}: ${err.message}`
+      throw err
+    } else {
+      return null
     }
+  }
 
-    callback(null, obj)
-  })
+  return obj
 }
 
-function readFileSync (file, options) {
-  options = options || {}
+const readFile = universalify.fromPromise(_readFile)
+
+function readFileSync (file, options = {}) {
   if (typeof options === 'string') {
-    options = {encoding: options}
+    options = { encoding: options }
   }
 
-  var fs = options.fs || _fs
+  const fs = options.fs || _fs
 
-  var shouldThrow = true
-  if ('throws' in options) {
-    shouldThrow = options.throws
-  }
+  const shouldThrow = 'throws' in options ? options.throws : true
 
   try {
-    var content = fs.readFileSync(file, options)
+    let content = fs.readFileSync(file, options)
     content = stripBom(content)
     return JSON.parse(content, options.reviver)
   } catch (err) {
     if (shouldThrow) {
-      err.message = file + ': ' + err.message
+      err.message = `${file}: ${err.message}`
       throw err
     } else {
       return null
@@ -43462,64 +40248,29 @@ function readFileSync (file, options) {
   }
 }
 
-function stringify (obj, options) {
-  var spaces
-  var EOL = '\n'
-  if (typeof options === 'object' && options !== null) {
-    if (options.spaces) {
-      spaces = options.spaces
-    }
-    if (options.EOL) {
-      EOL = options.EOL
-    }
-  }
+async function _writeFile (file, obj, options = {}) {
+  const fs = options.fs || _fs
 
-  var str = JSON.stringify(obj, options ? options.replacer : null, spaces)
+  const str = stringify(obj, options)
 
-  return str.replace(/\n/g, EOL) + EOL
+  await universalify.fromCallback(fs.writeFile)(file, str, options)
 }
 
-function writeFile (file, obj, options, callback) {
-  if (callback == null) {
-    callback = options
-    options = {}
-  }
-  options = options || {}
-  var fs = options.fs || _fs
+const writeFile = universalify.fromPromise(_writeFile)
 
-  var str = ''
-  try {
-    str = stringify(obj, options)
-  } catch (err) {
-    // Need to return whether a callback was passed or not
-    if (callback) callback(err, null)
-    return
-  }
+function writeFileSync (file, obj, options = {}) {
+  const fs = options.fs || _fs
 
-  fs.writeFile(file, str, options, callback)
-}
-
-function writeFileSync (file, obj, options) {
-  options = options || {}
-  var fs = options.fs || _fs
-
-  var str = stringify(obj, options)
+  const str = stringify(obj, options)
   // not sure if fs.writeFileSync returns anything, but just in case
   return fs.writeFileSync(file, str, options)
 }
 
-function stripBom (content) {
-  // we do this because JSON.parse would convert it to a utf8 string if encoding wasn't specified
-  if (Buffer.isBuffer(content)) content = content.toString('utf8')
-  content = content.replace(/^\uFEFF/, '')
-  return content
-}
-
-var jsonfile = {
-  readFile: readFile,
-  readFileSync: readFileSync,
-  writeFile: writeFile,
-  writeFileSync: writeFileSync
+const jsonfile = {
+  readFile,
+  readFileSync,
+  writeFile,
+  writeFileSync
 }
 
 module.exports = jsonfile
@@ -43527,13 +40278,32 @@ module.exports = jsonfile
 
 /***/ }),
 
+/***/ 5902:
+/***/ ((module) => {
+
+function stringify (obj, { EOL = '\n', finalEOL = true, replacer = null, spaces } = {}) {
+  const EOF = finalEOL ? EOL : ''
+  const str = JSON.stringify(obj, replacer, spaces)
+
+  return str.replace(/\n/g, EOL) + EOF
+}
+
+function stripBom (content) {
+  // we do this because JSON.parse would convert it to a utf8 string if encoding wasn't specified
+  if (Buffer.isBuffer(content)) content = content.toString('utf8')
+  return content.replace(/^\uFEFF/, '')
+}
+
+module.exports = { stringify, stripBom }
+
+
+/***/ }),
+
 /***/ 6287:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+/***/ ((module) => {
 
 "use strict";
 
-
-var colornames = __nccwpck_require__(697);
 
 /**
  * Kuler: Color text using CSS colors
@@ -43643,15 +40413,6 @@ Kuler.prototype.reset = function reset() {
  * @api public
  */
 Kuler.prototype.style = function style(color) {
-  //
-  // We've been supplied a CSS color name instead of a hex color format so we
-  // need to transform it to proper CSS color and continue with our execution
-  // flow.
-  //
-  if (!/^#?(?:[0-9a-fA-F]{3}){1,2}$/.test(color)) {
-    color = colornames(color);
-  }
-
   return this.prefix +'38;5;'+ this.rgb.apply(this, this.hex(color)) + this.suffix + this.text + this.reset();
 };
 
@@ -49629,926 +46390,6 @@ function noop() {
 }
 
 module.exports = union;
-
-
-/***/ }),
-
-/***/ 9213:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-var root = __nccwpck_require__(9882);
-
-/** Built-in value references. */
-var Symbol = root.Symbol;
-
-module.exports = Symbol;
-
-
-/***/ }),
-
-/***/ 2237:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-var baseTimes = __nccwpck_require__(7765),
-    isArguments = __nccwpck_require__(8495),
-    isArray = __nccwpck_require__(4869),
-    isBuffer = __nccwpck_require__(4190),
-    isIndex = __nccwpck_require__(2936),
-    isTypedArray = __nccwpck_require__(2496);
-
-/** Used for built-in method references. */
-var objectProto = Object.prototype;
-
-/** Used to check objects for own properties. */
-var hasOwnProperty = objectProto.hasOwnProperty;
-
-/**
- * Creates an array of the enumerable property names of the array-like `value`.
- *
- * @private
- * @param {*} value The value to query.
- * @param {boolean} inherited Specify returning inherited property names.
- * @returns {Array} Returns the array of property names.
- */
-function arrayLikeKeys(value, inherited) {
-  var isArr = isArray(value),
-      isArg = !isArr && isArguments(value),
-      isBuff = !isArr && !isArg && isBuffer(value),
-      isType = !isArr && !isArg && !isBuff && isTypedArray(value),
-      skipIndexes = isArr || isArg || isBuff || isType,
-      result = skipIndexes ? baseTimes(value.length, String) : [],
-      length = result.length;
-
-  for (var key in value) {
-    if ((inherited || hasOwnProperty.call(value, key)) &&
-        !(skipIndexes && (
-           // Safari 9 has enumerable `arguments.length` in strict mode.
-           key == 'length' ||
-           // Node.js 0.10 has enumerable non-index properties on buffers.
-           (isBuff && (key == 'offset' || key == 'parent')) ||
-           // PhantomJS 2 has enumerable non-index properties on typed arrays.
-           (isType && (key == 'buffer' || key == 'byteLength' || key == 'byteOffset')) ||
-           // Skip index properties.
-           isIndex(key, length)
-        ))) {
-      result.push(key);
-    }
-  }
-  return result;
-}
-
-module.exports = arrayLikeKeys;
-
-
-/***/ }),
-
-/***/ 7497:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-var Symbol = __nccwpck_require__(9213),
-    getRawTag = __nccwpck_require__(923),
-    objectToString = __nccwpck_require__(4200);
-
-/** `Object#toString` result references. */
-var nullTag = '[object Null]',
-    undefinedTag = '[object Undefined]';
-
-/** Built-in value references. */
-var symToStringTag = Symbol ? Symbol.toStringTag : undefined;
-
-/**
- * The base implementation of `getTag` without fallbacks for buggy environments.
- *
- * @private
- * @param {*} value The value to query.
- * @returns {string} Returns the `toStringTag`.
- */
-function baseGetTag(value) {
-  if (value == null) {
-    return value === undefined ? undefinedTag : nullTag;
-  }
-  return (symToStringTag && symToStringTag in Object(value))
-    ? getRawTag(value)
-    : objectToString(value);
-}
-
-module.exports = baseGetTag;
-
-
-/***/ }),
-
-/***/ 2177:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-var baseGetTag = __nccwpck_require__(7497),
-    isObjectLike = __nccwpck_require__(5926);
-
-/** `Object#toString` result references. */
-var argsTag = '[object Arguments]';
-
-/**
- * The base implementation of `_.isArguments`.
- *
- * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an `arguments` object,
- */
-function baseIsArguments(value) {
-  return isObjectLike(value) && baseGetTag(value) == argsTag;
-}
-
-module.exports = baseIsArguments;
-
-
-/***/ }),
-
-/***/ 1528:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-var baseGetTag = __nccwpck_require__(7497),
-    isLength = __nccwpck_require__(4530),
-    isObjectLike = __nccwpck_require__(5926);
-
-/** `Object#toString` result references. */
-var argsTag = '[object Arguments]',
-    arrayTag = '[object Array]',
-    boolTag = '[object Boolean]',
-    dateTag = '[object Date]',
-    errorTag = '[object Error]',
-    funcTag = '[object Function]',
-    mapTag = '[object Map]',
-    numberTag = '[object Number]',
-    objectTag = '[object Object]',
-    regexpTag = '[object RegExp]',
-    setTag = '[object Set]',
-    stringTag = '[object String]',
-    weakMapTag = '[object WeakMap]';
-
-var arrayBufferTag = '[object ArrayBuffer]',
-    dataViewTag = '[object DataView]',
-    float32Tag = '[object Float32Array]',
-    float64Tag = '[object Float64Array]',
-    int8Tag = '[object Int8Array]',
-    int16Tag = '[object Int16Array]',
-    int32Tag = '[object Int32Array]',
-    uint8Tag = '[object Uint8Array]',
-    uint8ClampedTag = '[object Uint8ClampedArray]',
-    uint16Tag = '[object Uint16Array]',
-    uint32Tag = '[object Uint32Array]';
-
-/** Used to identify `toStringTag` values of typed arrays. */
-var typedArrayTags = {};
-typedArrayTags[float32Tag] = typedArrayTags[float64Tag] =
-typedArrayTags[int8Tag] = typedArrayTags[int16Tag] =
-typedArrayTags[int32Tag] = typedArrayTags[uint8Tag] =
-typedArrayTags[uint8ClampedTag] = typedArrayTags[uint16Tag] =
-typedArrayTags[uint32Tag] = true;
-typedArrayTags[argsTag] = typedArrayTags[arrayTag] =
-typedArrayTags[arrayBufferTag] = typedArrayTags[boolTag] =
-typedArrayTags[dataViewTag] = typedArrayTags[dateTag] =
-typedArrayTags[errorTag] = typedArrayTags[funcTag] =
-typedArrayTags[mapTag] = typedArrayTags[numberTag] =
-typedArrayTags[objectTag] = typedArrayTags[regexpTag] =
-typedArrayTags[setTag] = typedArrayTags[stringTag] =
-typedArrayTags[weakMapTag] = false;
-
-/**
- * The base implementation of `_.isTypedArray` without Node.js optimizations.
- *
- * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a typed array, else `false`.
- */
-function baseIsTypedArray(value) {
-  return isObjectLike(value) &&
-    isLength(value.length) && !!typedArrayTags[baseGetTag(value)];
-}
-
-module.exports = baseIsTypedArray;
-
-
-/***/ }),
-
-/***/ 7164:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-var isPrototype = __nccwpck_require__(10),
-    nativeKeys = __nccwpck_require__(5778);
-
-/** Used for built-in method references. */
-var objectProto = Object.prototype;
-
-/** Used to check objects for own properties. */
-var hasOwnProperty = objectProto.hasOwnProperty;
-
-/**
- * The base implementation of `_.keys` which doesn't treat sparse arrays as dense.
- *
- * @private
- * @param {Object} object The object to query.
- * @returns {Array} Returns the array of property names.
- */
-function baseKeys(object) {
-  if (!isPrototype(object)) {
-    return nativeKeys(object);
-  }
-  var result = [];
-  for (var key in Object(object)) {
-    if (hasOwnProperty.call(object, key) && key != 'constructor') {
-      result.push(key);
-    }
-  }
-  return result;
-}
-
-module.exports = baseKeys;
-
-
-/***/ }),
-
-/***/ 7765:
-/***/ ((module) => {
-
-/**
- * The base implementation of `_.times` without support for iteratee shorthands
- * or max array length checks.
- *
- * @private
- * @param {number} n The number of times to invoke `iteratee`.
- * @param {Function} iteratee The function invoked per iteration.
- * @returns {Array} Returns the array of results.
- */
-function baseTimes(n, iteratee) {
-  var index = -1,
-      result = Array(n);
-
-  while (++index < n) {
-    result[index] = iteratee(index);
-  }
-  return result;
-}
-
-module.exports = baseTimes;
-
-
-/***/ }),
-
-/***/ 9258:
-/***/ ((module) => {
-
-/**
- * The base implementation of `_.unary` without support for storing metadata.
- *
- * @private
- * @param {Function} func The function to cap arguments for.
- * @returns {Function} Returns the new capped function.
- */
-function baseUnary(func) {
-  return function(value) {
-    return func(value);
-  };
-}
-
-module.exports = baseUnary;
-
-
-/***/ }),
-
-/***/ 2085:
-/***/ ((module) => {
-
-/** Detect free variable `global` from Node.js. */
-var freeGlobal = typeof global == 'object' && global && global.Object === Object && global;
-
-module.exports = freeGlobal;
-
-
-/***/ }),
-
-/***/ 923:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-var Symbol = __nccwpck_require__(9213);
-
-/** Used for built-in method references. */
-var objectProto = Object.prototype;
-
-/** Used to check objects for own properties. */
-var hasOwnProperty = objectProto.hasOwnProperty;
-
-/**
- * Used to resolve the
- * [`toStringTag`](http://ecma-international.org/ecma-262/7.0/#sec-object.prototype.tostring)
- * of values.
- */
-var nativeObjectToString = objectProto.toString;
-
-/** Built-in value references. */
-var symToStringTag = Symbol ? Symbol.toStringTag : undefined;
-
-/**
- * A specialized version of `baseGetTag` which ignores `Symbol.toStringTag` values.
- *
- * @private
- * @param {*} value The value to query.
- * @returns {string} Returns the raw `toStringTag`.
- */
-function getRawTag(value) {
-  var isOwn = hasOwnProperty.call(value, symToStringTag),
-      tag = value[symToStringTag];
-
-  try {
-    value[symToStringTag] = undefined;
-    var unmasked = true;
-  } catch (e) {}
-
-  var result = nativeObjectToString.call(value);
-  if (unmasked) {
-    if (isOwn) {
-      value[symToStringTag] = tag;
-    } else {
-      delete value[symToStringTag];
-    }
-  }
-  return result;
-}
-
-module.exports = getRawTag;
-
-
-/***/ }),
-
-/***/ 2936:
-/***/ ((module) => {
-
-/** Used as references for various `Number` constants. */
-var MAX_SAFE_INTEGER = 9007199254740991;
-
-/** Used to detect unsigned integer values. */
-var reIsUint = /^(?:0|[1-9]\d*)$/;
-
-/**
- * Checks if `value` is a valid array-like index.
- *
- * @private
- * @param {*} value The value to check.
- * @param {number} [length=MAX_SAFE_INTEGER] The upper bounds of a valid index.
- * @returns {boolean} Returns `true` if `value` is a valid index, else `false`.
- */
-function isIndex(value, length) {
-  var type = typeof value;
-  length = length == null ? MAX_SAFE_INTEGER : length;
-
-  return !!length &&
-    (type == 'number' ||
-      (type != 'symbol' && reIsUint.test(value))) &&
-        (value > -1 && value % 1 == 0 && value < length);
-}
-
-module.exports = isIndex;
-
-
-/***/ }),
-
-/***/ 10:
-/***/ ((module) => {
-
-/** Used for built-in method references. */
-var objectProto = Object.prototype;
-
-/**
- * Checks if `value` is likely a prototype object.
- *
- * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a prototype, else `false`.
- */
-function isPrototype(value) {
-  var Ctor = value && value.constructor,
-      proto = (typeof Ctor == 'function' && Ctor.prototype) || objectProto;
-
-  return value === proto;
-}
-
-module.exports = isPrototype;
-
-
-/***/ }),
-
-/***/ 5778:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-var overArg = __nccwpck_require__(6320);
-
-/* Built-in method references for those with the same name as other `lodash` methods. */
-var nativeKeys = overArg(Object.keys, Object);
-
-module.exports = nativeKeys;
-
-
-/***/ }),
-
-/***/ 4643:
-/***/ ((module, exports, __nccwpck_require__) => {
-
-/* module decorator */ module = __nccwpck_require__.nmd(module);
-var freeGlobal = __nccwpck_require__(2085);
-
-/** Detect free variable `exports`. */
-var freeExports =  true && exports && !exports.nodeType && exports;
-
-/** Detect free variable `module`. */
-var freeModule = freeExports && "object" == 'object' && module && !module.nodeType && module;
-
-/** Detect the popular CommonJS extension `module.exports`. */
-var moduleExports = freeModule && freeModule.exports === freeExports;
-
-/** Detect free variable `process` from Node.js. */
-var freeProcess = moduleExports && freeGlobal.process;
-
-/** Used to access faster Node.js helpers. */
-var nodeUtil = (function() {
-  try {
-    // Use `util.types` for Node.js 10+.
-    var types = freeModule && freeModule.require && freeModule.require('util').types;
-
-    if (types) {
-      return types;
-    }
-
-    // Legacy `process.binding('util')` for Node.js < 10.
-    return freeProcess && freeProcess.binding && freeProcess.binding('util');
-  } catch (e) {}
-}());
-
-module.exports = nodeUtil;
-
-
-/***/ }),
-
-/***/ 4200:
-/***/ ((module) => {
-
-/** Used for built-in method references. */
-var objectProto = Object.prototype;
-
-/**
- * Used to resolve the
- * [`toStringTag`](http://ecma-international.org/ecma-262/7.0/#sec-object.prototype.tostring)
- * of values.
- */
-var nativeObjectToString = objectProto.toString;
-
-/**
- * Converts `value` to a string using `Object.prototype.toString`.
- *
- * @private
- * @param {*} value The value to convert.
- * @returns {string} Returns the converted string.
- */
-function objectToString(value) {
-  return nativeObjectToString.call(value);
-}
-
-module.exports = objectToString;
-
-
-/***/ }),
-
-/***/ 6320:
-/***/ ((module) => {
-
-/**
- * Creates a unary function that invokes `func` with its argument transformed.
- *
- * @private
- * @param {Function} func The function to wrap.
- * @param {Function} transform The argument transform.
- * @returns {Function} Returns the new function.
- */
-function overArg(func, transform) {
-  return function(arg) {
-    return func(transform(arg));
-  };
-}
-
-module.exports = overArg;
-
-
-/***/ }),
-
-/***/ 9882:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-var freeGlobal = __nccwpck_require__(2085);
-
-/** Detect free variable `self`. */
-var freeSelf = typeof self == 'object' && self && self.Object === Object && self;
-
-/** Used as a reference to the global object. */
-var root = freeGlobal || freeSelf || Function('return this')();
-
-module.exports = root;
-
-
-/***/ }),
-
-/***/ 8495:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-var baseIsArguments = __nccwpck_require__(2177),
-    isObjectLike = __nccwpck_require__(5926);
-
-/** Used for built-in method references. */
-var objectProto = Object.prototype;
-
-/** Used to check objects for own properties. */
-var hasOwnProperty = objectProto.hasOwnProperty;
-
-/** Built-in value references. */
-var propertyIsEnumerable = objectProto.propertyIsEnumerable;
-
-/**
- * Checks if `value` is likely an `arguments` object.
- *
- * @static
- * @memberOf _
- * @since 0.1.0
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an `arguments` object,
- *  else `false`.
- * @example
- *
- * _.isArguments(function() { return arguments; }());
- * // => true
- *
- * _.isArguments([1, 2, 3]);
- * // => false
- */
-var isArguments = baseIsArguments(function() { return arguments; }()) ? baseIsArguments : function(value) {
-  return isObjectLike(value) && hasOwnProperty.call(value, 'callee') &&
-    !propertyIsEnumerable.call(value, 'callee');
-};
-
-module.exports = isArguments;
-
-
-/***/ }),
-
-/***/ 4869:
-/***/ ((module) => {
-
-/**
- * Checks if `value` is classified as an `Array` object.
- *
- * @static
- * @memberOf _
- * @since 0.1.0
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an array, else `false`.
- * @example
- *
- * _.isArray([1, 2, 3]);
- * // => true
- *
- * _.isArray(document.body.children);
- * // => false
- *
- * _.isArray('abc');
- * // => false
- *
- * _.isArray(_.noop);
- * // => false
- */
-var isArray = Array.isArray;
-
-module.exports = isArray;
-
-
-/***/ }),
-
-/***/ 8017:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-var isFunction = __nccwpck_require__(7799),
-    isLength = __nccwpck_require__(4530);
-
-/**
- * Checks if `value` is array-like. A value is considered array-like if it's
- * not a function and has a `value.length` that's an integer greater than or
- * equal to `0` and less than or equal to `Number.MAX_SAFE_INTEGER`.
- *
- * @static
- * @memberOf _
- * @since 4.0.0
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is array-like, else `false`.
- * @example
- *
- * _.isArrayLike([1, 2, 3]);
- * // => true
- *
- * _.isArrayLike(document.body.children);
- * // => true
- *
- * _.isArrayLike('abc');
- * // => true
- *
- * _.isArrayLike(_.noop);
- * // => false
- */
-function isArrayLike(value) {
-  return value != null && isLength(value.length) && !isFunction(value);
-}
-
-module.exports = isArrayLike;
-
-
-/***/ }),
-
-/***/ 4190:
-/***/ ((module, exports, __nccwpck_require__) => {
-
-/* module decorator */ module = __nccwpck_require__.nmd(module);
-var root = __nccwpck_require__(9882),
-    stubFalse = __nccwpck_require__(7744);
-
-/** Detect free variable `exports`. */
-var freeExports =  true && exports && !exports.nodeType && exports;
-
-/** Detect free variable `module`. */
-var freeModule = freeExports && "object" == 'object' && module && !module.nodeType && module;
-
-/** Detect the popular CommonJS extension `module.exports`. */
-var moduleExports = freeModule && freeModule.exports === freeExports;
-
-/** Built-in value references. */
-var Buffer = moduleExports ? root.Buffer : undefined;
-
-/* Built-in method references for those with the same name as other `lodash` methods. */
-var nativeIsBuffer = Buffer ? Buffer.isBuffer : undefined;
-
-/**
- * Checks if `value` is a buffer.
- *
- * @static
- * @memberOf _
- * @since 4.3.0
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a buffer, else `false`.
- * @example
- *
- * _.isBuffer(new Buffer(2));
- * // => true
- *
- * _.isBuffer(new Uint8Array(2));
- * // => false
- */
-var isBuffer = nativeIsBuffer || stubFalse;
-
-module.exports = isBuffer;
-
-
-/***/ }),
-
-/***/ 7799:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-var baseGetTag = __nccwpck_require__(7497),
-    isObject = __nccwpck_require__(3334);
-
-/** `Object#toString` result references. */
-var asyncTag = '[object AsyncFunction]',
-    funcTag = '[object Function]',
-    genTag = '[object GeneratorFunction]',
-    proxyTag = '[object Proxy]';
-
-/**
- * Checks if `value` is classified as a `Function` object.
- *
- * @static
- * @memberOf _
- * @since 0.1.0
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a function, else `false`.
- * @example
- *
- * _.isFunction(_);
- * // => true
- *
- * _.isFunction(/abc/);
- * // => false
- */
-function isFunction(value) {
-  if (!isObject(value)) {
-    return false;
-  }
-  // The use of `Object#toString` avoids issues with the `typeof` operator
-  // in Safari 9 which returns 'object' for typed arrays and other constructors.
-  var tag = baseGetTag(value);
-  return tag == funcTag || tag == genTag || tag == asyncTag || tag == proxyTag;
-}
-
-module.exports = isFunction;
-
-
-/***/ }),
-
-/***/ 4530:
-/***/ ((module) => {
-
-/** Used as references for various `Number` constants. */
-var MAX_SAFE_INTEGER = 9007199254740991;
-
-/**
- * Checks if `value` is a valid array-like length.
- *
- * **Note:** This method is loosely based on
- * [`ToLength`](http://ecma-international.org/ecma-262/7.0/#sec-tolength).
- *
- * @static
- * @memberOf _
- * @since 4.0.0
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a valid length, else `false`.
- * @example
- *
- * _.isLength(3);
- * // => true
- *
- * _.isLength(Number.MIN_VALUE);
- * // => false
- *
- * _.isLength(Infinity);
- * // => false
- *
- * _.isLength('3');
- * // => false
- */
-function isLength(value) {
-  return typeof value == 'number' &&
-    value > -1 && value % 1 == 0 && value <= MAX_SAFE_INTEGER;
-}
-
-module.exports = isLength;
-
-
-/***/ }),
-
-/***/ 3334:
-/***/ ((module) => {
-
-/**
- * Checks if `value` is the
- * [language type](http://www.ecma-international.org/ecma-262/7.0/#sec-ecmascript-language-types)
- * of `Object`. (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
- *
- * @static
- * @memberOf _
- * @since 0.1.0
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an object, else `false`.
- * @example
- *
- * _.isObject({});
- * // => true
- *
- * _.isObject([1, 2, 3]);
- * // => true
- *
- * _.isObject(_.noop);
- * // => true
- *
- * _.isObject(null);
- * // => false
- */
-function isObject(value) {
-  var type = typeof value;
-  return value != null && (type == 'object' || type == 'function');
-}
-
-module.exports = isObject;
-
-
-/***/ }),
-
-/***/ 5926:
-/***/ ((module) => {
-
-/**
- * Checks if `value` is object-like. A value is object-like if it's not `null`
- * and has a `typeof` result of "object".
- *
- * @static
- * @memberOf _
- * @since 4.0.0
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
- * @example
- *
- * _.isObjectLike({});
- * // => true
- *
- * _.isObjectLike([1, 2, 3]);
- * // => true
- *
- * _.isObjectLike(_.noop);
- * // => false
- *
- * _.isObjectLike(null);
- * // => false
- */
-function isObjectLike(value) {
-  return value != null && typeof value == 'object';
-}
-
-module.exports = isObjectLike;
-
-
-/***/ }),
-
-/***/ 2496:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-var baseIsTypedArray = __nccwpck_require__(1528),
-    baseUnary = __nccwpck_require__(9258),
-    nodeUtil = __nccwpck_require__(4643);
-
-/* Node.js helper references. */
-var nodeIsTypedArray = nodeUtil && nodeUtil.isTypedArray;
-
-/**
- * Checks if `value` is classified as a typed array.
- *
- * @static
- * @memberOf _
- * @since 3.0.0
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a typed array, else `false`.
- * @example
- *
- * _.isTypedArray(new Uint8Array);
- * // => true
- *
- * _.isTypedArray([]);
- * // => false
- */
-var isTypedArray = nodeIsTypedArray ? baseUnary(nodeIsTypedArray) : baseIsTypedArray;
-
-module.exports = isTypedArray;
-
-
-/***/ }),
-
-/***/ 7855:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-var arrayLikeKeys = __nccwpck_require__(2237),
-    baseKeys = __nccwpck_require__(7164),
-    isArrayLike = __nccwpck_require__(8017);
-
-/**
- * Creates an array of the own enumerable property names of `object`.
- *
- * **Note:** Non-object values are coerced to objects. See the
- * [ES spec](http://ecma-international.org/ecma-262/7.0/#sec-object.keys)
- * for more details.
- *
- * @static
- * @since 0.1.0
- * @memberOf _
- * @category Object
- * @param {Object} object The object to query.
- * @returns {Array} Returns the array of property names.
- * @example
- *
- * function Foo() {
- *   this.a = 1;
- *   this.b = 2;
- * }
- *
- * Foo.prototype.c = 3;
- *
- * _.keys(new Foo);
- * // => ['a', 'b'] (iteration order is not guaranteed)
- *
- * _.keys('hi');
- * // => ['0', '1']
- */
-function keys(object) {
-  return isArrayLike(object) ? arrayLikeKeys(object) : baseKeys(object);
-}
-
-module.exports = keys;
 
 
 /***/ }),
@@ -67770,55 +63611,6 @@ module.exports = keys;
 
 /***/ }),
 
-/***/ 1901:
-/***/ ((module) => {
-
-/**
- * This method returns `undefined`.
- *
- * @static
- * @memberOf _
- * @since 2.3.0
- * @category Util
- * @example
- *
- * _.times(2, _.noop);
- * // => [undefined, undefined]
- */
-function noop() {
-  // No operation performed.
-}
-
-module.exports = noop;
-
-
-/***/ }),
-
-/***/ 7744:
-/***/ ((module) => {
-
-/**
- * This method returns `false`.
- *
- * @static
- * @memberOf _
- * @since 4.13.0
- * @category Util
- * @returns {boolean} Returns `false`.
- * @example
- *
- * _.times(2, _.stubFalse);
- * // => [false, false]
- */
-function stubFalse() {
-  return false;
-}
-
-module.exports = stubFalse;
-
-
-/***/ }),
-
 /***/ 9748:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -67841,50 +63633,6 @@ module.exports = format(info => {
 
 /***/ }),
 
-/***/ 2511:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-/*
- * @api public
- * @property {function} format
- * Both the construction method and set of exposed
- * formats.
- */
-const format = exports.format = __nccwpck_require__(3791);
-
-/*
- * @api public
- * @method {function} levels
- * Registers the specified levels with logform.
- */
-exports.levels = __nccwpck_require__(3180);
-
-//
-// Setup all transports as eager-loaded exports
-// so that they are static for the bundlers.
-//
-Object.defineProperty(format, 'align',       { value: __nccwpck_require__(9748) });
-Object.defineProperty(format, 'cli',         { value: __nccwpck_require__(6811) });
-Object.defineProperty(format, 'combine',     { value: __nccwpck_require__(7315) });
-Object.defineProperty(format, 'colorize',    { value: __nccwpck_require__(3848) });
-Object.defineProperty(format, 'json',        { value: __nccwpck_require__(5669) });
-Object.defineProperty(format, 'label',       { value: __nccwpck_require__(6941) });
-Object.defineProperty(format, 'logstash',    { value: __nccwpck_require__(4772) });
-Object.defineProperty(format, 'metadata',    { value: __nccwpck_require__(9760) });
-Object.defineProperty(format, 'padLevels',   { value: __nccwpck_require__(7033) });
-Object.defineProperty(format, 'prettyPrint', { value: __nccwpck_require__(6182) });
-Object.defineProperty(format, 'printf',      { value: __nccwpck_require__(1843) });
-Object.defineProperty(format, 'simple',      { value: __nccwpck_require__(5313) });
-Object.defineProperty(format, 'splat',       { value: __nccwpck_require__(7081) });
-Object.defineProperty(format, 'timestamp',   { value: __nccwpck_require__(8381) });
-Object.defineProperty(format, 'uncolorize',  { value: __nccwpck_require__(6420) });
-
-
-/***/ }),
-
 /***/ 6811:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -67903,7 +63651,7 @@ const { configs, MESSAGE } = __nccwpck_require__(3937);
 class CliFormat {
   constructor(opts = {}) {
     if (!opts.levels) {
-      opts.levels = configs.npm.levels;
+      opts.levels = configs.cli.levels;
     }
 
     this.colorizer = new Colorizer(opts);
@@ -67951,7 +63699,7 @@ module.exports.Format = CliFormat;
 "use strict";
 
 
-const colors = __nccwpck_require__(1997);
+const colors = __nccwpck_require__(9256);
 const { LEVEL, MESSAGE } = __nccwpck_require__(3937);
 
 //
@@ -68009,7 +63757,7 @@ class Colorizer {
 
   /*
    * function colorize (lookup, level, message)
-   * Performs multi-step colorization using colors/safe
+   * Performs multi-step colorization using @colors/colors/safe
    */
   colorize(lookup, level, message) {
     if (typeof message === 'undefined') {
@@ -68183,8 +63931,8 @@ module.exports = format((einfo, { stack }) => {
 
   // Assign all enumerable properties and the
   // message property from the error provided.
-  Object.assign(einfo, einfo.message);
   const err = einfo.message;
+  Object.assign(einfo, err);
   einfo.message = err.message;
   einfo[MESSAGE] = err.message;
 
@@ -68259,30 +64007,8 @@ module.exports = formatFn => {
 /***/ 2955:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
-function __ncc_wildcard$0 (arg) {
-  if (arg === "align") return __nccwpck_require__(9748);
-  else if (arg === "browser") return __nccwpck_require__(2511);
-  else if (arg === "cli") return __nccwpck_require__(6811);
-  else if (arg === "colorize") return __nccwpck_require__(3848);
-  else if (arg === "combine") return __nccwpck_require__(7315);
-  else if (arg === "errors") return __nccwpck_require__(2397);
-  else if (arg === "format") return __nccwpck_require__(3791);
-  else if (arg === "index") return __nccwpck_require__(2955);
-  else if (arg === "json") return __nccwpck_require__(5669);
-  else if (arg === "label") return __nccwpck_require__(6941);
-  else if (arg === "levels") return __nccwpck_require__(3180);
-  else if (arg === "logstash") return __nccwpck_require__(4772);
-  else if (arg === "metadata") return __nccwpck_require__(9760);
-  else if (arg === "ms") return __nccwpck_require__(4734);
-  else if (arg === "pad-levels") return __nccwpck_require__(7033);
-  else if (arg === "pretty-print") return __nccwpck_require__(6182);
-  else if (arg === "printf") return __nccwpck_require__(1843);
-  else if (arg === "simple") return __nccwpck_require__(5313);
-  else if (arg === "splat") return __nccwpck_require__(7081);
-  else if (arg === "timestamp") return __nccwpck_require__(8381);
-  else if (arg === "uncolorize") return __nccwpck_require__(6420);
-}
-'use strict';
+"use strict";
+
 
 /*
  * @api public
@@ -68305,11 +64031,10 @@ exports.levels = __nccwpck_require__(3180);
  * Exposes a sub-format on the main format object
  * as a lazy-loaded getter.
  */
-function exposeFormat(name, path) {
-  path = path || name;
+function exposeFormat(name, requireFormat) {
   Object.defineProperty(format, name, {
     get() {
-      return __ncc_wildcard$0(path);
+      return requireFormat();
     },
     configurable: true
   });
@@ -68318,23 +64043,23 @@ function exposeFormat(name, path) {
 //
 // Setup all transports as lazy-loaded getters.
 //
-exposeFormat('align');
-exposeFormat('errors');
-exposeFormat('cli');
-exposeFormat('combine');
-exposeFormat('colorize');
-exposeFormat('json');
-exposeFormat('label');
-exposeFormat('logstash');
-exposeFormat('metadata');
-exposeFormat('ms');
-exposeFormat('padLevels', 'pad-levels');
-exposeFormat('prettyPrint', 'pretty-print');
-exposeFormat('printf');
-exposeFormat('simple');
-exposeFormat('splat');
-exposeFormat('timestamp');
-exposeFormat('uncolorize');
+exposeFormat('align', function () { return __nccwpck_require__(9748); });
+exposeFormat('errors', function () { return __nccwpck_require__(2397); });
+exposeFormat('cli', function () { return __nccwpck_require__(6811); });
+exposeFormat('combine', function () { return __nccwpck_require__(7315); });
+exposeFormat('colorize', function () { return __nccwpck_require__(3848); });
+exposeFormat('json', function () { return __nccwpck_require__(5669); });
+exposeFormat('label', function () { return __nccwpck_require__(6941); });
+exposeFormat('logstash', function () { return __nccwpck_require__(4772); });
+exposeFormat('metadata', function () { return __nccwpck_require__(9760); });
+exposeFormat('ms', function () { return __nccwpck_require__(4734); });
+exposeFormat('padLevels', function () { return __nccwpck_require__(7033); });
+exposeFormat('prettyPrint', function () { return __nccwpck_require__(6182); });
+exposeFormat('printf', function () { return __nccwpck_require__(1843); });
+exposeFormat('simple', function () { return __nccwpck_require__(5313); });
+exposeFormat('splat', function () { return __nccwpck_require__(7081); });
+exposeFormat('timestamp', function () { return __nccwpck_require__(8381); });
+exposeFormat('uncolorize', function () { return __nccwpck_require__(6420); });
 
 
 /***/ }),
@@ -68347,16 +64072,19 @@ exposeFormat('uncolorize');
 
 const format = __nccwpck_require__(3791);
 const { MESSAGE } = __nccwpck_require__(3937);
-const jsonStringify = __nccwpck_require__(7676);
+const stringify = __nccwpck_require__(7560);
 
 /*
  * function replacer (key, value)
- * Handles proper stringification of Buffer output.
+ * Handles proper stringification of Buffer and bigint output.
  */
 function replacer(key, value) {
-  return value instanceof Buffer
-    ? value.toString('base64')
-    : value;
+  // safe-stable-stringify does support BigInt, however, it doesn't wrap the value in quotes.
+  // Leading to a loss in fidelity if the resulting string is parsed.
+  // It would also be a breaking change for logform.
+  if (typeof value === 'bigint')
+    return value.toString();
+  return value;
 }
 
 /*
@@ -68365,7 +64093,8 @@ function replacer(key, value) {
  * object into pure JSON. This was previously exposed as { json: true }
  * to transports in `winston < 3.0.0`.
  */
-module.exports = format((info, opts = {}) => {
+module.exports = format((info, opts) => {
+  const jsonStringify = stringify.configure(opts);
   info[MESSAGE] = jsonStringify(info, opts.replacer || replacer, opts.space);
   return info;
 });
@@ -68428,7 +64157,7 @@ module.exports = config => {
 
 const format = __nccwpck_require__(3791);
 const { MESSAGE } = __nccwpck_require__(3937);
-const jsonStringify = __nccwpck_require__(7676);
+const jsonStringify = __nccwpck_require__(7560);
 
 /*
  * function logstash (info)
@@ -68723,7 +64452,7 @@ module.exports.Printf
 
 const format = __nccwpck_require__(3791);
 const { MESSAGE } = __nccwpck_require__(3937);
-const jsonStringify = __nccwpck_require__(7676);
+const jsonStringify = __nccwpck_require__(7560);
 
 /*
  * function simple (info)
@@ -68901,7 +64630,7 @@ module.exports = opts => new Splatter(opts);
 "use strict";
 
 
-const fecha = __nccwpck_require__(8583);
+const fecha = __nccwpck_require__(4513);
 const format = __nccwpck_require__(3791);
 
 /*
@@ -68939,7 +64668,7 @@ module.exports = format((info, opts = {}) => {
 "use strict";
 
 
-const colors = __nccwpck_require__(1997);
+const colors = __nccwpck_require__(9256);
 const format = __nccwpck_require__(3791);
 const { MESSAGE } = __nccwpck_require__(3937);
 
@@ -69924,7 +65653,7 @@ function mkdirP (p, opts, f, made) {
     }
     if (!made) made = null;
     
-    var cb = f || function () {};
+    var cb = f || /* istanbul ignore next */ function () {};
     p = path.resolve(p);
     
     xfs.mkdir(p, mode, function (er) {
@@ -69934,8 +65663,10 @@ function mkdirP (p, opts, f, made) {
         }
         switch (er.code) {
             case 'ENOENT':
+                /* istanbul ignore if */
                 if (path.dirname(p) === p) return cb(er);
                 mkdirP(path.dirname(p), opts, function (er, made) {
+                    /* istanbul ignore if */
                     if (er) cb(er, made);
                     else mkdirP(p, opts, cb, made);
                 });
@@ -69990,9 +65721,10 @@ mkdirP.sync = function sync (p, opts, made) {
                 try {
                     stat = xfs.statSync(p);
                 }
-                catch (err1) {
+                catch (err1) /* istanbul ignore next */ {
                     throw err0;
                 }
+                /* istanbul ignore if */
                 if (!stat.isDirectory()) throw err0;
                 break;
         }
@@ -70032,7 +65764,7 @@ var y = d * 365.25;
  * @api public
  */
 
-module.exports = function(val, options) {
+module.exports = function (val, options) {
   options = options || {};
   var type = typeof val;
   if (type === 'string' && val.length > 0) {
@@ -74333,17 +70065,19 @@ function onceStrict (fn) {
 /***/ }),
 
 /***/ 4118:
-/***/ ((module) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
+
+var name = __nccwpck_require__(2743);
 
 /**
  * Wrap callbacks to prevent double execution.
  *
  * @param {Function} fn Function that should only be called once.
- * @returns {Function} A wrapped callback which prevents execution.
- * @api public
+ * @returns {Function} A wrapped callback which prevents multiple executions.
+ * @public
  */
 module.exports = function one(fn) {
   var called = 0
@@ -74352,7 +70086,7 @@ module.exports = function one(fn) {
   /**
    * The function that prevents double execution.
    *
-   * @api private
+   * @private
    */
   function onetime() {
     if (called) return value;
@@ -74370,7 +70104,10 @@ module.exports = function one(fn) {
   // listeners you don't see a load of `onetime` functions but actually the
   // names of the functions that this module will call.
   //
-  onetime.displayName = fn.displayName || fn.name || onetime.displayName || onetime.name;
+  // NOTE: We cannot override the `name` property, as that is `readOnly`
+  // property, so displayName will have to do.
+  //
+  onetime.displayName = name(fn);
   return onetime;
 };
 
@@ -78801,6 +74538,632 @@ SafeBuffer.allocUnsafeSlow = function (size) {
 
 /***/ }),
 
+/***/ 7560:
+/***/ ((module, exports) => {
+
+"use strict";
+
+
+const stringify = configure()
+
+// @ts-expect-error
+stringify.configure = configure
+// @ts-expect-error
+stringify.stringify = stringify
+
+// @ts-expect-error
+stringify.default = stringify
+
+// @ts-expect-error used for named export
+exports.stringify = stringify
+// @ts-expect-error used for named export
+exports.configure = configure
+
+module.exports = stringify
+
+// eslint-disable-next-line
+const strEscapeSequencesRegExp = /[\u0000-\u001f\u0022\u005c\ud800-\udfff]|[\ud800-\udbff](?![\udc00-\udfff])|(?:[^\ud800-\udbff]|^)[\udc00-\udfff]/
+// eslint-disable-next-line
+const strEscapeSequencesReplacer = /[\u0000-\u001f\u0022\u005c\ud800-\udfff]|[\ud800-\udbff](?![\udc00-\udfff])|(?:[^\ud800-\udbff]|^)[\udc00-\udfff]/g
+
+// Escaped special characters. Use empty strings to fill up unused entries.
+const meta = [
+  '\\u0000', '\\u0001', '\\u0002', '\\u0003', '\\u0004',
+  '\\u0005', '\\u0006', '\\u0007', '\\b', '\\t',
+  '\\n', '\\u000b', '\\f', '\\r', '\\u000e',
+  '\\u000f', '\\u0010', '\\u0011', '\\u0012', '\\u0013',
+  '\\u0014', '\\u0015', '\\u0016', '\\u0017', '\\u0018',
+  '\\u0019', '\\u001a', '\\u001b', '\\u001c', '\\u001d',
+  '\\u001e', '\\u001f', '', '', '\\"',
+  '', '', '', '', '', '', '', '', '', '',
+  '', '', '', '', '', '', '', '', '', '',
+  '', '', '', '', '', '', '', '', '', '',
+  '', '', '', '', '', '', '', '', '', '',
+  '', '', '', '', '', '', '', '', '', '',
+  '', '', '', '', '', '', '', '\\\\'
+]
+
+function escapeFn (str) {
+  if (str.length === 2) {
+    const charCode = str.charCodeAt(1)
+    return `${str[0]}\\u${charCode.toString(16)}`
+  }
+  const charCode = str.charCodeAt(0)
+  return meta.length > charCode
+    ? meta[charCode]
+    : `\\u${charCode.toString(16)}`
+}
+
+// Escape C0 control characters, double quotes, the backslash and every code
+// unit with a numeric value in the inclusive range 0xD800 to 0xDFFF.
+function strEscape (str) {
+  // Some magic numbers that worked out fine while benchmarking with v8 8.0
+  if (str.length < 5000 && !strEscapeSequencesRegExp.test(str)) {
+    return str
+  }
+  if (str.length > 100) {
+    return str.replace(strEscapeSequencesReplacer, escapeFn)
+  }
+  let result = ''
+  let last = 0
+  for (let i = 0; i < str.length; i++) {
+    const point = str.charCodeAt(i)
+    if (point === 34 || point === 92 || point < 32) {
+      result += `${str.slice(last, i)}${meta[point]}`
+      last = i + 1
+    } else if (point >= 0xd800 && point <= 0xdfff) {
+      if (point <= 0xdbff && i + 1 < str.length) {
+        const point = str.charCodeAt(i + 1)
+        if (point >= 0xdc00 && point <= 0xdfff) {
+          i++
+          continue
+        }
+      }
+      result += `${str.slice(last, i)}${`\\u${point.toString(16)}`}`
+      last = i + 1
+    }
+  }
+  result += str.slice(last)
+  return result
+}
+
+function insertSort (array) {
+  // Insertion sort is very efficient for small input sizes but it has a bad
+  // worst case complexity. Thus, use native array sort for bigger values.
+  if (array.length > 2e2) {
+    return array.sort()
+  }
+  for (let i = 1; i < array.length; i++) {
+    const currentValue = array[i]
+    let position = i
+    while (position !== 0 && array[position - 1] > currentValue) {
+      array[position] = array[position - 1]
+      position--
+    }
+    array[position] = currentValue
+  }
+  return array
+}
+
+const typedArrayPrototypeGetSymbolToStringTag =
+  Object.getOwnPropertyDescriptor(
+    Object.getPrototypeOf(
+      Object.getPrototypeOf(
+        new Uint8Array()
+      )
+    ),
+    Symbol.toStringTag
+  ).get
+
+function isTypedArrayWithEntries (value) {
+  return typedArrayPrototypeGetSymbolToStringTag.call(value) !== undefined && value.length !== 0
+}
+
+function stringifyTypedArray (array, separator, maximumBreadth) {
+  if (array.length < maximumBreadth) {
+    maximumBreadth = array.length
+  }
+  const whitespace = separator === ',' ? '' : ' '
+  let res = `"0":${whitespace}${array[0]}`
+  for (let i = 1; i < maximumBreadth; i++) {
+    res += `${separator}"${i}":${whitespace}${array[i]}`
+  }
+  return res
+}
+
+function getCircularValueOption (options) {
+  if (options && Object.prototype.hasOwnProperty.call(options, 'circularValue')) {
+    var circularValue = options.circularValue
+    if (typeof circularValue === 'string') {
+      return `"${circularValue}"`
+    }
+    if (circularValue == null) {
+      return circularValue
+    }
+    if (circularValue === Error || circularValue === TypeError) {
+      return {
+        toString () {
+          throw new TypeError('Converting circular structure to JSON')
+        }
+      }
+    }
+    throw new TypeError('The "circularValue" argument must be of type string or the value null or undefined')
+  }
+  return '"[Circular]"'
+}
+
+function getBooleanOption (options, key) {
+  if (options && Object.prototype.hasOwnProperty.call(options, key)) {
+    var value = options[key]
+    if (typeof value !== 'boolean') {
+      throw new TypeError(`The "${key}" argument must be of type boolean`)
+    }
+  }
+  return value === undefined ? true : value
+}
+
+function getPositiveIntegerOption (options, key) {
+  if (options && Object.prototype.hasOwnProperty.call(options, key)) {
+    var value = options[key]
+    if (typeof value !== 'number') {
+      throw new TypeError(`The "${key}" argument must be of type number`)
+    }
+    if (!Number.isInteger(value)) {
+      throw new TypeError(`The "${key}" argument must be an integer`)
+    }
+    if (value < 1) {
+      throw new RangeError(`The "${key}" argument must be >= 1`)
+    }
+  }
+  return value === undefined ? Infinity : value
+}
+
+function getItemCount (number) {
+  if (number === 1) {
+    return '1 item'
+  }
+  return `${number} items`
+}
+
+function getUniqueReplacerSet (replacerArray) {
+  const replacerSet = new Set()
+  for (const value of replacerArray) {
+    if (typeof value === 'string') {
+      replacerSet.add(value)
+    } else if (typeof value === 'number') {
+      replacerSet.add(String(value))
+    }
+  }
+  return replacerSet
+}
+
+function configure (options) {
+  const circularValue = getCircularValueOption(options)
+  const bigint = getBooleanOption(options, 'bigint')
+  const deterministic = getBooleanOption(options, 'deterministic')
+  const maximumDepth = getPositiveIntegerOption(options, 'maximumDepth')
+  const maximumBreadth = getPositiveIntegerOption(options, 'maximumBreadth')
+
+  function stringifyFnReplacer (key, parent, stack, replacer, spacer, indentation) {
+    let value = parent[key]
+
+    if (typeof value === 'object' && value !== null && typeof value.toJSON === 'function') {
+      value = value.toJSON(key)
+    }
+    value = replacer.call(parent, key, value)
+
+    switch (typeof value) {
+      case 'string':
+        return `"${strEscape(value)}"`
+      case 'object': {
+        if (value === null) {
+          return 'null'
+        }
+        if (stack.indexOf(value) !== -1) {
+          return circularValue
+        }
+
+        let res = ''
+        let join = ','
+        const originalIndentation = indentation
+
+        if (Array.isArray(value)) {
+          if (value.length === 0) {
+            return '[]'
+          }
+          if (maximumDepth < stack.length + 1) {
+            return '"[Array]"'
+          }
+          stack.push(value)
+          if (spacer !== '') {
+            indentation += spacer
+            res += `\n${indentation}`
+            join = `,\n${indentation}`
+          }
+          const maximumValuesToStringify = Math.min(value.length, maximumBreadth)
+          let i = 0
+          for (; i < maximumValuesToStringify - 1; i++) {
+            const tmp = stringifyFnReplacer(i, value, stack, replacer, spacer, indentation)
+            res += tmp !== undefined ? tmp : 'null'
+            res += join
+          }
+          const tmp = stringifyFnReplacer(i, value, stack, replacer, spacer, indentation)
+          res += tmp !== undefined ? tmp : 'null'
+          if (value.length - 1 > maximumBreadth) {
+            const removedKeys = value.length - maximumBreadth - 1
+            res += `${join}"... ${getItemCount(removedKeys)} not stringified"`
+          }
+          if (spacer !== '') {
+            res += `\n${originalIndentation}`
+          }
+          stack.pop()
+          return `[${res}]`
+        }
+
+        let keys = Object.keys(value)
+        const keyLength = keys.length
+        if (keyLength === 0) {
+          return '{}'
+        }
+        if (maximumDepth < stack.length + 1) {
+          return '"[Object]"'
+        }
+        let whitespace = ''
+        let separator = ''
+        if (spacer !== '') {
+          indentation += spacer
+          join = `,\n${indentation}`
+          whitespace = ' '
+        }
+        let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth)
+        if (isTypedArrayWithEntries(value)) {
+          res += stringifyTypedArray(value, join, maximumBreadth)
+          keys = keys.slice(value.length)
+          maximumPropertiesToStringify -= value.length
+          separator = join
+        }
+        if (deterministic) {
+          keys = insertSort(keys)
+        }
+        stack.push(value)
+        for (let i = 0; i < maximumPropertiesToStringify; i++) {
+          const key = keys[i]
+          const tmp = stringifyFnReplacer(key, value, stack, replacer, spacer, indentation)
+          if (tmp !== undefined) {
+            res += `${separator}"${strEscape(key)}":${whitespace}${tmp}`
+            separator = join
+          }
+        }
+        if (keyLength > maximumBreadth) {
+          const removedKeys = keyLength - maximumBreadth
+          res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`
+          separator = join
+        }
+        if (spacer !== '' && separator.length > 1) {
+          res = `\n${indentation}${res}\n${originalIndentation}`
+        }
+        stack.pop()
+        return `{${res}}`
+      }
+      case 'number':
+        return isFinite(value) ? String(value) : 'null'
+      case 'boolean':
+        return value === true ? 'true' : 'false'
+      case 'bigint':
+        return bigint ? String(value) : undefined
+    }
+  }
+
+  function stringifyArrayReplacer (key, value, stack, replacer, spacer, indentation) {
+    if (typeof value === 'object' && value !== null && typeof value.toJSON === 'function') {
+      value = value.toJSON(key)
+    }
+
+    switch (typeof value) {
+      case 'string':
+        return `"${strEscape(value)}"`
+      case 'object': {
+        if (value === null) {
+          return 'null'
+        }
+        if (stack.indexOf(value) !== -1) {
+          return circularValue
+        }
+
+        const originalIndentation = indentation
+        let res = ''
+        let join = ','
+
+        if (Array.isArray(value)) {
+          if (value.length === 0) {
+            return '[]'
+          }
+          if (maximumDepth < stack.length + 1) {
+            return '"[Array]"'
+          }
+          stack.push(value)
+          if (spacer !== '') {
+            indentation += spacer
+            res += `\n${indentation}`
+            join = `,\n${indentation}`
+          }
+          const maximumValuesToStringify = Math.min(value.length, maximumBreadth)
+          let i = 0
+          for (; i < maximumValuesToStringify - 1; i++) {
+            const tmp = stringifyArrayReplacer(i, value[i], stack, replacer, spacer, indentation)
+            res += tmp !== undefined ? tmp : 'null'
+            res += join
+          }
+          const tmp = stringifyArrayReplacer(i, value[i], stack, replacer, spacer, indentation)
+          res += tmp !== undefined ? tmp : 'null'
+          if (value.length - 1 > maximumBreadth) {
+            const removedKeys = value.length - maximumBreadth - 1
+            res += `${join}"... ${getItemCount(removedKeys)} not stringified"`
+          }
+          if (spacer !== '') {
+            res += `\n${originalIndentation}`
+          }
+          stack.pop()
+          return `[${res}]`
+        }
+        if (replacer.size === 0) {
+          return '{}'
+        }
+        stack.push(value)
+        let whitespace = ''
+        if (spacer !== '') {
+          indentation += spacer
+          join = `,\n${indentation}`
+          whitespace = ' '
+        }
+        let separator = ''
+        for (const key of replacer) {
+          const tmp = stringifyArrayReplacer(key, value[key], stack, replacer, spacer, indentation)
+          if (tmp !== undefined) {
+            res += `${separator}"${strEscape(key)}":${whitespace}${tmp}`
+            separator = join
+          }
+        }
+        if (spacer !== '' && separator.length > 1) {
+          res = `\n${indentation}${res}\n${originalIndentation}`
+        }
+        stack.pop()
+        return `{${res}}`
+      }
+      case 'number':
+        return isFinite(value) ? String(value) : 'null'
+      case 'boolean':
+        return value === true ? 'true' : 'false'
+      case 'bigint':
+        return bigint ? String(value) : undefined
+    }
+  }
+
+  function stringifyIndent (key, value, stack, spacer, indentation) {
+    switch (typeof value) {
+      case 'string':
+        return `"${strEscape(value)}"`
+      case 'object': {
+        if (value === null) {
+          return 'null'
+        }
+        if (typeof value.toJSON === 'function') {
+          value = value.toJSON(key)
+          // Prevent calling `toJSON` again.
+          if (typeof value !== 'object') {
+            return stringifyIndent(key, value, stack, spacer, indentation)
+          }
+          if (value === null) {
+            return 'null'
+          }
+        }
+        if (stack.indexOf(value) !== -1) {
+          return circularValue
+        }
+        const originalIndentation = indentation
+
+        if (Array.isArray(value)) {
+          if (value.length === 0) {
+            return '[]'
+          }
+          if (maximumDepth < stack.length + 1) {
+            return '"[Array]"'
+          }
+          stack.push(value)
+          indentation += spacer
+          let res = `\n${indentation}`
+          const join = `,\n${indentation}`
+          const maximumValuesToStringify = Math.min(value.length, maximumBreadth)
+          let i = 0
+          for (; i < maximumValuesToStringify - 1; i++) {
+            const tmp = stringifyIndent(i, value[i], stack, spacer, indentation)
+            res += tmp !== undefined ? tmp : 'null'
+            res += join
+          }
+          const tmp = stringifyIndent(i, value[i], stack, spacer, indentation)
+          res += tmp !== undefined ? tmp : 'null'
+          if (value.length - 1 > maximumBreadth) {
+            const removedKeys = value.length - maximumBreadth - 1
+            res += `${join}"... ${getItemCount(removedKeys)} not stringified"`
+          }
+          res += `\n${originalIndentation}`
+          stack.pop()
+          return `[${res}]`
+        }
+
+        let keys = Object.keys(value)
+        const keyLength = keys.length
+        if (keyLength === 0) {
+          return '{}'
+        }
+        if (maximumDepth < stack.length + 1) {
+          return '"[Object]"'
+        }
+        indentation += spacer
+        const join = `,\n${indentation}`
+        let res = ''
+        let separator = ''
+        let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth)
+        if (isTypedArrayWithEntries(value)) {
+          res += stringifyTypedArray(value, join, maximumBreadth)
+          keys = keys.slice(value.length)
+          maximumPropertiesToStringify -= value.length
+          separator = join
+        }
+        if (deterministic) {
+          keys = insertSort(keys)
+        }
+        stack.push(value)
+        for (let i = 0; i < maximumPropertiesToStringify; i++) {
+          const key = keys[i]
+          const tmp = stringifyIndent(key, value[key], stack, spacer, indentation)
+          if (tmp !== undefined) {
+            res += `${separator}"${strEscape(key)}": ${tmp}`
+            separator = join
+          }
+        }
+        if (keyLength > maximumBreadth) {
+          const removedKeys = keyLength - maximumBreadth
+          res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`
+          separator = join
+        }
+        if (separator !== '') {
+          res = `\n${indentation}${res}\n${originalIndentation}`
+        }
+        stack.pop()
+        return `{${res}}`
+      }
+      case 'number':
+        return isFinite(value) ? String(value) : 'null'
+      case 'boolean':
+        return value === true ? 'true' : 'false'
+      case 'bigint':
+        return bigint ? String(value) : undefined
+    }
+  }
+
+  function stringifySimple (key, value, stack) {
+    switch (typeof value) {
+      case 'string':
+        return `"${strEscape(value)}"`
+      case 'object': {
+        if (value === null) {
+          return 'null'
+        }
+        if (typeof value.toJSON === 'function') {
+          value = value.toJSON(key)
+          // Prevent calling `toJSON` again
+          if (typeof value !== 'object') {
+            return stringifySimple(key, value, stack)
+          }
+          if (value === null) {
+            return 'null'
+          }
+        }
+        if (stack.indexOf(value) !== -1) {
+          return circularValue
+        }
+
+        let res = ''
+
+        if (Array.isArray(value)) {
+          if (value.length === 0) {
+            return '[]'
+          }
+          if (maximumDepth < stack.length + 1) {
+            return '"[Array]"'
+          }
+          stack.push(value)
+          const maximumValuesToStringify = Math.min(value.length, maximumBreadth)
+          let i = 0
+          for (; i < maximumValuesToStringify - 1; i++) {
+            const tmp = stringifySimple(i, value[i], stack)
+            res += tmp !== undefined ? tmp : 'null'
+            res += ','
+          }
+          const tmp = stringifySimple(i, value[i], stack)
+          res += tmp !== undefined ? tmp : 'null'
+          if (value.length - 1 > maximumBreadth) {
+            const removedKeys = value.length - maximumBreadth - 1
+            res += `,"... ${getItemCount(removedKeys)} not stringified"`
+          }
+          stack.pop()
+          return `[${res}]`
+        }
+
+        let keys = Object.keys(value)
+        const keyLength = keys.length
+        if (keyLength === 0) {
+          return '{}'
+        }
+        if (maximumDepth < stack.length + 1) {
+          return '"[Object]"'
+        }
+        let separator = ''
+        let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth)
+        if (isTypedArrayWithEntries(value)) {
+          res += stringifyTypedArray(value, ',', maximumBreadth)
+          keys = keys.slice(value.length)
+          maximumPropertiesToStringify -= value.length
+          separator = ','
+        }
+        if (deterministic) {
+          keys = insertSort(keys)
+        }
+        stack.push(value)
+        for (let i = 0; i < maximumPropertiesToStringify; i++) {
+          const key = keys[i]
+          const tmp = stringifySimple(key, value[key], stack)
+          if (tmp !== undefined) {
+            res += `${separator}"${strEscape(key)}":${tmp}`
+            separator = ','
+          }
+        }
+        if (keyLength > maximumBreadth) {
+          const removedKeys = keyLength - maximumBreadth
+          res += `${separator}"...":"${getItemCount(removedKeys)} not stringified"`
+        }
+        stack.pop()
+        return `{${res}}`
+      }
+      case 'number':
+        return isFinite(value) ? String(value) : 'null'
+      case 'boolean':
+        return value === true ? 'true' : 'false'
+      case 'bigint':
+        return bigint ? String(value) : undefined
+    }
+  }
+
+  function stringify (value, replacer, space) {
+    if (arguments.length > 1) {
+      let spacer = ''
+      if (typeof space === 'number') {
+        spacer = ' '.repeat(Math.min(space, 10))
+      } else if (typeof space === 'string') {
+        spacer = space.slice(0, 10)
+      }
+      if (replacer != null) {
+        if (typeof replacer === 'function') {
+          return stringifyFnReplacer('', { '': value }, [], replacer, spacer, '')
+        }
+        if (Array.isArray(replacer)) {
+          return stringifyArrayReplacer('', value, [], getUniqueReplacerSet(replacer), spacer, '')
+        }
+      }
+      if (spacer.length !== 0) {
+        return stringifyIndent('', value, [], spacer, '')
+      }
+    }
+    return stringifySimple('', value, [])
+  }
+
+  return stringify
+}
+
+
+/***/ }),
+
 /***/ 5118:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -79152,7 +75515,7 @@ module.exports = function (input, options) {
 "use strict";
 
 
-var isArrayish = __nccwpck_require__(8542);
+var isArrayish = __nccwpck_require__(7604);
 
 var concat = Array.prototype.concat;
 var slice = Array.prototype.slice;
@@ -79178,22 +75541,6 @@ swizzle.wrap = function (fn) {
 	return function () {
 		return fn(swizzle(arguments));
 	};
-};
-
-
-/***/ }),
-
-/***/ 8542:
-/***/ ((module) => {
-
-module.exports = function isArrayish(obj) {
-	if (!obj || typeof obj === 'string') {
-		return false;
-	}
-
-	return obj instanceof Array || Array.isArray(obj) ||
-		(obj.length >= 0 && (obj.splice instanceof Function ||
-			(Object.getOwnPropertyDescriptor(obj, (obj.length - 1)) && obj.constructor.name !== 'String')));
 };
 
 
@@ -81760,27 +78107,26 @@ exports.debug = debug; // for test
 "use strict";
 
 
-exports.E = function (fn) {
-  return Object.defineProperty(function () {
-    if (typeof arguments[arguments.length - 1] === 'function') fn.apply(this, arguments)
+exports.fromCallback = function (fn) {
+  return Object.defineProperty(function (...args) {
+    if (typeof args[args.length - 1] === 'function') fn.apply(this, args)
     else {
       return new Promise((resolve, reject) => {
-        arguments[arguments.length] = (err, res) => {
-          if (err) return reject(err)
-          resolve(res)
-        }
-        arguments.length++
-        fn.apply(this, arguments)
+        fn.call(
+          this,
+          ...args,
+          (err, res) => (err != null) ? reject(err) : resolve(res)
+        )
       })
     }
   }, 'name', { value: fn.name })
 }
 
-exports.p = function (fn) {
-  return Object.defineProperty(function () {
-    const cb = arguments[arguments.length - 1]
-    if (typeof cb !== 'function') return fn.apply(this, arguments)
-    else fn.apply(this, arguments).then(r => cb(null, r), cb)
+exports.fromPromise = function (fn) {
+  return Object.defineProperty(function (...args) {
+    const cb = args[args.length - 1]
+    if (typeof cb !== 'function') return fn.apply(this, args)
+    else fn.apply(this, args.slice(0, -1)).then(r => cb(null, r), cb)
   }, 'name', { value: fn.name })
 }
 
@@ -85409,6 +81755,7 @@ module.exports = __nccwpck_require__(3837).deprecate;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ChromeCrxBuildResult = void 0;
 const webext_buildtools_utils_1 = __nccwpck_require__(696);
 class ChromeCrxBuildResult extends webext_buildtools_utils_1.BaseBuildResult {
 }
@@ -85423,6 +81770,7 @@ exports.ChromeCrxBuildResult = ChromeCrxBuildResult;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ChromeCrxBuilder = void 0;
 const fs = __nccwpck_require__(5630);
 const webext_buildtools_utils_1 = __nccwpck_require__(696);
 const buildResult_1 = __nccwpck_require__(459);
@@ -85503,7 +81851,7 @@ class ChromeCrxBuilder extends webext_buildtools_utils_1.AbstractSimpleBuilder {
                         'Neither manifest or zip buffer are set');
                 }
                 this._logWrapper.info('Manifest input is not set, reading from zip...');
-                this._inputManifest = await webext_buildtools_utils_1.extractManifestFromZipBuffer(this._inputZipBuffer);
+                this._inputManifest = await (0, webext_buildtools_utils_1.extractManifestFromZipBuffer)(this._inputZipBuffer);
                 this._logWrapper.info(`Manifest extracted. Extension name: '${this._inputManifest.name}', ` +
                     `version: ${this._inputManifest.version}`);
             }
@@ -85606,8 +81954,8 @@ class ChromeCrxBuilder extends webext_buildtools_utils_1.AbstractSimpleBuilder {
         return this._crxFileRequirement !== undefined || this._isCrxBufferRequired;
     }
 }
-ChromeCrxBuilder.TARGET_NAME = 'chrome-zip2crx';
 exports.ChromeCrxBuilder = ChromeCrxBuilder;
+ChromeCrxBuilder.TARGET_NAME = 'chrome-zip2crx';
 //# sourceMappingURL=builder.js.map
 
 /***/ }),
@@ -85618,6 +81966,7 @@ exports.ChromeCrxBuilder = ChromeCrxBuilder;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CrxWrapper = void 0;
 ///<reference path="../external_declarations/crx.d.ts"/>
 /**
  * Provides convenient way to interact with 'crx' package
@@ -85657,17 +82006,29 @@ exports.CrxWrapper = CrxWrapper;
 /***/ }),
 
 /***/ 4581:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
-function __export(m) {
-    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
-}
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const builder_1 = __nccwpck_require__(6245);
 exports["default"] = builder_1.ChromeCrxBuilder;
-__export(__nccwpck_require__(459));
+__exportStar(__nccwpck_require__(459), exports);
+__exportStar(__nccwpck_require__(686), exports);
 //# sourceMappingURL=index.js.map
 
 /***/ }),
@@ -85678,6 +82039,7 @@ __export(__nccwpck_require__(459));
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AbstractDisposableBuildAsset = void 0;
 class AbstractDisposableBuildAsset {
     constructor(value, temporary) {
         this._disposed = false;
@@ -85717,6 +82079,7 @@ exports.AbstractDisposableBuildAsset = AbstractDisposableBuildAsset;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.BasicTypeBuildAsset = void 0;
 // noinspection JSUnusedGlobalSymbols
 class BasicTypeBuildAsset {
     constructor(value) {
@@ -85737,6 +82100,7 @@ exports.BasicTypeBuildAsset = BasicTypeBuildAsset;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.BufferBuildAsset = void 0;
 const writableStreamBuffer_1 = __nccwpck_require__(5175);
 const basicTypeBuildAsset_1 = __nccwpck_require__(6064);
 function writeFinished(stream) {
@@ -85771,17 +82135,34 @@ exports.BufferBuildAsset = BufferBuildAsset;
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
     return result;
 };
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.FileBuildAsset = void 0;
 const fs = __importStar(__nccwpck_require__(5630));
 const path = __importStar(__nccwpck_require__(1017));
 const sanitize_filename_1 = __importDefault(__nccwpck_require__(9976));
@@ -85821,6 +82202,10 @@ async function writeToFile(filePath, src) {
  * Value is file path
  */
 class FileBuildAsset extends abstractDisposableBuildAsset_1.AbstractDisposableBuildAsset {
+    constructor(temporary, filePath, tempDirPath) {
+        super(filePath, temporary);
+        this._tempDirPath = tempDirPath;
+    }
     // noinspection JSUnusedGlobalSymbols
     /**
      * @param {string} filePath save to path
@@ -85838,8 +82223,8 @@ class FileBuildAsset extends abstractDisposableBuildAsset_1.AbstractDisposableBu
      * @param {Buffer} src file contents
      */
     static async writeAndCreateTemporary(tmpDirPrefix, fileName, src) {
-        const tempDirPath = await createTempDir_1.createTempDir(tmpDirPrefix);
-        const filePath = path.join(tempDirPath, sanitize_filename_1.default(fileName));
+        const tempDirPath = await (0, createTempDir_1.createTempDir)(tmpDirPrefix);
+        const filePath = path.join(tempDirPath, (0, sanitize_filename_1.default)(fileName));
         try {
             await writeToFile(filePath, src);
             return Promise.resolve(new FileBuildAsset(true, filePath, tempDirPath));
@@ -85851,10 +82236,6 @@ class FileBuildAsset extends abstractDisposableBuildAsset_1.AbstractDisposableBu
             catch (error) { }
             throw error;
         }
-    }
-    constructor(temporary, filePath, tempDirPath) {
-        super(filePath, temporary);
-        this._tempDirPath = tempDirPath;
     }
     // noinspection JSUnusedGlobalSymbols
     getTempDirPath() {
@@ -85882,6 +82263,7 @@ exports.FileBuildAsset = FileBuildAsset;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.BaseBuildResult = void 0;
 // noinspection JSUnusedGlobalSymbols
 class BaseBuildResult {
     constructor(assets, hasWarnings) {
@@ -85912,14 +82294,31 @@ exports.BaseBuildResult = BaseBuildResult;
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AbstractCompositeBuilder = void 0;
 const _ = __importStar(__nccwpck_require__(250));
 // noinspection TypeScriptPreferShortImport
 const fileBuildAsset_1 = __nccwpck_require__(765);
@@ -85993,10 +82392,11 @@ class AbstractCompositeBuilder extends abstractSimpleBuilder_1.AbstractSimpleBui
             }
         }
         catch (error) {
-            compositeBuildResult.errors.push({ targetName, error });
+            const err = error instanceof Error ? error : new Error(String(error));
+            compositeBuildResult.errors.push({ targetName, error: err });
             if (this._stopOnError || this._stopOnWarning) {
-                this._logWrapper.error(`${targetName} finished with error: ${error}. Stopping build`);
-                throw error;
+                this._logWrapper.error(`${targetName} finished with error: ${err}. Stopping build`);
+                throw err;
             }
         }
         return true;
@@ -86034,7 +82434,7 @@ class AbstractCompositeBuilder extends abstractSimpleBuilder_1.AbstractSimpleBui
                         }
                     }
                     catch (e) {
-                        this._logWrapper.error('Error during disposing temporary out asset: ' + e.toString());
+                        this._logWrapper.error('Error during disposing temporary out asset: ' + String(e));
                     }
                 }
             }
@@ -86074,6 +82474,7 @@ exports.AbstractCompositeBuilder = AbstractCompositeBuilder;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CallbacksCollection = void 0;
 class CallbacksCollection {
     constructor() {
         this._callbacks = new Array();
@@ -86102,6 +82503,7 @@ exports.CallbacksCollection = CallbacksCollection;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CompositeBuildResult = void 0;
 // noinspection TypeScriptPreferShortImport
 const baseBuildResult_1 = __nccwpck_require__(3885);
 class CompositeBuildResult extends baseBuildResult_1.BaseBuildResult {
@@ -86121,6 +82523,7 @@ exports.CompositeBuildResult = CompositeBuildResult;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.passOnAsset = void 0;
 class PassOnAsset {
     constructor(asset) {
         this._asset = asset;
@@ -86146,6 +82549,7 @@ exports.passOnAsset = passOnAsset;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SubBuilderRecord = void 0;
 const callbacksCollection_1 = __nccwpck_require__(9843);
 class SubBuilderRecord {
     constructor(targetName, builder, buildOrder, active = false) {
@@ -86211,7 +82615,8 @@ class SubBuilderRecord {
             return result;
         }
         catch (error) {
-            this._onError.fire(this._builder, error, compositeBuildResult);
+            const err = error instanceof Error ? error : new Error(String(error));
+            this._onError.fire(this._builder, err, compositeBuildResult);
             throw error;
         }
     }
@@ -86227,6 +82632,7 @@ exports.SubBuilderRecord = SubBuilderRecord;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AbstractSimpleBuilder = void 0;
 // noinspection TypeScriptPreferShortImport
 const loggerWrapper_1 = __nccwpck_require__(5564);
 // noinspection JSUnusedGlobalSymbols
@@ -86255,33 +82661,44 @@ exports.AbstractSimpleBuilder = AbstractSimpleBuilder;
 /***/ }),
 
 /***/ 696:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
-function __export(m) {
-    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
-}
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-__export(__nccwpck_require__(4714));
-__export(__nccwpck_require__(5564));
-__export(__nccwpck_require__(5105));
-__export(__nccwpck_require__(736));
-__export(__nccwpck_require__(5175));
-__export(__nccwpck_require__(3357));
-__export(__nccwpck_require__(8850));
-__export(__nccwpck_require__(6064));
-__export(__nccwpck_require__(1973));
-__export(__nccwpck_require__(765));
-__export(__nccwpck_require__(3885));
-__export(__nccwpck_require__(7336));
-__export(__nccwpck_require__(3263));
-__export(__nccwpck_require__(349));
-__export(__nccwpck_require__(4025));
-__export(__nccwpck_require__(9843));
-__export(__nccwpck_require__(4112));
-__export(__nccwpck_require__(3264));
-__export(__nccwpck_require__(9442));
+__exportStar(__nccwpck_require__(4714), exports);
+__exportStar(__nccwpck_require__(5564), exports);
+__exportStar(__nccwpck_require__(5105), exports);
+__exportStar(__nccwpck_require__(736), exports);
+__exportStar(__nccwpck_require__(5175), exports);
+__exportStar(__nccwpck_require__(3357), exports);
+__exportStar(__nccwpck_require__(8850), exports);
+__exportStar(__nccwpck_require__(6064), exports);
+__exportStar(__nccwpck_require__(1973), exports);
+__exportStar(__nccwpck_require__(765), exports);
+__exportStar(__nccwpck_require__(3885), exports);
+__exportStar(__nccwpck_require__(7336), exports);
+__exportStar(__nccwpck_require__(3263), exports);
+__exportStar(__nccwpck_require__(349), exports);
+__exportStar(__nccwpck_require__(4025), exports);
+__exportStar(__nccwpck_require__(9843), exports);
+__exportStar(__nccwpck_require__(4112), exports);
+__exportStar(__nccwpck_require__(3264), exports);
+__exportStar(__nccwpck_require__(9442), exports);
 //# sourceMappingURL=index.js.map
 
 /***/ }),
@@ -86291,14 +82708,31 @@ __export(__nccwpck_require__(9442));
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.extractManifestFromZipBuffer = exports.extractManifestFromZipFile = exports.MANIFEST_FILE_NAME = void 0;
 const fs = __importStar(__nccwpck_require__(5630));
 const fileUnzip_1 = __nccwpck_require__(3263);
 const manifestValidator_1 = __nccwpck_require__(2046);
@@ -86308,18 +82742,18 @@ async function extractManifestFromZipFile(zipFilePath) {
     const readStream = fs.createReadStream(zipFilePath);
     let buffer;
     try {
-        buffer = await fileUnzip_1.unzipFile(readStream, exports.MANIFEST_FILE_NAME);
+        buffer = await (0, fileUnzip_1.unzipFile)(readStream, exports.MANIFEST_FILE_NAME);
     }
     catch (e) {
-        throw new Error(`Error reading ${zipFilePath}: ` + e.message);
+        throw new Error(`Error reading ${zipFilePath}: ` + String(e));
     }
-    return manifestValidator_1.validateManifestFile(buffer);
+    return (0, manifestValidator_1.validateManifestFile)(buffer);
 }
 exports.extractManifestFromZipFile = extractManifestFromZipFile;
 async function extractManifestFromZipBuffer(zipBuffer) {
     const readableStream = new readableStreamBuffer_1.ReadableStreamBuffer(zipBuffer);
-    const buffer = await fileUnzip_1.unzipFile(readableStream, exports.MANIFEST_FILE_NAME);
-    return manifestValidator_1.validateManifestFile(buffer);
+    const buffer = await (0, fileUnzip_1.unzipFile)(readableStream, exports.MANIFEST_FILE_NAME);
+    return (0, manifestValidator_1.validateManifestFile)(buffer);
 }
 exports.extractManifestFromZipBuffer = extractManifestFromZipBuffer;
 //# sourceMappingURL=archiveReader.js.map
@@ -86327,16 +82761,27 @@ exports.extractManifestFromZipBuffer = extractManifestFromZipBuffer;
 /***/ }),
 
 /***/ 7336:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
-function __export(m) {
-    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
-}
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-__export(__nccwpck_require__(4063));
-__export(__nccwpck_require__(2046));
+__exportStar(__nccwpck_require__(4063), exports);
+__exportStar(__nccwpck_require__(2046), exports);
 //# sourceMappingURL=index.js.map
 
 /***/ }),
@@ -86347,13 +82792,14 @@ __export(__nccwpck_require__(2046));
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.validateManifestObject = exports.validateManifestFile = void 0;
 function validateManifestFile(contents) {
     let manifestObject;
     try {
         manifestObject = JSON.parse(contents.toString());
     }
     catch (err) {
-        throw new Error("Can't parse JSON in manifest file: " + err.message);
+        throw new Error("Can't parse JSON in manifest file: " + String(err));
     }
     if (manifestObject !== undefined) {
         return validateManifestObject(manifestObject);
@@ -86393,6 +82839,29 @@ exports.validateManifestObject = validateManifestObject;
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __asyncValues = (this && this.__asyncValues) || function (o) {
     if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
     var m = o[Symbol.asyncIterator], i;
@@ -86400,14 +82869,8 @@ var __asyncValues = (this && this.__asyncValues) || function (o) {
     function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
     function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
 };
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
-    return result;
-};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.unzipFile = void 0;
 const unzipper = __importStar(__nccwpck_require__(1639));
 async function unzipFile(zipArchive, filePathInArchive) {
     var e_1, _a;
@@ -86443,14 +82906,31 @@ exports.unzipFile = unzipFile;
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.distinct = exports.getDuplicates = void 0;
 const _ = __importStar(__nccwpck_require__(250));
 function getDuplicates(arr) {
     return _.uniq(_.filter(arr, (val, i, iteratee) => _.includes(iteratee, val, i + 1)));
@@ -86472,23 +82952,40 @@ exports.distinct = distinct;
 
 "use strict";
 
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
     return result;
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.createTempDir = void 0;
 const sanitize_filename_1 = __importDefault(__nccwpck_require__(9976));
 const temp = __importStar(__nccwpck_require__(8023));
 // noinspection JSUnusedGlobalSymbols
 function createTempDir(prefix) {
     return new Promise((resolve, reject) => {
-        temp.mkdir('webext_' + sanitize_filename_1.default(prefix), (err, dirPath) => {
+        temp.mkdir('webext_' + (0, sanitize_filename_1.default)(prefix), (err, dirPath) => {
             if (err) {
                 reject(err);
             }
@@ -86508,14 +83005,31 @@ exports.createTempDir = createTempDir;
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.logMethodProxy = void 0;
 const _ = __importStar(__nccwpck_require__(250));
 // noinspection JSUnusedGlobalSymbols
 function logMethodProxy(logMethod, options) {
@@ -86547,6 +83061,7 @@ exports.logMethodProxy = logMethodProxy;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.LoggerWrapper = exports.LogLevels = void 0;
 /**
  * Npm levels from triple-beam
  */
@@ -86611,10 +83126,11 @@ exports.LoggerWrapper = LoggerWrapper;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ReadableStreamBuffer = void 0;
 const stream_1 = __nccwpck_require__(2781);
 class ReadableStreamBuffer extends stream_1.Readable {
     constructor(buffer, opts) {
-        super(Object.assign({}, opts, { objectMode: false }));
+        super(Object.assign(Object.assign({}, opts), { objectMode: false }));
         this._buffer = buffer;
     }
     _read(size) {
@@ -86633,6 +83149,7 @@ exports.ReadableStreamBuffer = ReadableStreamBuffer;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.WritableStreamBuffer = void 0;
 const stream_1 = __nccwpck_require__(2781);
 class WritableStreamBuffer extends stream_1.Writable {
     constructor(opts) {
@@ -86708,7 +83225,7 @@ exports.WritableStreamBuffer = WritableStreamBuffer;
 
 
 const util = __nccwpck_require__(3837);
-const Writable = __nccwpck_require__(1167);
+const Writable = __nccwpck_require__(6993);
 const { LEVEL } = __nccwpck_require__(3937);
 
 /**
@@ -86728,6 +83245,7 @@ const TransportStream = module.exports = function TransportStream(options = {}) 
   this.format = options.format;
   this.level = options.level;
   this.handleExceptions = options.handleExceptions;
+  this.handleRejections = options.handleRejections;
   this.silent = options.silent;
 
   if (options.log) this.log = options.log;
@@ -86808,7 +83326,7 @@ TransportStream.prototype._write = function _write(info, enc, callback) {
 
     return this.log(transformed, callback);
   }
-
+  this._writableState.sync = false;
   return callback(null);
 };
 
@@ -86915,6 +83433,10 @@ TransportStream.prototype._nop = function _nop() {
   // eslint-disable-next-line no-undefined
   return void undefined;
 };
+
+
+// Expose legacy stream
+module.exports.LegacyTransportStream = __nccwpck_require__(6201);
 
 
 /***/ }),
@@ -87046,2054 +83568,6 @@ LegacyTransportStream.prototype.close = function close() {
 
 /***/ }),
 
-/***/ 5135:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-// Copyright Joyent, Inc. and other Node contributors.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a
-// copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to permit
-// persons to whom the Software is furnished to do so, subject to the
-// following conditions:
-//
-// The above copyright notice and this permission notice shall be included
-// in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
-// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
-// USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-// a duplex stream is just a stream that is both readable and writable.
-// Since JS doesn't have multiple prototypal inheritance, this class
-// prototypally inherits from Readable, and then parasitically from
-// Writable.
-
-
-
-/*<replacement>*/
-
-var pna = __nccwpck_require__(7810);
-/*</replacement>*/
-
-/*<replacement>*/
-var objectKeys = Object.keys || function (obj) {
-  var keys = [];
-  for (var key in obj) {
-    keys.push(key);
-  }return keys;
-};
-/*</replacement>*/
-
-module.exports = Duplex;
-
-/*<replacement>*/
-var util = Object.create(__nccwpck_require__(5898));
-util.inherits = __nccwpck_require__(4124);
-/*</replacement>*/
-
-var Readable = __nccwpck_require__(1646);
-var Writable = __nccwpck_require__(6137);
-
-util.inherits(Duplex, Readable);
-
-{
-  // avoid scope creep, the keys array can then be collected
-  var keys = objectKeys(Writable.prototype);
-  for (var v = 0; v < keys.length; v++) {
-    var method = keys[v];
-    if (!Duplex.prototype[method]) Duplex.prototype[method] = Writable.prototype[method];
-  }
-}
-
-function Duplex(options) {
-  if (!(this instanceof Duplex)) return new Duplex(options);
-
-  Readable.call(this, options);
-  Writable.call(this, options);
-
-  if (options && options.readable === false) this.readable = false;
-
-  if (options && options.writable === false) this.writable = false;
-
-  this.allowHalfOpen = true;
-  if (options && options.allowHalfOpen === false) this.allowHalfOpen = false;
-
-  this.once('end', onend);
-}
-
-Object.defineProperty(Duplex.prototype, 'writableHighWaterMark', {
-  // making it explicit this property is not enumerable
-  // because otherwise some prototype manipulation in
-  // userland will fail
-  enumerable: false,
-  get: function () {
-    return this._writableState.highWaterMark;
-  }
-});
-
-// the no-half-open enforcer
-function onend() {
-  // if we allow half-open state, or if the writable side ended,
-  // then we're ok.
-  if (this.allowHalfOpen || this._writableState.ended) return;
-
-  // no more data can be written.
-  // But allow more writes to happen in this tick.
-  pna.nextTick(onEndNT, this);
-}
-
-function onEndNT(self) {
-  self.end();
-}
-
-Object.defineProperty(Duplex.prototype, 'destroyed', {
-  get: function () {
-    if (this._readableState === undefined || this._writableState === undefined) {
-      return false;
-    }
-    return this._readableState.destroyed && this._writableState.destroyed;
-  },
-  set: function (value) {
-    // we ignore the value if the stream
-    // has not been initialized yet
-    if (this._readableState === undefined || this._writableState === undefined) {
-      return;
-    }
-
-    // backward compatibility, the user is explicitly
-    // managing destroyed
-    this._readableState.destroyed = value;
-    this._writableState.destroyed = value;
-  }
-});
-
-Duplex.prototype._destroy = function (err, cb) {
-  this.push(null);
-  this.end();
-
-  pna.nextTick(cb, err);
-};
-
-/***/ }),
-
-/***/ 1646:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-// Copyright Joyent, Inc. and other Node contributors.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a
-// copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to permit
-// persons to whom the Software is furnished to do so, subject to the
-// following conditions:
-//
-// The above copyright notice and this permission notice shall be included
-// in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
-// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
-// USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-
-
-/*<replacement>*/
-
-var pna = __nccwpck_require__(7810);
-/*</replacement>*/
-
-module.exports = Readable;
-
-/*<replacement>*/
-var isArray = __nccwpck_require__(893);
-/*</replacement>*/
-
-/*<replacement>*/
-var Duplex;
-/*</replacement>*/
-
-Readable.ReadableState = ReadableState;
-
-/*<replacement>*/
-var EE = (__nccwpck_require__(2361).EventEmitter);
-
-var EElistenerCount = function (emitter, type) {
-  return emitter.listeners(type).length;
-};
-/*</replacement>*/
-
-/*<replacement>*/
-var Stream = __nccwpck_require__(3917);
-/*</replacement>*/
-
-/*<replacement>*/
-
-var Buffer = (__nccwpck_require__(1867).Buffer);
-var OurUint8Array = global.Uint8Array || function () {};
-function _uint8ArrayToBuffer(chunk) {
-  return Buffer.from(chunk);
-}
-function _isUint8Array(obj) {
-  return Buffer.isBuffer(obj) || obj instanceof OurUint8Array;
-}
-
-/*</replacement>*/
-
-/*<replacement>*/
-var util = Object.create(__nccwpck_require__(5898));
-util.inherits = __nccwpck_require__(4124);
-/*</replacement>*/
-
-/*<replacement>*/
-var debugUtil = __nccwpck_require__(3837);
-var debug = void 0;
-if (debugUtil && debugUtil.debuglog) {
-  debug = debugUtil.debuglog('stream');
-} else {
-  debug = function () {};
-}
-/*</replacement>*/
-
-var BufferList = __nccwpck_require__(5298);
-var destroyImpl = __nccwpck_require__(1061);
-var StringDecoder;
-
-util.inherits(Readable, Stream);
-
-var kProxyEvents = ['error', 'close', 'destroy', 'pause', 'resume'];
-
-function prependListener(emitter, event, fn) {
-  // Sadly this is not cacheable as some libraries bundle their own
-  // event emitter implementation with them.
-  if (typeof emitter.prependListener === 'function') return emitter.prependListener(event, fn);
-
-  // This is a hack to make sure that our error handler is attached before any
-  // userland ones.  NEVER DO THIS. This is here only because this code needs
-  // to continue to work with older versions of Node.js that do not include
-  // the prependListener() method. The goal is to eventually remove this hack.
-  if (!emitter._events || !emitter._events[event]) emitter.on(event, fn);else if (isArray(emitter._events[event])) emitter._events[event].unshift(fn);else emitter._events[event] = [fn, emitter._events[event]];
-}
-
-function ReadableState(options, stream) {
-  Duplex = Duplex || __nccwpck_require__(5135);
-
-  options = options || {};
-
-  // Duplex streams are both readable and writable, but share
-  // the same options object.
-  // However, some cases require setting options to different
-  // values for the readable and the writable sides of the duplex stream.
-  // These options can be provided separately as readableXXX and writableXXX.
-  var isDuplex = stream instanceof Duplex;
-
-  // object stream flag. Used to make read(n) ignore n and to
-  // make all the buffer merging and length checks go away
-  this.objectMode = !!options.objectMode;
-
-  if (isDuplex) this.objectMode = this.objectMode || !!options.readableObjectMode;
-
-  // the point at which it stops calling _read() to fill the buffer
-  // Note: 0 is a valid value, means "don't call _read preemptively ever"
-  var hwm = options.highWaterMark;
-  var readableHwm = options.readableHighWaterMark;
-  var defaultHwm = this.objectMode ? 16 : 16 * 1024;
-
-  if (hwm || hwm === 0) this.highWaterMark = hwm;else if (isDuplex && (readableHwm || readableHwm === 0)) this.highWaterMark = readableHwm;else this.highWaterMark = defaultHwm;
-
-  // cast to ints.
-  this.highWaterMark = Math.floor(this.highWaterMark);
-
-  // A linked list is used to store data chunks instead of an array because the
-  // linked list can remove elements from the beginning faster than
-  // array.shift()
-  this.buffer = new BufferList();
-  this.length = 0;
-  this.pipes = null;
-  this.pipesCount = 0;
-  this.flowing = null;
-  this.ended = false;
-  this.endEmitted = false;
-  this.reading = false;
-
-  // a flag to be able to tell if the event 'readable'/'data' is emitted
-  // immediately, or on a later tick.  We set this to true at first, because
-  // any actions that shouldn't happen until "later" should generally also
-  // not happen before the first read call.
-  this.sync = true;
-
-  // whenever we return null, then we set a flag to say
-  // that we're awaiting a 'readable' event emission.
-  this.needReadable = false;
-  this.emittedReadable = false;
-  this.readableListening = false;
-  this.resumeScheduled = false;
-
-  // has it been destroyed
-  this.destroyed = false;
-
-  // Crypto is kind of old and crusty.  Historically, its default string
-  // encoding is 'binary' so we have to make this configurable.
-  // Everything else in the universe uses 'utf8', though.
-  this.defaultEncoding = options.defaultEncoding || 'utf8';
-
-  // the number of writers that are awaiting a drain event in .pipe()s
-  this.awaitDrain = 0;
-
-  // if true, a maybeReadMore has been scheduled
-  this.readingMore = false;
-
-  this.decoder = null;
-  this.encoding = null;
-  if (options.encoding) {
-    if (!StringDecoder) StringDecoder = (__nccwpck_require__(4841)/* .StringDecoder */ .s);
-    this.decoder = new StringDecoder(options.encoding);
-    this.encoding = options.encoding;
-  }
-}
-
-function Readable(options) {
-  Duplex = Duplex || __nccwpck_require__(5135);
-
-  if (!(this instanceof Readable)) return new Readable(options);
-
-  this._readableState = new ReadableState(options, this);
-
-  // legacy
-  this.readable = true;
-
-  if (options) {
-    if (typeof options.read === 'function') this._read = options.read;
-
-    if (typeof options.destroy === 'function') this._destroy = options.destroy;
-  }
-
-  Stream.call(this);
-}
-
-Object.defineProperty(Readable.prototype, 'destroyed', {
-  get: function () {
-    if (this._readableState === undefined) {
-      return false;
-    }
-    return this._readableState.destroyed;
-  },
-  set: function (value) {
-    // we ignore the value if the stream
-    // has not been initialized yet
-    if (!this._readableState) {
-      return;
-    }
-
-    // backward compatibility, the user is explicitly
-    // managing destroyed
-    this._readableState.destroyed = value;
-  }
-});
-
-Readable.prototype.destroy = destroyImpl.destroy;
-Readable.prototype._undestroy = destroyImpl.undestroy;
-Readable.prototype._destroy = function (err, cb) {
-  this.push(null);
-  cb(err);
-};
-
-// Manually shove something into the read() buffer.
-// This returns true if the highWaterMark has not been hit yet,
-// similar to how Writable.write() returns true if you should
-// write() some more.
-Readable.prototype.push = function (chunk, encoding) {
-  var state = this._readableState;
-  var skipChunkCheck;
-
-  if (!state.objectMode) {
-    if (typeof chunk === 'string') {
-      encoding = encoding || state.defaultEncoding;
-      if (encoding !== state.encoding) {
-        chunk = Buffer.from(chunk, encoding);
-        encoding = '';
-      }
-      skipChunkCheck = true;
-    }
-  } else {
-    skipChunkCheck = true;
-  }
-
-  return readableAddChunk(this, chunk, encoding, false, skipChunkCheck);
-};
-
-// Unshift should *always* be something directly out of read()
-Readable.prototype.unshift = function (chunk) {
-  return readableAddChunk(this, chunk, null, true, false);
-};
-
-function readableAddChunk(stream, chunk, encoding, addToFront, skipChunkCheck) {
-  var state = stream._readableState;
-  if (chunk === null) {
-    state.reading = false;
-    onEofChunk(stream, state);
-  } else {
-    var er;
-    if (!skipChunkCheck) er = chunkInvalid(state, chunk);
-    if (er) {
-      stream.emit('error', er);
-    } else if (state.objectMode || chunk && chunk.length > 0) {
-      if (typeof chunk !== 'string' && !state.objectMode && Object.getPrototypeOf(chunk) !== Buffer.prototype) {
-        chunk = _uint8ArrayToBuffer(chunk);
-      }
-
-      if (addToFront) {
-        if (state.endEmitted) stream.emit('error', new Error('stream.unshift() after end event'));else addChunk(stream, state, chunk, true);
-      } else if (state.ended) {
-        stream.emit('error', new Error('stream.push() after EOF'));
-      } else {
-        state.reading = false;
-        if (state.decoder && !encoding) {
-          chunk = state.decoder.write(chunk);
-          if (state.objectMode || chunk.length !== 0) addChunk(stream, state, chunk, false);else maybeReadMore(stream, state);
-        } else {
-          addChunk(stream, state, chunk, false);
-        }
-      }
-    } else if (!addToFront) {
-      state.reading = false;
-    }
-  }
-
-  return needMoreData(state);
-}
-
-function addChunk(stream, state, chunk, addToFront) {
-  if (state.flowing && state.length === 0 && !state.sync) {
-    stream.emit('data', chunk);
-    stream.read(0);
-  } else {
-    // update the buffer info.
-    state.length += state.objectMode ? 1 : chunk.length;
-    if (addToFront) state.buffer.unshift(chunk);else state.buffer.push(chunk);
-
-    if (state.needReadable) emitReadable(stream);
-  }
-  maybeReadMore(stream, state);
-}
-
-function chunkInvalid(state, chunk) {
-  var er;
-  if (!_isUint8Array(chunk) && typeof chunk !== 'string' && chunk !== undefined && !state.objectMode) {
-    er = new TypeError('Invalid non-string/buffer chunk');
-  }
-  return er;
-}
-
-// if it's past the high water mark, we can push in some more.
-// Also, if we have no data yet, we can stand some
-// more bytes.  This is to work around cases where hwm=0,
-// such as the repl.  Also, if the push() triggered a
-// readable event, and the user called read(largeNumber) such that
-// needReadable was set, then we ought to push more, so that another
-// 'readable' event will be triggered.
-function needMoreData(state) {
-  return !state.ended && (state.needReadable || state.length < state.highWaterMark || state.length === 0);
-}
-
-Readable.prototype.isPaused = function () {
-  return this._readableState.flowing === false;
-};
-
-// backwards compatibility.
-Readable.prototype.setEncoding = function (enc) {
-  if (!StringDecoder) StringDecoder = (__nccwpck_require__(4841)/* .StringDecoder */ .s);
-  this._readableState.decoder = new StringDecoder(enc);
-  this._readableState.encoding = enc;
-  return this;
-};
-
-// Don't raise the hwm > 8MB
-var MAX_HWM = 0x800000;
-function computeNewHighWaterMark(n) {
-  if (n >= MAX_HWM) {
-    n = MAX_HWM;
-  } else {
-    // Get the next highest power of 2 to prevent increasing hwm excessively in
-    // tiny amounts
-    n--;
-    n |= n >>> 1;
-    n |= n >>> 2;
-    n |= n >>> 4;
-    n |= n >>> 8;
-    n |= n >>> 16;
-    n++;
-  }
-  return n;
-}
-
-// This function is designed to be inlinable, so please take care when making
-// changes to the function body.
-function howMuchToRead(n, state) {
-  if (n <= 0 || state.length === 0 && state.ended) return 0;
-  if (state.objectMode) return 1;
-  if (n !== n) {
-    // Only flow one buffer at a time
-    if (state.flowing && state.length) return state.buffer.head.data.length;else return state.length;
-  }
-  // If we're asking for more than the current hwm, then raise the hwm.
-  if (n > state.highWaterMark) state.highWaterMark = computeNewHighWaterMark(n);
-  if (n <= state.length) return n;
-  // Don't have enough
-  if (!state.ended) {
-    state.needReadable = true;
-    return 0;
-  }
-  return state.length;
-}
-
-// you can override either this method, or the async _read(n) below.
-Readable.prototype.read = function (n) {
-  debug('read', n);
-  n = parseInt(n, 10);
-  var state = this._readableState;
-  var nOrig = n;
-
-  if (n !== 0) state.emittedReadable = false;
-
-  // if we're doing read(0) to trigger a readable event, but we
-  // already have a bunch of data in the buffer, then just trigger
-  // the 'readable' event and move on.
-  if (n === 0 && state.needReadable && (state.length >= state.highWaterMark || state.ended)) {
-    debug('read: emitReadable', state.length, state.ended);
-    if (state.length === 0 && state.ended) endReadable(this);else emitReadable(this);
-    return null;
-  }
-
-  n = howMuchToRead(n, state);
-
-  // if we've ended, and we're now clear, then finish it up.
-  if (n === 0 && state.ended) {
-    if (state.length === 0) endReadable(this);
-    return null;
-  }
-
-  // All the actual chunk generation logic needs to be
-  // *below* the call to _read.  The reason is that in certain
-  // synthetic stream cases, such as passthrough streams, _read
-  // may be a completely synchronous operation which may change
-  // the state of the read buffer, providing enough data when
-  // before there was *not* enough.
-  //
-  // So, the steps are:
-  // 1. Figure out what the state of things will be after we do
-  // a read from the buffer.
-  //
-  // 2. If that resulting state will trigger a _read, then call _read.
-  // Note that this may be asynchronous, or synchronous.  Yes, it is
-  // deeply ugly to write APIs this way, but that still doesn't mean
-  // that the Readable class should behave improperly, as streams are
-  // designed to be sync/async agnostic.
-  // Take note if the _read call is sync or async (ie, if the read call
-  // has returned yet), so that we know whether or not it's safe to emit
-  // 'readable' etc.
-  //
-  // 3. Actually pull the requested chunks out of the buffer and return.
-
-  // if we need a readable event, then we need to do some reading.
-  var doRead = state.needReadable;
-  debug('need readable', doRead);
-
-  // if we currently have less than the highWaterMark, then also read some
-  if (state.length === 0 || state.length - n < state.highWaterMark) {
-    doRead = true;
-    debug('length less than watermark', doRead);
-  }
-
-  // however, if we've ended, then there's no point, and if we're already
-  // reading, then it's unnecessary.
-  if (state.ended || state.reading) {
-    doRead = false;
-    debug('reading or ended', doRead);
-  } else if (doRead) {
-    debug('do read');
-    state.reading = true;
-    state.sync = true;
-    // if the length is currently zero, then we *need* a readable event.
-    if (state.length === 0) state.needReadable = true;
-    // call internal read method
-    this._read(state.highWaterMark);
-    state.sync = false;
-    // If _read pushed data synchronously, then `reading` will be false,
-    // and we need to re-evaluate how much data we can return to the user.
-    if (!state.reading) n = howMuchToRead(nOrig, state);
-  }
-
-  var ret;
-  if (n > 0) ret = fromList(n, state);else ret = null;
-
-  if (ret === null) {
-    state.needReadable = true;
-    n = 0;
-  } else {
-    state.length -= n;
-  }
-
-  if (state.length === 0) {
-    // If we have nothing in the buffer, then we want to know
-    // as soon as we *do* get something into the buffer.
-    if (!state.ended) state.needReadable = true;
-
-    // If we tried to read() past the EOF, then emit end on the next tick.
-    if (nOrig !== n && state.ended) endReadable(this);
-  }
-
-  if (ret !== null) this.emit('data', ret);
-
-  return ret;
-};
-
-function onEofChunk(stream, state) {
-  if (state.ended) return;
-  if (state.decoder) {
-    var chunk = state.decoder.end();
-    if (chunk && chunk.length) {
-      state.buffer.push(chunk);
-      state.length += state.objectMode ? 1 : chunk.length;
-    }
-  }
-  state.ended = true;
-
-  // emit 'readable' now to make sure it gets picked up.
-  emitReadable(stream);
-}
-
-// Don't emit readable right away in sync mode, because this can trigger
-// another read() call => stack overflow.  This way, it might trigger
-// a nextTick recursion warning, but that's not so bad.
-function emitReadable(stream) {
-  var state = stream._readableState;
-  state.needReadable = false;
-  if (!state.emittedReadable) {
-    debug('emitReadable', state.flowing);
-    state.emittedReadable = true;
-    if (state.sync) pna.nextTick(emitReadable_, stream);else emitReadable_(stream);
-  }
-}
-
-function emitReadable_(stream) {
-  debug('emit readable');
-  stream.emit('readable');
-  flow(stream);
-}
-
-// at this point, the user has presumably seen the 'readable' event,
-// and called read() to consume some data.  that may have triggered
-// in turn another _read(n) call, in which case reading = true if
-// it's in progress.
-// However, if we're not ended, or reading, and the length < hwm,
-// then go ahead and try to read some more preemptively.
-function maybeReadMore(stream, state) {
-  if (!state.readingMore) {
-    state.readingMore = true;
-    pna.nextTick(maybeReadMore_, stream, state);
-  }
-}
-
-function maybeReadMore_(stream, state) {
-  var len = state.length;
-  while (!state.reading && !state.flowing && !state.ended && state.length < state.highWaterMark) {
-    debug('maybeReadMore read 0');
-    stream.read(0);
-    if (len === state.length)
-      // didn't get any data, stop spinning.
-      break;else len = state.length;
-  }
-  state.readingMore = false;
-}
-
-// abstract method.  to be overridden in specific implementation classes.
-// call cb(er, data) where data is <= n in length.
-// for virtual (non-string, non-buffer) streams, "length" is somewhat
-// arbitrary, and perhaps not very meaningful.
-Readable.prototype._read = function (n) {
-  this.emit('error', new Error('_read() is not implemented'));
-};
-
-Readable.prototype.pipe = function (dest, pipeOpts) {
-  var src = this;
-  var state = this._readableState;
-
-  switch (state.pipesCount) {
-    case 0:
-      state.pipes = dest;
-      break;
-    case 1:
-      state.pipes = [state.pipes, dest];
-      break;
-    default:
-      state.pipes.push(dest);
-      break;
-  }
-  state.pipesCount += 1;
-  debug('pipe count=%d opts=%j', state.pipesCount, pipeOpts);
-
-  var doEnd = (!pipeOpts || pipeOpts.end !== false) && dest !== process.stdout && dest !== process.stderr;
-
-  var endFn = doEnd ? onend : unpipe;
-  if (state.endEmitted) pna.nextTick(endFn);else src.once('end', endFn);
-
-  dest.on('unpipe', onunpipe);
-  function onunpipe(readable, unpipeInfo) {
-    debug('onunpipe');
-    if (readable === src) {
-      if (unpipeInfo && unpipeInfo.hasUnpiped === false) {
-        unpipeInfo.hasUnpiped = true;
-        cleanup();
-      }
-    }
-  }
-
-  function onend() {
-    debug('onend');
-    dest.end();
-  }
-
-  // when the dest drains, it reduces the awaitDrain counter
-  // on the source.  This would be more elegant with a .once()
-  // handler in flow(), but adding and removing repeatedly is
-  // too slow.
-  var ondrain = pipeOnDrain(src);
-  dest.on('drain', ondrain);
-
-  var cleanedUp = false;
-  function cleanup() {
-    debug('cleanup');
-    // cleanup event handlers once the pipe is broken
-    dest.removeListener('close', onclose);
-    dest.removeListener('finish', onfinish);
-    dest.removeListener('drain', ondrain);
-    dest.removeListener('error', onerror);
-    dest.removeListener('unpipe', onunpipe);
-    src.removeListener('end', onend);
-    src.removeListener('end', unpipe);
-    src.removeListener('data', ondata);
-
-    cleanedUp = true;
-
-    // if the reader is waiting for a drain event from this
-    // specific writer, then it would cause it to never start
-    // flowing again.
-    // So, if this is awaiting a drain, then we just call it now.
-    // If we don't know, then assume that we are waiting for one.
-    if (state.awaitDrain && (!dest._writableState || dest._writableState.needDrain)) ondrain();
-  }
-
-  // If the user pushes more data while we're writing to dest then we'll end up
-  // in ondata again. However, we only want to increase awaitDrain once because
-  // dest will only emit one 'drain' event for the multiple writes.
-  // => Introduce a guard on increasing awaitDrain.
-  var increasedAwaitDrain = false;
-  src.on('data', ondata);
-  function ondata(chunk) {
-    debug('ondata');
-    increasedAwaitDrain = false;
-    var ret = dest.write(chunk);
-    if (false === ret && !increasedAwaitDrain) {
-      // If the user unpiped during `dest.write()`, it is possible
-      // to get stuck in a permanently paused state if that write
-      // also returned false.
-      // => Check whether `dest` is still a piping destination.
-      if ((state.pipesCount === 1 && state.pipes === dest || state.pipesCount > 1 && indexOf(state.pipes, dest) !== -1) && !cleanedUp) {
-        debug('false write response, pause', src._readableState.awaitDrain);
-        src._readableState.awaitDrain++;
-        increasedAwaitDrain = true;
-      }
-      src.pause();
-    }
-  }
-
-  // if the dest has an error, then stop piping into it.
-  // however, don't suppress the throwing behavior for this.
-  function onerror(er) {
-    debug('onerror', er);
-    unpipe();
-    dest.removeListener('error', onerror);
-    if (EElistenerCount(dest, 'error') === 0) dest.emit('error', er);
-  }
-
-  // Make sure our error handler is attached before userland ones.
-  prependListener(dest, 'error', onerror);
-
-  // Both close and finish should trigger unpipe, but only once.
-  function onclose() {
-    dest.removeListener('finish', onfinish);
-    unpipe();
-  }
-  dest.once('close', onclose);
-  function onfinish() {
-    debug('onfinish');
-    dest.removeListener('close', onclose);
-    unpipe();
-  }
-  dest.once('finish', onfinish);
-
-  function unpipe() {
-    debug('unpipe');
-    src.unpipe(dest);
-  }
-
-  // tell the dest that it's being piped to
-  dest.emit('pipe', src);
-
-  // start the flow if it hasn't been started already.
-  if (!state.flowing) {
-    debug('pipe resume');
-    src.resume();
-  }
-
-  return dest;
-};
-
-function pipeOnDrain(src) {
-  return function () {
-    var state = src._readableState;
-    debug('pipeOnDrain', state.awaitDrain);
-    if (state.awaitDrain) state.awaitDrain--;
-    if (state.awaitDrain === 0 && EElistenerCount(src, 'data')) {
-      state.flowing = true;
-      flow(src);
-    }
-  };
-}
-
-Readable.prototype.unpipe = function (dest) {
-  var state = this._readableState;
-  var unpipeInfo = { hasUnpiped: false };
-
-  // if we're not piping anywhere, then do nothing.
-  if (state.pipesCount === 0) return this;
-
-  // just one destination.  most common case.
-  if (state.pipesCount === 1) {
-    // passed in one, but it's not the right one.
-    if (dest && dest !== state.pipes) return this;
-
-    if (!dest) dest = state.pipes;
-
-    // got a match.
-    state.pipes = null;
-    state.pipesCount = 0;
-    state.flowing = false;
-    if (dest) dest.emit('unpipe', this, unpipeInfo);
-    return this;
-  }
-
-  // slow case. multiple pipe destinations.
-
-  if (!dest) {
-    // remove all.
-    var dests = state.pipes;
-    var len = state.pipesCount;
-    state.pipes = null;
-    state.pipesCount = 0;
-    state.flowing = false;
-
-    for (var i = 0; i < len; i++) {
-      dests[i].emit('unpipe', this, unpipeInfo);
-    }return this;
-  }
-
-  // try to find the right one.
-  var index = indexOf(state.pipes, dest);
-  if (index === -1) return this;
-
-  state.pipes.splice(index, 1);
-  state.pipesCount -= 1;
-  if (state.pipesCount === 1) state.pipes = state.pipes[0];
-
-  dest.emit('unpipe', this, unpipeInfo);
-
-  return this;
-};
-
-// set up data events if they are asked for
-// Ensure readable listeners eventually get something
-Readable.prototype.on = function (ev, fn) {
-  var res = Stream.prototype.on.call(this, ev, fn);
-
-  if (ev === 'data') {
-    // Start flowing on next tick if stream isn't explicitly paused
-    if (this._readableState.flowing !== false) this.resume();
-  } else if (ev === 'readable') {
-    var state = this._readableState;
-    if (!state.endEmitted && !state.readableListening) {
-      state.readableListening = state.needReadable = true;
-      state.emittedReadable = false;
-      if (!state.reading) {
-        pna.nextTick(nReadingNextTick, this);
-      } else if (state.length) {
-        emitReadable(this);
-      }
-    }
-  }
-
-  return res;
-};
-Readable.prototype.addListener = Readable.prototype.on;
-
-function nReadingNextTick(self) {
-  debug('readable nexttick read 0');
-  self.read(0);
-}
-
-// pause() and resume() are remnants of the legacy readable stream API
-// If the user uses them, then switch into old mode.
-Readable.prototype.resume = function () {
-  var state = this._readableState;
-  if (!state.flowing) {
-    debug('resume');
-    state.flowing = true;
-    resume(this, state);
-  }
-  return this;
-};
-
-function resume(stream, state) {
-  if (!state.resumeScheduled) {
-    state.resumeScheduled = true;
-    pna.nextTick(resume_, stream, state);
-  }
-}
-
-function resume_(stream, state) {
-  if (!state.reading) {
-    debug('resume read 0');
-    stream.read(0);
-  }
-
-  state.resumeScheduled = false;
-  state.awaitDrain = 0;
-  stream.emit('resume');
-  flow(stream);
-  if (state.flowing && !state.reading) stream.read(0);
-}
-
-Readable.prototype.pause = function () {
-  debug('call pause flowing=%j', this._readableState.flowing);
-  if (false !== this._readableState.flowing) {
-    debug('pause');
-    this._readableState.flowing = false;
-    this.emit('pause');
-  }
-  return this;
-};
-
-function flow(stream) {
-  var state = stream._readableState;
-  debug('flow', state.flowing);
-  while (state.flowing && stream.read() !== null) {}
-}
-
-// wrap an old-style stream as the async data source.
-// This is *not* part of the readable stream interface.
-// It is an ugly unfortunate mess of history.
-Readable.prototype.wrap = function (stream) {
-  var _this = this;
-
-  var state = this._readableState;
-  var paused = false;
-
-  stream.on('end', function () {
-    debug('wrapped end');
-    if (state.decoder && !state.ended) {
-      var chunk = state.decoder.end();
-      if (chunk && chunk.length) _this.push(chunk);
-    }
-
-    _this.push(null);
-  });
-
-  stream.on('data', function (chunk) {
-    debug('wrapped data');
-    if (state.decoder) chunk = state.decoder.write(chunk);
-
-    // don't skip over falsy values in objectMode
-    if (state.objectMode && (chunk === null || chunk === undefined)) return;else if (!state.objectMode && (!chunk || !chunk.length)) return;
-
-    var ret = _this.push(chunk);
-    if (!ret) {
-      paused = true;
-      stream.pause();
-    }
-  });
-
-  // proxy all the other methods.
-  // important when wrapping filters and duplexes.
-  for (var i in stream) {
-    if (this[i] === undefined && typeof stream[i] === 'function') {
-      this[i] = function (method) {
-        return function () {
-          return stream[method].apply(stream, arguments);
-        };
-      }(i);
-    }
-  }
-
-  // proxy certain important events.
-  for (var n = 0; n < kProxyEvents.length; n++) {
-    stream.on(kProxyEvents[n], this.emit.bind(this, kProxyEvents[n]));
-  }
-
-  // when we try to consume some more bytes, simply unpause the
-  // underlying stream.
-  this._read = function (n) {
-    debug('wrapped _read', n);
-    if (paused) {
-      paused = false;
-      stream.resume();
-    }
-  };
-
-  return this;
-};
-
-Object.defineProperty(Readable.prototype, 'readableHighWaterMark', {
-  // making it explicit this property is not enumerable
-  // because otherwise some prototype manipulation in
-  // userland will fail
-  enumerable: false,
-  get: function () {
-    return this._readableState.highWaterMark;
-  }
-});
-
-// exposed for testing purposes only.
-Readable._fromList = fromList;
-
-// Pluck off n bytes from an array of buffers.
-// Length is the combined lengths of all the buffers in the list.
-// This function is designed to be inlinable, so please take care when making
-// changes to the function body.
-function fromList(n, state) {
-  // nothing buffered
-  if (state.length === 0) return null;
-
-  var ret;
-  if (state.objectMode) ret = state.buffer.shift();else if (!n || n >= state.length) {
-    // read it all, truncate the list
-    if (state.decoder) ret = state.buffer.join('');else if (state.buffer.length === 1) ret = state.buffer.head.data;else ret = state.buffer.concat(state.length);
-    state.buffer.clear();
-  } else {
-    // read part of list
-    ret = fromListPartial(n, state.buffer, state.decoder);
-  }
-
-  return ret;
-}
-
-// Extracts only enough buffered data to satisfy the amount requested.
-// This function is designed to be inlinable, so please take care when making
-// changes to the function body.
-function fromListPartial(n, list, hasStrings) {
-  var ret;
-  if (n < list.head.data.length) {
-    // slice is the same for buffers and strings
-    ret = list.head.data.slice(0, n);
-    list.head.data = list.head.data.slice(n);
-  } else if (n === list.head.data.length) {
-    // first chunk is a perfect match
-    ret = list.shift();
-  } else {
-    // result spans more than one buffer
-    ret = hasStrings ? copyFromBufferString(n, list) : copyFromBuffer(n, list);
-  }
-  return ret;
-}
-
-// Copies a specified amount of characters from the list of buffered data
-// chunks.
-// This function is designed to be inlinable, so please take care when making
-// changes to the function body.
-function copyFromBufferString(n, list) {
-  var p = list.head;
-  var c = 1;
-  var ret = p.data;
-  n -= ret.length;
-  while (p = p.next) {
-    var str = p.data;
-    var nb = n > str.length ? str.length : n;
-    if (nb === str.length) ret += str;else ret += str.slice(0, n);
-    n -= nb;
-    if (n === 0) {
-      if (nb === str.length) {
-        ++c;
-        if (p.next) list.head = p.next;else list.head = list.tail = null;
-      } else {
-        list.head = p;
-        p.data = str.slice(nb);
-      }
-      break;
-    }
-    ++c;
-  }
-  list.length -= c;
-  return ret;
-}
-
-// Copies a specified amount of bytes from the list of buffered data chunks.
-// This function is designed to be inlinable, so please take care when making
-// changes to the function body.
-function copyFromBuffer(n, list) {
-  var ret = Buffer.allocUnsafe(n);
-  var p = list.head;
-  var c = 1;
-  p.data.copy(ret);
-  n -= p.data.length;
-  while (p = p.next) {
-    var buf = p.data;
-    var nb = n > buf.length ? buf.length : n;
-    buf.copy(ret, ret.length - n, 0, nb);
-    n -= nb;
-    if (n === 0) {
-      if (nb === buf.length) {
-        ++c;
-        if (p.next) list.head = p.next;else list.head = list.tail = null;
-      } else {
-        list.head = p;
-        p.data = buf.slice(nb);
-      }
-      break;
-    }
-    ++c;
-  }
-  list.length -= c;
-  return ret;
-}
-
-function endReadable(stream) {
-  var state = stream._readableState;
-
-  // If we get here before consuming all the bytes, then that is a
-  // bug in node.  Should never happen.
-  if (state.length > 0) throw new Error('"endReadable()" called on non-empty stream');
-
-  if (!state.endEmitted) {
-    state.ended = true;
-    pna.nextTick(endReadableNT, state, stream);
-  }
-}
-
-function endReadableNT(state, stream) {
-  // Check that we didn't get one last unshift.
-  if (!state.endEmitted && state.length === 0) {
-    state.endEmitted = true;
-    stream.readable = false;
-    stream.emit('end');
-  }
-}
-
-function indexOf(xs, x) {
-  for (var i = 0, l = xs.length; i < l; i++) {
-    if (xs[i] === x) return i;
-  }
-  return -1;
-}
-
-/***/ }),
-
-/***/ 6137:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-// Copyright Joyent, Inc. and other Node contributors.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a
-// copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to permit
-// persons to whom the Software is furnished to do so, subject to the
-// following conditions:
-//
-// The above copyright notice and this permission notice shall be included
-// in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
-// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
-// USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-// A bit simpler than readable streams.
-// Implement an async ._write(chunk, encoding, cb), and it'll handle all
-// the drain event emission and buffering.
-
-
-
-/*<replacement>*/
-
-var pna = __nccwpck_require__(7810);
-/*</replacement>*/
-
-module.exports = Writable;
-
-/* <replacement> */
-function WriteReq(chunk, encoding, cb) {
-  this.chunk = chunk;
-  this.encoding = encoding;
-  this.callback = cb;
-  this.next = null;
-}
-
-// It seems a linked list but it is not
-// there will be only 2 of these for each stream
-function CorkedRequest(state) {
-  var _this = this;
-
-  this.next = null;
-  this.entry = null;
-  this.finish = function () {
-    onCorkedFinish(_this, state);
-  };
-}
-/* </replacement> */
-
-/*<replacement>*/
-var asyncWrite = !process.browser && ['v0.10', 'v0.9.'].indexOf(process.version.slice(0, 5)) > -1 ? setImmediate : pna.nextTick;
-/*</replacement>*/
-
-/*<replacement>*/
-var Duplex;
-/*</replacement>*/
-
-Writable.WritableState = WritableState;
-
-/*<replacement>*/
-var util = Object.create(__nccwpck_require__(5898));
-util.inherits = __nccwpck_require__(4124);
-/*</replacement>*/
-
-/*<replacement>*/
-var internalUtil = {
-  deprecate: __nccwpck_require__(7127)
-};
-/*</replacement>*/
-
-/*<replacement>*/
-var Stream = __nccwpck_require__(3917);
-/*</replacement>*/
-
-/*<replacement>*/
-
-var Buffer = (__nccwpck_require__(1867).Buffer);
-var OurUint8Array = global.Uint8Array || function () {};
-function _uint8ArrayToBuffer(chunk) {
-  return Buffer.from(chunk);
-}
-function _isUint8Array(obj) {
-  return Buffer.isBuffer(obj) || obj instanceof OurUint8Array;
-}
-
-/*</replacement>*/
-
-var destroyImpl = __nccwpck_require__(1061);
-
-util.inherits(Writable, Stream);
-
-function nop() {}
-
-function WritableState(options, stream) {
-  Duplex = Duplex || __nccwpck_require__(5135);
-
-  options = options || {};
-
-  // Duplex streams are both readable and writable, but share
-  // the same options object.
-  // However, some cases require setting options to different
-  // values for the readable and the writable sides of the duplex stream.
-  // These options can be provided separately as readableXXX and writableXXX.
-  var isDuplex = stream instanceof Duplex;
-
-  // object stream flag to indicate whether or not this stream
-  // contains buffers or objects.
-  this.objectMode = !!options.objectMode;
-
-  if (isDuplex) this.objectMode = this.objectMode || !!options.writableObjectMode;
-
-  // the point at which write() starts returning false
-  // Note: 0 is a valid value, means that we always return false if
-  // the entire buffer is not flushed immediately on write()
-  var hwm = options.highWaterMark;
-  var writableHwm = options.writableHighWaterMark;
-  var defaultHwm = this.objectMode ? 16 : 16 * 1024;
-
-  if (hwm || hwm === 0) this.highWaterMark = hwm;else if (isDuplex && (writableHwm || writableHwm === 0)) this.highWaterMark = writableHwm;else this.highWaterMark = defaultHwm;
-
-  // cast to ints.
-  this.highWaterMark = Math.floor(this.highWaterMark);
-
-  // if _final has been called
-  this.finalCalled = false;
-
-  // drain event flag.
-  this.needDrain = false;
-  // at the start of calling end()
-  this.ending = false;
-  // when end() has been called, and returned
-  this.ended = false;
-  // when 'finish' is emitted
-  this.finished = false;
-
-  // has it been destroyed
-  this.destroyed = false;
-
-  // should we decode strings into buffers before passing to _write?
-  // this is here so that some node-core streams can optimize string
-  // handling at a lower level.
-  var noDecode = options.decodeStrings === false;
-  this.decodeStrings = !noDecode;
-
-  // Crypto is kind of old and crusty.  Historically, its default string
-  // encoding is 'binary' so we have to make this configurable.
-  // Everything else in the universe uses 'utf8', though.
-  this.defaultEncoding = options.defaultEncoding || 'utf8';
-
-  // not an actual buffer we keep track of, but a measurement
-  // of how much we're waiting to get pushed to some underlying
-  // socket or file.
-  this.length = 0;
-
-  // a flag to see when we're in the middle of a write.
-  this.writing = false;
-
-  // when true all writes will be buffered until .uncork() call
-  this.corked = 0;
-
-  // a flag to be able to tell if the onwrite cb is called immediately,
-  // or on a later tick.  We set this to true at first, because any
-  // actions that shouldn't happen until "later" should generally also
-  // not happen before the first write call.
-  this.sync = true;
-
-  // a flag to know if we're processing previously buffered items, which
-  // may call the _write() callback in the same tick, so that we don't
-  // end up in an overlapped onwrite situation.
-  this.bufferProcessing = false;
-
-  // the callback that's passed to _write(chunk,cb)
-  this.onwrite = function (er) {
-    onwrite(stream, er);
-  };
-
-  // the callback that the user supplies to write(chunk,encoding,cb)
-  this.writecb = null;
-
-  // the amount that is being written when _write is called.
-  this.writelen = 0;
-
-  this.bufferedRequest = null;
-  this.lastBufferedRequest = null;
-
-  // number of pending user-supplied write callbacks
-  // this must be 0 before 'finish' can be emitted
-  this.pendingcb = 0;
-
-  // emit prefinish if the only thing we're waiting for is _write cbs
-  // This is relevant for synchronous Transform streams
-  this.prefinished = false;
-
-  // True if the error was already emitted and should not be thrown again
-  this.errorEmitted = false;
-
-  // count buffered requests
-  this.bufferedRequestCount = 0;
-
-  // allocate the first CorkedRequest, there is always
-  // one allocated and free to use, and we maintain at most two
-  this.corkedRequestsFree = new CorkedRequest(this);
-}
-
-WritableState.prototype.getBuffer = function getBuffer() {
-  var current = this.bufferedRequest;
-  var out = [];
-  while (current) {
-    out.push(current);
-    current = current.next;
-  }
-  return out;
-};
-
-(function () {
-  try {
-    Object.defineProperty(WritableState.prototype, 'buffer', {
-      get: internalUtil.deprecate(function () {
-        return this.getBuffer();
-      }, '_writableState.buffer is deprecated. Use _writableState.getBuffer ' + 'instead.', 'DEP0003')
-    });
-  } catch (_) {}
-})();
-
-// Test _writableState for inheritance to account for Duplex streams,
-// whose prototype chain only points to Readable.
-var realHasInstance;
-if (typeof Symbol === 'function' && Symbol.hasInstance && typeof Function.prototype[Symbol.hasInstance] === 'function') {
-  realHasInstance = Function.prototype[Symbol.hasInstance];
-  Object.defineProperty(Writable, Symbol.hasInstance, {
-    value: function (object) {
-      if (realHasInstance.call(this, object)) return true;
-      if (this !== Writable) return false;
-
-      return object && object._writableState instanceof WritableState;
-    }
-  });
-} else {
-  realHasInstance = function (object) {
-    return object instanceof this;
-  };
-}
-
-function Writable(options) {
-  Duplex = Duplex || __nccwpck_require__(5135);
-
-  // Writable ctor is applied to Duplexes, too.
-  // `realHasInstance` is necessary because using plain `instanceof`
-  // would return false, as no `_writableState` property is attached.
-
-  // Trying to use the custom `instanceof` for Writable here will also break the
-  // Node.js LazyTransform implementation, which has a non-trivial getter for
-  // `_writableState` that would lead to infinite recursion.
-  if (!realHasInstance.call(Writable, this) && !(this instanceof Duplex)) {
-    return new Writable(options);
-  }
-
-  this._writableState = new WritableState(options, this);
-
-  // legacy.
-  this.writable = true;
-
-  if (options) {
-    if (typeof options.write === 'function') this._write = options.write;
-
-    if (typeof options.writev === 'function') this._writev = options.writev;
-
-    if (typeof options.destroy === 'function') this._destroy = options.destroy;
-
-    if (typeof options.final === 'function') this._final = options.final;
-  }
-
-  Stream.call(this);
-}
-
-// Otherwise people can pipe Writable streams, which is just wrong.
-Writable.prototype.pipe = function () {
-  this.emit('error', new Error('Cannot pipe, not readable'));
-};
-
-function writeAfterEnd(stream, cb) {
-  var er = new Error('write after end');
-  // TODO: defer error events consistently everywhere, not just the cb
-  stream.emit('error', er);
-  pna.nextTick(cb, er);
-}
-
-// Checks that a user-supplied chunk is valid, especially for the particular
-// mode the stream is in. Currently this means that `null` is never accepted
-// and undefined/non-string values are only allowed in object mode.
-function validChunk(stream, state, chunk, cb) {
-  var valid = true;
-  var er = false;
-
-  if (chunk === null) {
-    er = new TypeError('May not write null values to stream');
-  } else if (typeof chunk !== 'string' && chunk !== undefined && !state.objectMode) {
-    er = new TypeError('Invalid non-string/buffer chunk');
-  }
-  if (er) {
-    stream.emit('error', er);
-    pna.nextTick(cb, er);
-    valid = false;
-  }
-  return valid;
-}
-
-Writable.prototype.write = function (chunk, encoding, cb) {
-  var state = this._writableState;
-  var ret = false;
-  var isBuf = !state.objectMode && _isUint8Array(chunk);
-
-  if (isBuf && !Buffer.isBuffer(chunk)) {
-    chunk = _uint8ArrayToBuffer(chunk);
-  }
-
-  if (typeof encoding === 'function') {
-    cb = encoding;
-    encoding = null;
-  }
-
-  if (isBuf) encoding = 'buffer';else if (!encoding) encoding = state.defaultEncoding;
-
-  if (typeof cb !== 'function') cb = nop;
-
-  if (state.ended) writeAfterEnd(this, cb);else if (isBuf || validChunk(this, state, chunk, cb)) {
-    state.pendingcb++;
-    ret = writeOrBuffer(this, state, isBuf, chunk, encoding, cb);
-  }
-
-  return ret;
-};
-
-Writable.prototype.cork = function () {
-  var state = this._writableState;
-
-  state.corked++;
-};
-
-Writable.prototype.uncork = function () {
-  var state = this._writableState;
-
-  if (state.corked) {
-    state.corked--;
-
-    if (!state.writing && !state.corked && !state.finished && !state.bufferProcessing && state.bufferedRequest) clearBuffer(this, state);
-  }
-};
-
-Writable.prototype.setDefaultEncoding = function setDefaultEncoding(encoding) {
-  // node::ParseEncoding() requires lower case.
-  if (typeof encoding === 'string') encoding = encoding.toLowerCase();
-  if (!(['hex', 'utf8', 'utf-8', 'ascii', 'binary', 'base64', 'ucs2', 'ucs-2', 'utf16le', 'utf-16le', 'raw'].indexOf((encoding + '').toLowerCase()) > -1)) throw new TypeError('Unknown encoding: ' + encoding);
-  this._writableState.defaultEncoding = encoding;
-  return this;
-};
-
-function decodeChunk(state, chunk, encoding) {
-  if (!state.objectMode && state.decodeStrings !== false && typeof chunk === 'string') {
-    chunk = Buffer.from(chunk, encoding);
-  }
-  return chunk;
-}
-
-Object.defineProperty(Writable.prototype, 'writableHighWaterMark', {
-  // making it explicit this property is not enumerable
-  // because otherwise some prototype manipulation in
-  // userland will fail
-  enumerable: false,
-  get: function () {
-    return this._writableState.highWaterMark;
-  }
-});
-
-// if we're already writing something, then just put this
-// in the queue, and wait our turn.  Otherwise, call _write
-// If we return false, then we need a drain event, so set that flag.
-function writeOrBuffer(stream, state, isBuf, chunk, encoding, cb) {
-  if (!isBuf) {
-    var newChunk = decodeChunk(state, chunk, encoding);
-    if (chunk !== newChunk) {
-      isBuf = true;
-      encoding = 'buffer';
-      chunk = newChunk;
-    }
-  }
-  var len = state.objectMode ? 1 : chunk.length;
-
-  state.length += len;
-
-  var ret = state.length < state.highWaterMark;
-  // we must ensure that previous needDrain will not be reset to false.
-  if (!ret) state.needDrain = true;
-
-  if (state.writing || state.corked) {
-    var last = state.lastBufferedRequest;
-    state.lastBufferedRequest = {
-      chunk: chunk,
-      encoding: encoding,
-      isBuf: isBuf,
-      callback: cb,
-      next: null
-    };
-    if (last) {
-      last.next = state.lastBufferedRequest;
-    } else {
-      state.bufferedRequest = state.lastBufferedRequest;
-    }
-    state.bufferedRequestCount += 1;
-  } else {
-    doWrite(stream, state, false, len, chunk, encoding, cb);
-  }
-
-  return ret;
-}
-
-function doWrite(stream, state, writev, len, chunk, encoding, cb) {
-  state.writelen = len;
-  state.writecb = cb;
-  state.writing = true;
-  state.sync = true;
-  if (writev) stream._writev(chunk, state.onwrite);else stream._write(chunk, encoding, state.onwrite);
-  state.sync = false;
-}
-
-function onwriteError(stream, state, sync, er, cb) {
-  --state.pendingcb;
-
-  if (sync) {
-    // defer the callback if we are being called synchronously
-    // to avoid piling up things on the stack
-    pna.nextTick(cb, er);
-    // this can emit finish, and it will always happen
-    // after error
-    pna.nextTick(finishMaybe, stream, state);
-    stream._writableState.errorEmitted = true;
-    stream.emit('error', er);
-  } else {
-    // the caller expect this to happen before if
-    // it is async
-    cb(er);
-    stream._writableState.errorEmitted = true;
-    stream.emit('error', er);
-    // this can emit finish, but finish must
-    // always follow error
-    finishMaybe(stream, state);
-  }
-}
-
-function onwriteStateUpdate(state) {
-  state.writing = false;
-  state.writecb = null;
-  state.length -= state.writelen;
-  state.writelen = 0;
-}
-
-function onwrite(stream, er) {
-  var state = stream._writableState;
-  var sync = state.sync;
-  var cb = state.writecb;
-
-  onwriteStateUpdate(state);
-
-  if (er) onwriteError(stream, state, sync, er, cb);else {
-    // Check if we're actually ready to finish, but don't emit yet
-    var finished = needFinish(state);
-
-    if (!finished && !state.corked && !state.bufferProcessing && state.bufferedRequest) {
-      clearBuffer(stream, state);
-    }
-
-    if (sync) {
-      /*<replacement>*/
-      asyncWrite(afterWrite, stream, state, finished, cb);
-      /*</replacement>*/
-    } else {
-      afterWrite(stream, state, finished, cb);
-    }
-  }
-}
-
-function afterWrite(stream, state, finished, cb) {
-  if (!finished) onwriteDrain(stream, state);
-  state.pendingcb--;
-  cb();
-  finishMaybe(stream, state);
-}
-
-// Must force callback to be called on nextTick, so that we don't
-// emit 'drain' before the write() consumer gets the 'false' return
-// value, and has a chance to attach a 'drain' listener.
-function onwriteDrain(stream, state) {
-  if (state.length === 0 && state.needDrain) {
-    state.needDrain = false;
-    stream.emit('drain');
-  }
-}
-
-// if there's something in the buffer waiting, then process it
-function clearBuffer(stream, state) {
-  state.bufferProcessing = true;
-  var entry = state.bufferedRequest;
-
-  if (stream._writev && entry && entry.next) {
-    // Fast case, write everything using _writev()
-    var l = state.bufferedRequestCount;
-    var buffer = new Array(l);
-    var holder = state.corkedRequestsFree;
-    holder.entry = entry;
-
-    var count = 0;
-    var allBuffers = true;
-    while (entry) {
-      buffer[count] = entry;
-      if (!entry.isBuf) allBuffers = false;
-      entry = entry.next;
-      count += 1;
-    }
-    buffer.allBuffers = allBuffers;
-
-    doWrite(stream, state, true, state.length, buffer, '', holder.finish);
-
-    // doWrite is almost always async, defer these to save a bit of time
-    // as the hot path ends with doWrite
-    state.pendingcb++;
-    state.lastBufferedRequest = null;
-    if (holder.next) {
-      state.corkedRequestsFree = holder.next;
-      holder.next = null;
-    } else {
-      state.corkedRequestsFree = new CorkedRequest(state);
-    }
-    state.bufferedRequestCount = 0;
-  } else {
-    // Slow case, write chunks one-by-one
-    while (entry) {
-      var chunk = entry.chunk;
-      var encoding = entry.encoding;
-      var cb = entry.callback;
-      var len = state.objectMode ? 1 : chunk.length;
-
-      doWrite(stream, state, false, len, chunk, encoding, cb);
-      entry = entry.next;
-      state.bufferedRequestCount--;
-      // if we didn't call the onwrite immediately, then
-      // it means that we need to wait until it does.
-      // also, that means that the chunk and cb are currently
-      // being processed, so move the buffer counter past them.
-      if (state.writing) {
-        break;
-      }
-    }
-
-    if (entry === null) state.lastBufferedRequest = null;
-  }
-
-  state.bufferedRequest = entry;
-  state.bufferProcessing = false;
-}
-
-Writable.prototype._write = function (chunk, encoding, cb) {
-  cb(new Error('_write() is not implemented'));
-};
-
-Writable.prototype._writev = null;
-
-Writable.prototype.end = function (chunk, encoding, cb) {
-  var state = this._writableState;
-
-  if (typeof chunk === 'function') {
-    cb = chunk;
-    chunk = null;
-    encoding = null;
-  } else if (typeof encoding === 'function') {
-    cb = encoding;
-    encoding = null;
-  }
-
-  if (chunk !== null && chunk !== undefined) this.write(chunk, encoding);
-
-  // .end() fully uncorks
-  if (state.corked) {
-    state.corked = 1;
-    this.uncork();
-  }
-
-  // ignore unnecessary end() calls.
-  if (!state.ending && !state.finished) endWritable(this, state, cb);
-};
-
-function needFinish(state) {
-  return state.ending && state.length === 0 && state.bufferedRequest === null && !state.finished && !state.writing;
-}
-function callFinal(stream, state) {
-  stream._final(function (err) {
-    state.pendingcb--;
-    if (err) {
-      stream.emit('error', err);
-    }
-    state.prefinished = true;
-    stream.emit('prefinish');
-    finishMaybe(stream, state);
-  });
-}
-function prefinish(stream, state) {
-  if (!state.prefinished && !state.finalCalled) {
-    if (typeof stream._final === 'function') {
-      state.pendingcb++;
-      state.finalCalled = true;
-      pna.nextTick(callFinal, stream, state);
-    } else {
-      state.prefinished = true;
-      stream.emit('prefinish');
-    }
-  }
-}
-
-function finishMaybe(stream, state) {
-  var need = needFinish(state);
-  if (need) {
-    prefinish(stream, state);
-    if (state.pendingcb === 0) {
-      state.finished = true;
-      stream.emit('finish');
-    }
-  }
-  return need;
-}
-
-function endWritable(stream, state, cb) {
-  state.ending = true;
-  finishMaybe(stream, state);
-  if (cb) {
-    if (state.finished) pna.nextTick(cb);else stream.once('finish', cb);
-  }
-  state.ended = true;
-  stream.writable = false;
-}
-
-function onCorkedFinish(corkReq, state, err) {
-  var entry = corkReq.entry;
-  corkReq.entry = null;
-  while (entry) {
-    var cb = entry.callback;
-    state.pendingcb--;
-    cb(err);
-    entry = entry.next;
-  }
-  if (state.corkedRequestsFree) {
-    state.corkedRequestsFree.next = corkReq;
-  } else {
-    state.corkedRequestsFree = corkReq;
-  }
-}
-
-Object.defineProperty(Writable.prototype, 'destroyed', {
-  get: function () {
-    if (this._writableState === undefined) {
-      return false;
-    }
-    return this._writableState.destroyed;
-  },
-  set: function (value) {
-    // we ignore the value if the stream
-    // has not been initialized yet
-    if (!this._writableState) {
-      return;
-    }
-
-    // backward compatibility, the user is explicitly
-    // managing destroyed
-    this._writableState.destroyed = value;
-  }
-});
-
-Writable.prototype.destroy = destroyImpl.destroy;
-Writable.prototype._undestroy = destroyImpl.undestroy;
-Writable.prototype._destroy = function (err, cb) {
-  this.end();
-  cb(err);
-};
-
-/***/ }),
-
-/***/ 5298:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-var Buffer = (__nccwpck_require__(1867).Buffer);
-var util = __nccwpck_require__(3837);
-
-function copyBuffer(src, target, offset) {
-  src.copy(target, offset);
-}
-
-module.exports = function () {
-  function BufferList() {
-    _classCallCheck(this, BufferList);
-
-    this.head = null;
-    this.tail = null;
-    this.length = 0;
-  }
-
-  BufferList.prototype.push = function push(v) {
-    var entry = { data: v, next: null };
-    if (this.length > 0) this.tail.next = entry;else this.head = entry;
-    this.tail = entry;
-    ++this.length;
-  };
-
-  BufferList.prototype.unshift = function unshift(v) {
-    var entry = { data: v, next: this.head };
-    if (this.length === 0) this.tail = entry;
-    this.head = entry;
-    ++this.length;
-  };
-
-  BufferList.prototype.shift = function shift() {
-    if (this.length === 0) return;
-    var ret = this.head.data;
-    if (this.length === 1) this.head = this.tail = null;else this.head = this.head.next;
-    --this.length;
-    return ret;
-  };
-
-  BufferList.prototype.clear = function clear() {
-    this.head = this.tail = null;
-    this.length = 0;
-  };
-
-  BufferList.prototype.join = function join(s) {
-    if (this.length === 0) return '';
-    var p = this.head;
-    var ret = '' + p.data;
-    while (p = p.next) {
-      ret += s + p.data;
-    }return ret;
-  };
-
-  BufferList.prototype.concat = function concat(n) {
-    if (this.length === 0) return Buffer.alloc(0);
-    if (this.length === 1) return this.head.data;
-    var ret = Buffer.allocUnsafe(n >>> 0);
-    var p = this.head;
-    var i = 0;
-    while (p) {
-      copyBuffer(p.data, ret, i);
-      i += p.data.length;
-      p = p.next;
-    }
-    return ret;
-  };
-
-  return BufferList;
-}();
-
-if (util && util.inspect && util.inspect.custom) {
-  module.exports.prototype[util.inspect.custom] = function () {
-    var obj = util.inspect({ length: this.length });
-    return this.constructor.name + ' ' + obj;
-  };
-}
-
-/***/ }),
-
-/***/ 1061:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-/*<replacement>*/
-
-var pna = __nccwpck_require__(7810);
-/*</replacement>*/
-
-// undocumented cb() API, needed for core, not for public API
-function destroy(err, cb) {
-  var _this = this;
-
-  var readableDestroyed = this._readableState && this._readableState.destroyed;
-  var writableDestroyed = this._writableState && this._writableState.destroyed;
-
-  if (readableDestroyed || writableDestroyed) {
-    if (cb) {
-      cb(err);
-    } else if (err && (!this._writableState || !this._writableState.errorEmitted)) {
-      pna.nextTick(emitErrorNT, this, err);
-    }
-    return this;
-  }
-
-  // we set destroyed to true before firing error callbacks in order
-  // to make it re-entrance safe in case destroy() is called within callbacks
-
-  if (this._readableState) {
-    this._readableState.destroyed = true;
-  }
-
-  // if this is a duplex stream mark the writable part as destroyed as well
-  if (this._writableState) {
-    this._writableState.destroyed = true;
-  }
-
-  this._destroy(err || null, function (err) {
-    if (!cb && err) {
-      pna.nextTick(emitErrorNT, _this, err);
-      if (_this._writableState) {
-        _this._writableState.errorEmitted = true;
-      }
-    } else if (cb) {
-      cb(err);
-    }
-  });
-
-  return this;
-}
-
-function undestroy() {
-  if (this._readableState) {
-    this._readableState.destroyed = false;
-    this._readableState.reading = false;
-    this._readableState.ended = false;
-    this._readableState.endEmitted = false;
-  }
-
-  if (this._writableState) {
-    this._writableState.destroyed = false;
-    this._writableState.ended = false;
-    this._writableState.ending = false;
-    this._writableState.finished = false;
-    this._writableState.errorEmitted = false;
-  }
-}
-
-function emitErrorNT(self, err) {
-  self.emit('error', err);
-}
-
-module.exports = {
-  destroy: destroy,
-  undestroy: undestroy
-};
-
-/***/ }),
-
-/***/ 3917:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-module.exports = __nccwpck_require__(2781);
-
-
-/***/ }),
-
-/***/ 1167:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-var Stream = __nccwpck_require__(2781)
-var Writable = __nccwpck_require__(6137)
-
-if (process.env.READABLE_STREAM === 'disable') {
-  module.exports = Stream && Stream.Writable || Writable
-} else {
-  module.exports = Writable
-}
-
-
-/***/ }),
-
 /***/ 4158:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -89111,61 +83585,55 @@ const logform = __nccwpck_require__(2955);
 const { warn } = __nccwpck_require__(8043);
 
 /**
- * Setup to expose.
- * @type {Object}
- */
-const winston = exports;
-
-/**
  * Expose version. Use `require` method for `webpack` support.
  * @type {string}
  */
-winston.version = (__nccwpck_require__(2561)/* .version */ .i8);
+exports.version = __nccwpck_require__(2561).version;
 /**
  * Include transports defined by default by winston
  * @type {Array}
  */
-winston.transports = __nccwpck_require__(7804);
+exports.transports = __nccwpck_require__(7804);
 /**
  * Expose utility methods
  * @type {Object}
  */
-winston.config = __nccwpck_require__(4325);
+exports.config = __nccwpck_require__(4325);
 /**
  * Hoist format-related functionality from logform.
  * @type {Object}
  */
-winston.addColors = logform.levels;
+exports.addColors = logform.levels;
 /**
  * Hoist format-related functionality from logform.
  * @type {Object}
  */
-winston.format = logform.format;
+exports.format = logform.format;
 /**
  * Expose core Logging-related prototypes.
  * @type {function}
  */
-winston.createLogger = __nccwpck_require__(2878);
+exports.createLogger = __nccwpck_require__(2878);
 /**
  * Expose core Logging-related prototypes.
  * @type {Object}
  */
-winston.ExceptionHandler = __nccwpck_require__(7891);
+exports.ExceptionHandler = __nccwpck_require__(7891);
 /**
  * Expose core Logging-related prototypes.
  * @type {Object}
  */
-winston.RejectionHandler = __nccwpck_require__(1080);
+exports.RejectionHandler = __nccwpck_require__(1080);
 /**
  * Expose core Logging-related prototypes.
  * @type {Container}
  */
-winston.Container = __nccwpck_require__(7184);
+exports.Container = __nccwpck_require__(7184);
 /**
  * Expose core Logging-related prototypes.
  * @type {Object}
  */
-winston.Transport = __nccwpck_require__(7281);
+exports.Transport = __nccwpck_require__(7281);
 /**
  * We create and expose a default `Container` to `winston.loggers` so that the
  * programmer may manage multiple `winston.Logger` instances without any
@@ -89177,7 +83645,7 @@ winston.Transport = __nccwpck_require__(7281);
  *   // some-file2.js
  *   const logger = require('winston').loggers.get('something');
  */
-winston.loggers = new winston.Container();
+exports.loggers = new exports.Container();
 
 /**
  * We create and expose a 'defaultLogger' so that the programmer may do the
@@ -89187,10 +83655,10 @@ winston.loggers = new winston.Container();
  *   winston.log('info', 'some message');
  *   winston.error('some error');
  */
-const defaultLogger = winston.createLogger();
+const defaultLogger = exports.createLogger();
 
 // Pass through the target methods onto `winston.
-Object.keys(winston.config.npm.levels)
+Object.keys(exports.config.npm.levels)
   .concat([
     'log',
     'query',
@@ -89204,10 +83672,11 @@ Object.keys(winston.config.npm.levels)
     'unhandleExceptions',
     'handleRejections',
     'unhandleRejections',
-    'configure'
+    'configure',
+    'child'
   ])
   .forEach(
-    method => (winston[method] = (...args) => defaultLogger[method](...args))
+    method => (exports[method] = (...args) => defaultLogger[method](...args))
   );
 
 /**
@@ -89215,25 +83684,25 @@ Object.keys(winston.config.npm.levels)
  * by winston.
  * @type {string}
  */
-Object.defineProperty(winston, 'level', {
+Object.defineProperty(exports, "level", ({
   get() {
     return defaultLogger.level;
   },
   set(val) {
     defaultLogger.level = val;
   }
-});
+}));
 
 /**
  * Define getter for `exceptions` which replaces `handleExceptions` and
  * `unhandleExceptions`.
  * @type {Object}
  */
-Object.defineProperty(winston, 'exceptions', {
+Object.defineProperty(exports, "exceptions", ({
   get() {
     return defaultLogger.exceptions;
   }
-});
+}));
 
 /**
  * Define getters / setters for appropriate properties of the default logger
@@ -89241,7 +83710,7 @@ Object.defineProperty(winston, 'exceptions', {
  * @type {Logger}
  */
 ['exitOnError'].forEach(prop => {
-  Object.defineProperty(winston, prop, {
+  Object.defineProperty(exports, prop, {
     get() {
       return defaultLogger[prop];
     },
@@ -89255,7 +83724,7 @@ Object.defineProperty(winston, 'exceptions', {
  * The default transports and exceptionHandlers for the default winston logger.
  * @type {Object}
  */
-Object.defineProperty(winston, 'default', {
+Object.defineProperty(exports, "default", ({
   get() {
     return {
       exceptionHandlers: defaultLogger.exceptionHandlers,
@@ -89263,22 +83732,22 @@ Object.defineProperty(winston, 'default', {
       transports: defaultLogger.transports
     };
   }
-});
+}));
 
 // Have friendlier breakage notices for properties that were exposed by default
 // on winston < 3.0.
-warn.deprecated(winston, 'setLevels');
-warn.forFunctions(winston, 'useFormat', ['cli']);
-warn.forProperties(winston, 'useFormat', ['padLevels', 'stripColors']);
-warn.forFunctions(winston, 'deprecated', [
+warn.deprecated(exports, 'setLevels');
+warn.forFunctions(exports, 'useFormat', ['cli']);
+warn.forProperties(exports, 'useFormat', ['padLevels', 'stripColors']);
+warn.forFunctions(exports, 'deprecated', [
   'addRewriter',
   'addFilter',
   'clone',
   'extend'
 ]);
-warn.forProperties(winston, 'deprecated', ['emitErrs', 'levelLength']);
+warn.forProperties(exports, 'deprecated', ['emitErrs', 'levelLength']);
 // Throw a useful error when users attempt to run `new winston.Logger`.
-warn.moved(winston, 'createLogger', 'Logger');
+warn.moved(exports, 'createLogger', 'Logger');
 
 
 /***/ }),
@@ -89426,7 +83895,7 @@ module.exports = class Container {
   }
 
   /**
-   * Retreives a `winston.Logger` instance for the specified `id`. If an
+   * Retrieves a `winston.Logger` instance for the specified `id`. If an
    * instance does not exist, one is created.
    * @param {!string} id - The id of the Logger to get.
    * @param {?Object} [options] - Options for the Logger instance.
@@ -89533,7 +84002,7 @@ module.exports = class Container {
 const { LEVEL } = __nccwpck_require__(3937);
 const config = __nccwpck_require__(4325);
 const Logger = __nccwpck_require__(5153);
-const debug = __nccwpck_require__(5009)('winston:create-logger');
+const debug = __nccwpck_require__(3170)('winston:create-logger');
 
 function isLevelEnabledFunctionName(level) {
   return 'is' + level.charAt(0).toUpperCase() + level.slice(1) + 'Enabled';
@@ -89643,8 +84112,8 @@ module.exports = function (opts = {}) {
 
 
 const os = __nccwpck_require__(2037);
-const asyncForEach = __nccwpck_require__(1216);
-const debug = __nccwpck_require__(5009)('winston:exception');
+const asyncForEach = __nccwpck_require__(6286);
+const debug = __nccwpck_require__(3170)('winston:exception');
 const once = __nccwpck_require__(4118);
 const stackTrace = __nccwpck_require__(5315);
 const ExceptionStream = __nccwpck_require__(6268);
@@ -89958,7 +84427,7 @@ module.exports = class ExceptionStream extends Writable {
 
 
 const { Stream, Transform } = __nccwpck_require__(1642);
-const asyncForEach = __nccwpck_require__(1216);
+const asyncForEach = __nccwpck_require__(6286);
 const { LEVEL, SPLAT } = __nccwpck_require__(3937);
 const isStream = __nccwpck_require__(1554);
 const ExceptionHandler = __nccwpck_require__(7891);
@@ -90057,6 +84526,12 @@ class Logger extends Transform {
     // Hoist other options onto this instance.
     this.levels = levels || this.levels || config.npm.levels;
     this.level = level;
+    if (this.exceptions) {
+      this.exceptions.unhandle();
+    }
+    if (this.rejections) {
+      this.rejections.unhandle();
+    }
     this.exceptions = new ExceptionHandler(this);
     this.rejections = new RejectionHandler(this);
     this.profilers = {};
@@ -90170,7 +84645,9 @@ class Logger extends Transform {
         return this;
       }
 
-      this.write({ [LEVEL]: level, level, message: msg });
+      msg = { [LEVEL]: level, level, message: msg };
+      this._addDefaultMeta(msg);
+      this.write(msg);
       return this;
     }
 
@@ -90188,7 +84665,7 @@ class Logger extends Transform {
           message: msg
         });
 
-        if (meta.message) info.message += `${meta.message}`;
+        if (meta.message) info.message = `${info.message} ${meta.message}`;
         if (meta.stack) info.stack = meta.stack;
 
         this.write(info);
@@ -90253,9 +84730,8 @@ class Logger extends Transform {
     // guarantee that the streams callback is invoked so that we can continue flowing.
     try {
       this.push(this.format.transform(info, this.format.options));
-    } catch (ex) {
-      throw ex;
     } finally {
+      this._writableState.sync = false;
       // eslint-disable-next-line callback-return
       callback();
     }
@@ -90323,6 +84799,7 @@ class Logger extends Transform {
    * @returns {Logger} - TODO: add return description.
    */
   remove(transport) {
+    if (!transport) return this;
     let target = transport;
     if (!isStream(transport) || transport.log.length > 2) {
       target = this.transports.filter(
@@ -90351,6 +84828,8 @@ class Logger extends Transform {
    * @returns {Logger} - TODO: add return description.
    */
   close() {
+    this.exceptions.unhandle();
+    this.rejections.unhandle();
     this.clear();
     this.emit('close');
     return this;
@@ -90572,6 +85051,10 @@ class Logger extends Transform {
    */
   _onEvent(event, transport) {
     function transportEvent(err) {
+      // https://github.com/winstonjs/winston/issues/1364
+      if (event === 'error' && !this.transports.includes(transport)) {
+        this.add(transport);
+      }
       this.emit(event, err, transport);
     }
 
@@ -90687,8 +85170,8 @@ module.exports = class Profiler {
 
 
 const os = __nccwpck_require__(2037);
-const asyncForEach = __nccwpck_require__(1216);
-const debug = __nccwpck_require__(5009)('winston:rejection');
+const asyncForEach = __nccwpck_require__(6286);
+const debug = __nccwpck_require__(3170)('winston:rejection');
 const once = __nccwpck_require__(4118);
 const stackTrace = __nccwpck_require__(5315);
 const ExceptionStream = __nccwpck_require__(6268);
@@ -90753,9 +85236,9 @@ module.exports = class RejectionHandler {
    * @returns {mixed} - TODO: add return description.
    */
   getAllInfo(err) {
-    let { message } = err;
-    if (!message && typeof err === 'string') {
-      message = err;
+    let message = null;
+    if (err) {
+      message = typeof err === 'string' ? err : err.message;
     }
 
     return {
@@ -90764,9 +85247,9 @@ module.exports = class RejectionHandler {
       level: 'error',
       message: [
         `unhandledRejection: ${message || '(no error message)'}`,
-        err.stack || '  No stack trace'
+        err && err.stack || '  No stack trace'
       ].join('\n'),
-      stack: err.stack,
+      stack: err && err.stack,
       exception: true,
       date: new Date().toString(),
       process: this.getProcessInfo(),
@@ -90829,7 +85312,7 @@ module.exports = class RejectionHandler {
    */
   _addHandler(handler) {
     if (!this.handlers.has(handler)) {
-      handler.handleExceptions = true;
+      handler.handleRejections = true;
       const wrapper = new ExceptionStream(handler);
       this.handlers.set(handler, wrapper);
       this.logger.pipe(wrapper);
@@ -90998,12 +85481,12 @@ module.exports = (options, iter) => {
         return;
       }
 
-      return fs.read(fd, buffer, 0, buffer.length, pos, (err, bytes) => {
-        if (err) {
+      return fs.read(fd, buffer, 0, buffer.length, pos, (error, bytes) => {
+        if (error) {
           if (!iter) {
-            stream.emit('error', err);
+            stream.emit('error', error);
           } else {
-            iter(err);
+            iter(error);
           }
           stream.destroy();
           return;
@@ -91100,7 +85583,7 @@ module.exports = class Console extends TransportStream {
     this.name = options.name || 'console';
     this.stderrLevels = this._stringArrayToSet(options.stderrLevels);
     this.consoleWarnLevels = this._stringArrayToSet(options.consoleWarnLevels);
-    this.eol = options.eol || os.EOL;
+    this.eol = (typeof options.eol === 'string') ? options.eol : os.EOL;
 
     this.setMaxListeners(30);
   }
@@ -91205,12 +85688,12 @@ module.exports = class Console extends TransportStream {
 
 const fs = __nccwpck_require__(7147);
 const path = __nccwpck_require__(1017);
-const asyncSeries = __nccwpck_require__(9619);
+const asyncSeries = __nccwpck_require__(3780);
 const zlib = __nccwpck_require__(9796);
 const { MESSAGE } = __nccwpck_require__(3937);
 const { Stream, PassThrough } = __nccwpck_require__(1642);
 const TransportStream = __nccwpck_require__(7281);
-const debug = __nccwpck_require__(5009)('winston:file');
+const debug = __nccwpck_require__(3170)('winston:file');
 const os = __nccwpck_require__(2037);
 const tailFile = __nccwpck_require__(1965);
 
@@ -91272,7 +85755,7 @@ module.exports = class File extends TransportStream {
     this.rotationFormat = options.rotationFormat || false;
     this.zippedArchive = options.zippedArchive || false;
     this.maxFiles = options.maxFiles || null;
-    this.eol = options.eol || os.EOL;
+    this.eol = (typeof options.eol === 'string') ? options.eol : os.EOL;
     this.tailable = options.tailable || false;
 
     // Internal state variables representing the number of files this instance
@@ -91539,9 +86022,6 @@ module.exports = class File extends TransportStream {
 
       // 'asc' or 'desc'
       options.order = options.order || 'desc';
-
-      // which fields to select
-      options.fields = options.fields;
 
       return options;
     }
@@ -91912,6 +86392,7 @@ const http = __nccwpck_require__(3685);
 const https = __nccwpck_require__(5687);
 const { Stream } = __nccwpck_require__(1642);
 const TransportStream = __nccwpck_require__(7281);
+const jsonStringify = __nccwpck_require__(7560);
 
 /**
  * Transport for outputting to a json-rpc server.
@@ -91924,9 +86405,11 @@ module.exports = class Http extends TransportStream {
    * persisting log messages and metadata to a terminal or TTY.
    * @param {!Object} [options={}] - Options for this instance.
    */
+  // eslint-disable-next-line max-statements
   constructor(options = {}) {
     super(options);
 
+    this.options = options;
     this.name = options.name || 'http';
     this.ssl = !!options.ssl;
     this.host = options.host || 'localhost';
@@ -91936,6 +86419,12 @@ module.exports = class Http extends TransportStream {
     this.agent = options.agent;
     this.headers = options.headers || {};
     this.headers['content-type'] = 'application/json';
+    this.batch = options.batch || false;
+    this.batchInterval = options.batchInterval || 5000;
+    this.batchCount = options.batchCount || 10;
+    this.batchOptions = [];
+    this.batchTimeoutID = -1;
+    this.batchCallback = {};
 
     if (!this.port) {
       this.port = this.ssl ? 443 : 80;
@@ -92077,14 +86566,76 @@ module.exports = class Http extends TransportStream {
     delete options.auth;
     delete options.path;
 
+    if (this.batch) {
+      this._doBatch(options, callback, auth, path);
+    } else {
+      this._doRequest(options, callback, auth, path);
+    }
+  }
+
+  /**
+   * Send or memorize the options according to batch configuration
+   * @param {function} options - Options to sent the request.
+   * @param {function} callback - Continuation to respond to when complete.
+   * @param {Object?} auth - authentication options
+   * @param {string} path - request path
+   */
+  _doBatch(options, callback, auth, path) {
+    this.batchOptions.push(options);
+    if (this.batchOptions.length === 1) {
+      // First message stored, it's time to start the timeout!
+      const me = this;
+      this.batchCallback = callback;
+      this.batchTimeoutID = setTimeout(function () {
+        // timeout is reached, send all messages to endpoint
+        me.batchTimeoutID = -1;
+        me._doBatchRequest(me.batchCallback, auth, path);
+      }, this.batchInterval);
+    }
+    if (this.batchOptions.length === this.batchCount) {
+      // max batch count is reached, send all messages to endpoint
+      this._doBatchRequest(this.batchCallback, auth, path);
+    }
+  }
+
+  /**
+   * Initiate a request with the memorized batch options, stop the batch timeout
+   * @param {function} callback - Continuation to respond to when complete.
+   * @param {Object?} auth - authentication options
+   * @param {string} path - request path
+   */
+  _doBatchRequest(callback, auth, path) {
+    if (this.batchTimeoutID > 0) {
+      clearTimeout(this.batchTimeoutID);
+      this.batchTimeoutID = -1;
+    }
+    const batchOptionsCopy = this.batchOptions.slice();
+    this.batchOptions = [];
+    this._doRequest(batchOptionsCopy, callback, auth, path);
+  }
+
+  /**
+   * Make a request to a winstond server or any http server which can
+   * handle json-rpc.
+   * @param {function} options - Options to sent the request.
+   * @param {function} callback - Continuation to respond to when complete.
+   * @param {Object?} auth - authentication options
+   * @param {string} path - request path
+   */
+  _doRequest(options, callback, auth, path) {
     // Prepare options for outgoing HTTP request
+    const headers = Object.assign({}, this.headers);
+    if (auth && auth.bearer) {
+      headers.Authorization = `Bearer ${auth.bearer}`;
+    }
     const req = (this.ssl ? https : http).request({
+      ...this.options,
       method: 'POST',
       host: this.host,
       port: this.port,
       path: `/${path.replace(/^\//, '')}`,
-      headers: this.headers,
-      auth: auth ? (`${auth.username}:${auth.password}`) : '',
+      headers: headers,
+      auth: (auth && auth.username && auth.password) ? (`${auth.username}:${auth.password}`) : '',
       agent: this.agent
     });
 
@@ -92092,7 +86643,7 @@ module.exports = class Http extends TransportStream {
     req.on('response', res => (
       res.on('end', () => callback(null, res)).resume()
     ));
-    req.end(Buffer.from(JSON.stringify(options), 'utf8'));
+    req.end(Buffer.from(jsonStringify(options), 'utf8'));
   }
 };
 
@@ -92204,7 +86755,7 @@ module.exports = class Stream extends TransportStream {
     this._stream = options.stream;
     this._stream.setMaxListeners(Infinity);
     this.isObjectMode = options.stream._writableState.objectMode;
-    this.eol = options.eol || os.EOL;
+    this.eol = (typeof options.eol === 'string') ? options.eol : os.EOL;
   }
 
   /**
@@ -92231,6 +86782,1288 @@ module.exports = class Stream extends TransportStream {
   }
 };
 
+
+/***/ }),
+
+/***/ 7291:
+/***/ ((module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+    value: true
+}));
+exports["default"] = asyncify;
+
+var _initialParams = __nccwpck_require__(9077);
+
+var _initialParams2 = _interopRequireDefault(_initialParams);
+
+var _setImmediate = __nccwpck_require__(1620);
+
+var _setImmediate2 = _interopRequireDefault(_setImmediate);
+
+var _wrapAsync = __nccwpck_require__(1481);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Take a sync function and make it async, passing its return value to a
+ * callback. This is useful for plugging sync functions into a waterfall,
+ * series, or other async functions. Any arguments passed to the generated
+ * function will be passed to the wrapped function (except for the final
+ * callback argument). Errors thrown will be passed to the callback.
+ *
+ * If the function passed to `asyncify` returns a Promise, that promises's
+ * resolved/rejected state will be used to call the callback, rather than simply
+ * the synchronous return value.
+ *
+ * This also means you can asyncify ES2017 `async` functions.
+ *
+ * @name asyncify
+ * @static
+ * @memberOf module:Utils
+ * @method
+ * @alias wrapSync
+ * @category Util
+ * @param {Function} func - The synchronous function, or Promise-returning
+ * function to convert to an {@link AsyncFunction}.
+ * @returns {AsyncFunction} An asynchronous wrapper of the `func`. To be
+ * invoked with `(args..., callback)`.
+ * @example
+ *
+ * // passing a regular synchronous function
+ * async.waterfall([
+ *     async.apply(fs.readFile, filename, "utf8"),
+ *     async.asyncify(JSON.parse),
+ *     function (data, next) {
+ *         // data is the result of parsing the text.
+ *         // If there was a parsing error, it would have been caught.
+ *     }
+ * ], callback);
+ *
+ * // passing a function returning a promise
+ * async.waterfall([
+ *     async.apply(fs.readFile, filename, "utf8"),
+ *     async.asyncify(function (contents) {
+ *         return db.model.create(contents);
+ *     }),
+ *     function (model, next) {
+ *         // `model` is the instantiated model object.
+ *         // If there was an error, this function would be skipped.
+ *     }
+ * ], callback);
+ *
+ * // es2017 example, though `asyncify` is not needed if your JS environment
+ * // supports async functions out of the box
+ * var q = async.queue(async.asyncify(async function(file) {
+ *     var intermediateStep = await processFile(file);
+ *     return await somePromise(intermediateStep)
+ * }));
+ *
+ * q.push(files);
+ */
+function asyncify(func) {
+    if ((0, _wrapAsync.isAsync)(func)) {
+        return function (...args /*, callback*/) {
+            const callback = args.pop();
+            const promise = func.apply(this, args);
+            return handlePromise(promise, callback);
+        };
+    }
+
+    return (0, _initialParams2.default)(function (args, callback) {
+        var result;
+        try {
+            result = func.apply(this, args);
+        } catch (e) {
+            return callback(e);
+        }
+        // if result is Promise object
+        if (result && typeof result.then === 'function') {
+            return handlePromise(result, callback);
+        } else {
+            callback(null, result);
+        }
+    });
+}
+
+function handlePromise(promise, callback) {
+    return promise.then(value => {
+        invokeCallback(callback, null, value);
+    }, err => {
+        invokeCallback(callback, err && err.message ? err : new Error(err));
+    });
+}
+
+function invokeCallback(callback, error, value) {
+    try {
+        callback(error, value);
+    } catch (err) {
+        (0, _setImmediate2.default)(e => {
+            throw e;
+        }, err);
+    }
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ 1437:
+/***/ ((module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+    value: true
+}));
+
+var _isArrayLike = __nccwpck_require__(9700);
+
+var _isArrayLike2 = _interopRequireDefault(_isArrayLike);
+
+var _breakLoop = __nccwpck_require__(472);
+
+var _breakLoop2 = _interopRequireDefault(_breakLoop);
+
+var _eachOfLimit = __nccwpck_require__(974);
+
+var _eachOfLimit2 = _interopRequireDefault(_eachOfLimit);
+
+var _once = __nccwpck_require__(6647);
+
+var _once2 = _interopRequireDefault(_once);
+
+var _onlyOnce = __nccwpck_require__(6566);
+
+var _onlyOnce2 = _interopRequireDefault(_onlyOnce);
+
+var _wrapAsync = __nccwpck_require__(1481);
+
+var _wrapAsync2 = _interopRequireDefault(_wrapAsync);
+
+var _awaitify = __nccwpck_require__(4262);
+
+var _awaitify2 = _interopRequireDefault(_awaitify);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+// eachOf implementation optimized for array-likes
+function eachOfArrayLike(coll, iteratee, callback) {
+    callback = (0, _once2.default)(callback);
+    var index = 0,
+        completed = 0,
+        { length } = coll,
+        canceled = false;
+    if (length === 0) {
+        callback(null);
+    }
+
+    function iteratorCallback(err, value) {
+        if (err === false) {
+            canceled = true;
+        }
+        if (canceled === true) return;
+        if (err) {
+            callback(err);
+        } else if (++completed === length || value === _breakLoop2.default) {
+            callback(null);
+        }
+    }
+
+    for (; index < length; index++) {
+        iteratee(coll[index], index, (0, _onlyOnce2.default)(iteratorCallback));
+    }
+}
+
+// a generic version of eachOf which can handle array, object, and iterator cases.
+function eachOfGeneric(coll, iteratee, callback) {
+    return (0, _eachOfLimit2.default)(coll, Infinity, iteratee, callback);
+}
+
+/**
+ * Like [`each`]{@link module:Collections.each}, except that it passes the key (or index) as the second argument
+ * to the iteratee.
+ *
+ * @name eachOf
+ * @static
+ * @memberOf module:Collections
+ * @method
+ * @alias forEachOf
+ * @category Collection
+ * @see [async.each]{@link module:Collections.each}
+ * @param {Array|Iterable|AsyncIterable|Object} coll - A collection to iterate over.
+ * @param {AsyncFunction} iteratee - A function to apply to each
+ * item in `coll`.
+ * The `key` is the item's key, or index in the case of an array.
+ * Invoked with (item, key, callback).
+ * @param {Function} [callback] - A callback which is called when all
+ * `iteratee` functions have finished, or an error occurs. Invoked with (err).
+ * @returns {Promise} a promise, if a callback is omitted
+ * @example
+ *
+ * // dev.json is a file containing a valid json object config for dev environment
+ * // dev.json is a file containing a valid json object config for test environment
+ * // prod.json is a file containing a valid json object config for prod environment
+ * // invalid.json is a file with a malformed json object
+ *
+ * let configs = {}; //global variable
+ * let validConfigFileMap = {dev: 'dev.json', test: 'test.json', prod: 'prod.json'};
+ * let invalidConfigFileMap = {dev: 'dev.json', test: 'test.json', invalid: 'invalid.json'};
+ *
+ * // asynchronous function that reads a json file and parses the contents as json object
+ * function parseFile(file, key, callback) {
+ *     fs.readFile(file, "utf8", function(err, data) {
+ *         if (err) return calback(err);
+ *         try {
+ *             configs[key] = JSON.parse(data);
+ *         } catch (e) {
+ *             return callback(e);
+ *         }
+ *         callback();
+ *     });
+ * }
+ *
+ * // Using callbacks
+ * async.forEachOf(validConfigFileMap, parseFile, function (err) {
+ *     if (err) {
+ *         console.error(err);
+ *     } else {
+ *         console.log(configs);
+ *         // configs is now a map of JSON data, e.g.
+ *         // { dev: //parsed dev.json, test: //parsed test.json, prod: //parsed prod.json}
+ *     }
+ * });
+ *
+ * //Error handing
+ * async.forEachOf(invalidConfigFileMap, parseFile, function (err) {
+ *     if (err) {
+ *         console.error(err);
+ *         // JSON parse error exception
+ *     } else {
+ *         console.log(configs);
+ *     }
+ * });
+ *
+ * // Using Promises
+ * async.forEachOf(validConfigFileMap, parseFile)
+ * .then( () => {
+ *     console.log(configs);
+ *     // configs is now a map of JSON data, e.g.
+ *     // { dev: //parsed dev.json, test: //parsed test.json, prod: //parsed prod.json}
+ * }).catch( err => {
+ *     console.error(err);
+ * });
+ *
+ * //Error handing
+ * async.forEachOf(invalidConfigFileMap, parseFile)
+ * .then( () => {
+ *     console.log(configs);
+ * }).catch( err => {
+ *     console.error(err);
+ *     // JSON parse error exception
+ * });
+ *
+ * // Using async/await
+ * async () => {
+ *     try {
+ *         let result = await async.forEachOf(validConfigFileMap, parseFile);
+ *         console.log(configs);
+ *         // configs is now a map of JSON data, e.g.
+ *         // { dev: //parsed dev.json, test: //parsed test.json, prod: //parsed prod.json}
+ *     }
+ *     catch (err) {
+ *         console.log(err);
+ *     }
+ * }
+ *
+ * //Error handing
+ * async () => {
+ *     try {
+ *         let result = await async.forEachOf(invalidConfigFileMap, parseFile);
+ *         console.log(configs);
+ *     }
+ *     catch (err) {
+ *         console.log(err);
+ *         // JSON parse error exception
+ *     }
+ * }
+ *
+ */
+function eachOf(coll, iteratee, callback) {
+    var eachOfImplementation = (0, _isArrayLike2.default)(coll) ? eachOfArrayLike : eachOfGeneric;
+    return eachOfImplementation(coll, (0, _wrapAsync2.default)(iteratee), callback);
+}
+
+exports["default"] = (0, _awaitify2.default)(eachOf, 3);
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ 974:
+/***/ ((module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+  value: true
+}));
+
+var _eachOfLimit2 = __nccwpck_require__(3017);
+
+var _eachOfLimit3 = _interopRequireDefault(_eachOfLimit2);
+
+var _wrapAsync = __nccwpck_require__(1481);
+
+var _wrapAsync2 = _interopRequireDefault(_wrapAsync);
+
+var _awaitify = __nccwpck_require__(4262);
+
+var _awaitify2 = _interopRequireDefault(_awaitify);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * The same as [`eachOf`]{@link module:Collections.eachOf} but runs a maximum of `limit` async operations at a
+ * time.
+ *
+ * @name eachOfLimit
+ * @static
+ * @memberOf module:Collections
+ * @method
+ * @see [async.eachOf]{@link module:Collections.eachOf}
+ * @alias forEachOfLimit
+ * @category Collection
+ * @param {Array|Iterable|AsyncIterable|Object} coll - A collection to iterate over.
+ * @param {number} limit - The maximum number of async operations at a time.
+ * @param {AsyncFunction} iteratee - An async function to apply to each
+ * item in `coll`. The `key` is the item's key, or index in the case of an
+ * array.
+ * Invoked with (item, key, callback).
+ * @param {Function} [callback] - A callback which is called when all
+ * `iteratee` functions have finished, or an error occurs. Invoked with (err).
+ * @returns {Promise} a promise, if a callback is omitted
+ */
+function eachOfLimit(coll, limit, iteratee, callback) {
+  return (0, _eachOfLimit3.default)(limit)(coll, (0, _wrapAsync2.default)(iteratee), callback);
+}
+
+exports["default"] = (0, _awaitify2.default)(eachOfLimit, 4);
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ 7087:
+/***/ ((module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+  value: true
+}));
+
+var _eachOfLimit = __nccwpck_require__(974);
+
+var _eachOfLimit2 = _interopRequireDefault(_eachOfLimit);
+
+var _awaitify = __nccwpck_require__(4262);
+
+var _awaitify2 = _interopRequireDefault(_awaitify);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * The same as [`eachOf`]{@link module:Collections.eachOf} but runs only a single async operation at a time.
+ *
+ * @name eachOfSeries
+ * @static
+ * @memberOf module:Collections
+ * @method
+ * @see [async.eachOf]{@link module:Collections.eachOf}
+ * @alias forEachOfSeries
+ * @category Collection
+ * @param {Array|Iterable|AsyncIterable|Object} coll - A collection to iterate over.
+ * @param {AsyncFunction} iteratee - An async function to apply to each item in
+ * `coll`.
+ * Invoked with (item, key, callback).
+ * @param {Function} [callback] - A callback which is called when all `iteratee`
+ * functions have finished, or an error occurs. Invoked with (err).
+ * @returns {Promise} a promise, if a callback is omitted
+ */
+function eachOfSeries(coll, iteratee, callback) {
+  return (0, _eachOfLimit2.default)(coll, 1, iteratee, callback);
+}
+exports["default"] = (0, _awaitify2.default)(eachOfSeries, 3);
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ 6286:
+/***/ ((module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+  value: true
+}));
+
+var _eachOf = __nccwpck_require__(1437);
+
+var _eachOf2 = _interopRequireDefault(_eachOf);
+
+var _withoutIndex = __nccwpck_require__(1152);
+
+var _withoutIndex2 = _interopRequireDefault(_withoutIndex);
+
+var _wrapAsync = __nccwpck_require__(1481);
+
+var _wrapAsync2 = _interopRequireDefault(_wrapAsync);
+
+var _awaitify = __nccwpck_require__(4262);
+
+var _awaitify2 = _interopRequireDefault(_awaitify);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Applies the function `iteratee` to each item in `coll`, in parallel.
+ * The `iteratee` is called with an item from the list, and a callback for when
+ * it has finished. If the `iteratee` passes an error to its `callback`, the
+ * main `callback` (for the `each` function) is immediately called with the
+ * error.
+ *
+ * Note, that since this function applies `iteratee` to each item in parallel,
+ * there is no guarantee that the iteratee functions will complete in order.
+ *
+ * @name each
+ * @static
+ * @memberOf module:Collections
+ * @method
+ * @alias forEach
+ * @category Collection
+ * @param {Array|Iterable|AsyncIterable|Object} coll - A collection to iterate over.
+ * @param {AsyncFunction} iteratee - An async function to apply to
+ * each item in `coll`. Invoked with (item, callback).
+ * The array index is not passed to the iteratee.
+ * If you need the index, use `eachOf`.
+ * @param {Function} [callback] - A callback which is called when all
+ * `iteratee` functions have finished, or an error occurs. Invoked with (err).
+ * @returns {Promise} a promise, if a callback is omitted
+ * @example
+ *
+ * // dir1 is a directory that contains file1.txt, file2.txt
+ * // dir2 is a directory that contains file3.txt, file4.txt
+ * // dir3 is a directory that contains file5.txt
+ * // dir4 does not exist
+ *
+ * const fileList = [ 'dir1/file2.txt', 'dir2/file3.txt', 'dir/file5.txt'];
+ * const withMissingFileList = ['dir1/file1.txt', 'dir4/file2.txt'];
+ *
+ * // asynchronous function that deletes a file
+ * const deleteFile = function(file, callback) {
+ *     fs.unlink(file, callback);
+ * };
+ *
+ * // Using callbacks
+ * async.each(fileList, deleteFile, function(err) {
+ *     if( err ) {
+ *         console.log(err);
+ *     } else {
+ *         console.log('All files have been deleted successfully');
+ *     }
+ * });
+ *
+ * // Error Handling
+ * async.each(withMissingFileList, deleteFile, function(err){
+ *     console.log(err);
+ *     // [ Error: ENOENT: no such file or directory ]
+ *     // since dir4/file2.txt does not exist
+ *     // dir1/file1.txt could have been deleted
+ * });
+ *
+ * // Using Promises
+ * async.each(fileList, deleteFile)
+ * .then( () => {
+ *     console.log('All files have been deleted successfully');
+ * }).catch( err => {
+ *     console.log(err);
+ * });
+ *
+ * // Error Handling
+ * async.each(fileList, deleteFile)
+ * .then( () => {
+ *     console.log('All files have been deleted successfully');
+ * }).catch( err => {
+ *     console.log(err);
+ *     // [ Error: ENOENT: no such file or directory ]
+ *     // since dir4/file2.txt does not exist
+ *     // dir1/file1.txt could have been deleted
+ * });
+ *
+ * // Using async/await
+ * async () => {
+ *     try {
+ *         await async.each(files, deleteFile);
+ *     }
+ *     catch (err) {
+ *         console.log(err);
+ *     }
+ * }
+ *
+ * // Error Handling
+ * async () => {
+ *     try {
+ *         await async.each(withMissingFileList, deleteFile);
+ *     }
+ *     catch (err) {
+ *         console.log(err);
+ *         // [ Error: ENOENT: no such file or directory ]
+ *         // since dir4/file2.txt does not exist
+ *         // dir1/file1.txt could have been deleted
+ *     }
+ * }
+ *
+ */
+function eachLimit(coll, iteratee, callback) {
+  return (0, _eachOf2.default)(coll, (0, _withoutIndex2.default)((0, _wrapAsync2.default)(iteratee)), callback);
+}
+
+exports["default"] = (0, _awaitify2.default)(eachLimit, 3);
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ 1830:
+/***/ ((module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+    value: true
+}));
+exports["default"] = asyncEachOfLimit;
+
+var _breakLoop = __nccwpck_require__(472);
+
+var _breakLoop2 = _interopRequireDefault(_breakLoop);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+// for async generators
+function asyncEachOfLimit(generator, limit, iteratee, callback) {
+    let done = false;
+    let canceled = false;
+    let awaiting = false;
+    let running = 0;
+    let idx = 0;
+
+    function replenish() {
+        //console.log('replenish')
+        if (running >= limit || awaiting || done) return;
+        //console.log('replenish awaiting')
+        awaiting = true;
+        generator.next().then(({ value, done: iterDone }) => {
+            //console.log('got value', value)
+            if (canceled || done) return;
+            awaiting = false;
+            if (iterDone) {
+                done = true;
+                if (running <= 0) {
+                    //console.log('done nextCb')
+                    callback(null);
+                }
+                return;
+            }
+            running++;
+            iteratee(value, idx, iterateeCallback);
+            idx++;
+            replenish();
+        }).catch(handleError);
+    }
+
+    function iterateeCallback(err, result) {
+        //console.log('iterateeCallback')
+        running -= 1;
+        if (canceled) return;
+        if (err) return handleError(err);
+
+        if (err === false) {
+            done = true;
+            canceled = true;
+            return;
+        }
+
+        if (result === _breakLoop2.default || done && running <= 0) {
+            done = true;
+            //console.log('done iterCb')
+            return callback(null);
+        }
+        replenish();
+    }
+
+    function handleError(err) {
+        if (canceled) return;
+        awaiting = false;
+        done = true;
+        callback(err);
+    }
+
+    replenish();
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ 4262:
+/***/ ((module, exports) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+    value: true
+}));
+exports["default"] = awaitify;
+// conditionally promisify a function.
+// only return a promise if a callback is omitted
+function awaitify(asyncFn, arity = asyncFn.length) {
+    if (!arity) throw new Error('arity is undefined');
+    function awaitable(...args) {
+        if (typeof args[arity - 1] === 'function') {
+            return asyncFn.apply(this, args);
+        }
+
+        return new Promise((resolve, reject) => {
+            args[arity - 1] = (err, ...cbArgs) => {
+                if (err) return reject(err);
+                resolve(cbArgs.length > 1 ? cbArgs : cbArgs[0]);
+            };
+            asyncFn.apply(this, args);
+        });
+    }
+
+    return awaitable;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ 472:
+/***/ ((module, exports) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+  value: true
+}));
+// A temporary value used to identify if the loop should be broken.
+// See #1064, #1293
+const breakLoop = {};
+exports["default"] = breakLoop;
+module.exports = exports["default"];
+
+/***/ }),
+
+/***/ 3017:
+/***/ ((module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+    value: true
+}));
+
+var _once = __nccwpck_require__(6647);
+
+var _once2 = _interopRequireDefault(_once);
+
+var _iterator = __nccwpck_require__(2166);
+
+var _iterator2 = _interopRequireDefault(_iterator);
+
+var _onlyOnce = __nccwpck_require__(6566);
+
+var _onlyOnce2 = _interopRequireDefault(_onlyOnce);
+
+var _wrapAsync = __nccwpck_require__(1481);
+
+var _asyncEachOfLimit = __nccwpck_require__(1830);
+
+var _asyncEachOfLimit2 = _interopRequireDefault(_asyncEachOfLimit);
+
+var _breakLoop = __nccwpck_require__(472);
+
+var _breakLoop2 = _interopRequireDefault(_breakLoop);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+exports["default"] = limit => {
+    return (obj, iteratee, callback) => {
+        callback = (0, _once2.default)(callback);
+        if (limit <= 0) {
+            throw new RangeError('concurrency limit cannot be less than 1');
+        }
+        if (!obj) {
+            return callback(null);
+        }
+        if ((0, _wrapAsync.isAsyncGenerator)(obj)) {
+            return (0, _asyncEachOfLimit2.default)(obj, limit, iteratee, callback);
+        }
+        if ((0, _wrapAsync.isAsyncIterable)(obj)) {
+            return (0, _asyncEachOfLimit2.default)(obj[Symbol.asyncIterator](), limit, iteratee, callback);
+        }
+        var nextElem = (0, _iterator2.default)(obj);
+        var done = false;
+        var canceled = false;
+        var running = 0;
+        var looping = false;
+
+        function iterateeCallback(err, value) {
+            if (canceled) return;
+            running -= 1;
+            if (err) {
+                done = true;
+                callback(err);
+            } else if (err === false) {
+                done = true;
+                canceled = true;
+            } else if (value === _breakLoop2.default || done && running <= 0) {
+                done = true;
+                return callback(null);
+            } else if (!looping) {
+                replenish();
+            }
+        }
+
+        function replenish() {
+            looping = true;
+            while (running < limit && !done) {
+                var elem = nextElem();
+                if (elem === null) {
+                    done = true;
+                    if (running <= 0) {
+                        callback(null);
+                    }
+                    return;
+                }
+                running += 1;
+                iteratee(elem.value, elem.key, (0, _onlyOnce2.default)(iterateeCallback));
+            }
+            looping = false;
+        }
+
+        replenish();
+    };
+};
+
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ 8109:
+/***/ ((module, exports) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+    value: true
+}));
+
+exports["default"] = function (coll) {
+    return coll[Symbol.iterator] && coll[Symbol.iterator]();
+};
+
+module.exports = exports["default"];
+
+/***/ }),
+
+/***/ 9077:
+/***/ ((module, exports) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+    value: true
+}));
+
+exports["default"] = function (fn) {
+    return function (...args /*, callback*/) {
+        var callback = args.pop();
+        return fn.call(this, args, callback);
+    };
+};
+
+module.exports = exports["default"];
+
+/***/ }),
+
+/***/ 9700:
+/***/ ((module, exports) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+    value: true
+}));
+exports["default"] = isArrayLike;
+function isArrayLike(value) {
+    return value && typeof value.length === 'number' && value.length >= 0 && value.length % 1 === 0;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ 2166:
+/***/ ((module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+    value: true
+}));
+exports["default"] = createIterator;
+
+var _isArrayLike = __nccwpck_require__(9700);
+
+var _isArrayLike2 = _interopRequireDefault(_isArrayLike);
+
+var _getIterator = __nccwpck_require__(8109);
+
+var _getIterator2 = _interopRequireDefault(_getIterator);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function createArrayIterator(coll) {
+    var i = -1;
+    var len = coll.length;
+    return function next() {
+        return ++i < len ? { value: coll[i], key: i } : null;
+    };
+}
+
+function createES2015Iterator(iterator) {
+    var i = -1;
+    return function next() {
+        var item = iterator.next();
+        if (item.done) return null;
+        i++;
+        return { value: item.value, key: i };
+    };
+}
+
+function createObjectIterator(obj) {
+    var okeys = obj ? Object.keys(obj) : [];
+    var i = -1;
+    var len = okeys.length;
+    return function next() {
+        var key = okeys[++i];
+        if (key === '__proto__') {
+            return next();
+        }
+        return i < len ? { value: obj[key], key } : null;
+    };
+}
+
+function createIterator(coll) {
+    if ((0, _isArrayLike2.default)(coll)) {
+        return createArrayIterator(coll);
+    }
+
+    var iterator = (0, _getIterator2.default)(coll);
+    return iterator ? createES2015Iterator(iterator) : createObjectIterator(coll);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ 6647:
+/***/ ((module, exports) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+    value: true
+}));
+exports["default"] = once;
+function once(fn) {
+    function wrapper(...args) {
+        if (fn === null) return;
+        var callFn = fn;
+        fn = null;
+        callFn.apply(this, args);
+    }
+    Object.assign(wrapper, fn);
+    return wrapper;
+}
+module.exports = exports["default"];
+
+/***/ }),
+
+/***/ 6566:
+/***/ ((module, exports) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+    value: true
+}));
+exports["default"] = onlyOnce;
+function onlyOnce(fn) {
+    return function (...args) {
+        if (fn === null) throw new Error("Callback was already called.");
+        var callFn = fn;
+        fn = null;
+        callFn.apply(this, args);
+    };
+}
+module.exports = exports["default"];
+
+/***/ }),
+
+/***/ 8653:
+/***/ ((module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+    value: true
+}));
+
+var _isArrayLike = __nccwpck_require__(9700);
+
+var _isArrayLike2 = _interopRequireDefault(_isArrayLike);
+
+var _wrapAsync = __nccwpck_require__(1481);
+
+var _wrapAsync2 = _interopRequireDefault(_wrapAsync);
+
+var _awaitify = __nccwpck_require__(4262);
+
+var _awaitify2 = _interopRequireDefault(_awaitify);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+exports["default"] = (0, _awaitify2.default)((eachfn, tasks, callback) => {
+    var results = (0, _isArrayLike2.default)(tasks) ? [] : {};
+
+    eachfn(tasks, (task, key, taskCb) => {
+        (0, _wrapAsync2.default)(task)((err, ...result) => {
+            if (result.length < 2) {
+                [result] = result;
+            }
+            results[key] = result;
+            taskCb(err);
+        });
+    }, err => callback(err, results));
+}, 3);
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ 1620:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+    value: true
+}));
+exports.fallback = fallback;
+exports.wrap = wrap;
+/* istanbul ignore file */
+
+var hasQueueMicrotask = exports.hasQueueMicrotask = typeof queueMicrotask === 'function' && queueMicrotask;
+var hasSetImmediate = exports.hasSetImmediate = typeof setImmediate === 'function' && setImmediate;
+var hasNextTick = exports.hasNextTick = typeof process === 'object' && typeof process.nextTick === 'function';
+
+function fallback(fn) {
+    setTimeout(fn, 0);
+}
+
+function wrap(defer) {
+    return (fn, ...args) => defer(() => fn(...args));
+}
+
+var _defer;
+
+if (hasQueueMicrotask) {
+    _defer = queueMicrotask;
+} else if (hasSetImmediate) {
+    _defer = setImmediate;
+} else if (hasNextTick) {
+    _defer = process.nextTick;
+} else {
+    _defer = fallback;
+}
+
+exports["default"] = wrap(_defer);
+
+/***/ }),
+
+/***/ 1152:
+/***/ ((module, exports) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+    value: true
+}));
+exports["default"] = _withoutIndex;
+function _withoutIndex(iteratee) {
+    return (value, index, callback) => iteratee(value, callback);
+}
+module.exports = exports["default"];
+
+/***/ }),
+
+/***/ 1481:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+    value: true
+}));
+exports.isAsyncIterable = exports.isAsyncGenerator = exports.isAsync = undefined;
+
+var _asyncify = __nccwpck_require__(7291);
+
+var _asyncify2 = _interopRequireDefault(_asyncify);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function isAsync(fn) {
+    return fn[Symbol.toStringTag] === 'AsyncFunction';
+}
+
+function isAsyncGenerator(fn) {
+    return fn[Symbol.toStringTag] === 'AsyncGenerator';
+}
+
+function isAsyncIterable(obj) {
+    return typeof obj[Symbol.asyncIterator] === 'function';
+}
+
+function wrapAsync(asyncFn) {
+    if (typeof asyncFn !== 'function') throw new Error('expected a function');
+    return isAsync(asyncFn) ? (0, _asyncify2.default)(asyncFn) : asyncFn;
+}
+
+exports["default"] = wrapAsync;
+exports.isAsync = isAsync;
+exports.isAsyncGenerator = isAsyncGenerator;
+exports.isAsyncIterable = isAsyncIterable;
+
+/***/ }),
+
+/***/ 3780:
+/***/ ((module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+  value: true
+}));
+exports["default"] = series;
+
+var _parallel2 = __nccwpck_require__(8653);
+
+var _parallel3 = _interopRequireDefault(_parallel2);
+
+var _eachOfSeries = __nccwpck_require__(7087);
+
+var _eachOfSeries2 = _interopRequireDefault(_eachOfSeries);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Run the functions in the `tasks` collection in series, each one running once
+ * the previous function has completed. If any functions in the series pass an
+ * error to its callback, no more functions are run, and `callback` is
+ * immediately called with the value of the error. Otherwise, `callback`
+ * receives an array of results when `tasks` have completed.
+ *
+ * It is also possible to use an object instead of an array. Each property will
+ * be run as a function, and the results will be passed to the final `callback`
+ * as an object instead of an array. This can be a more readable way of handling
+ *  results from {@link async.series}.
+ *
+ * **Note** that while many implementations preserve the order of object
+ * properties, the [ECMAScript Language Specification](http://www.ecma-international.org/ecma-262/5.1/#sec-8.6)
+ * explicitly states that
+ *
+ * > The mechanics and order of enumerating the properties is not specified.
+ *
+ * So if you rely on the order in which your series of functions are executed,
+ * and want this to work on all platforms, consider using an array.
+ *
+ * @name series
+ * @static
+ * @memberOf module:ControlFlow
+ * @method
+ * @category Control Flow
+ * @param {Array|Iterable|AsyncIterable|Object} tasks - A collection containing
+ * [async functions]{@link AsyncFunction} to run in series.
+ * Each function can complete with any number of optional `result` values.
+ * @param {Function} [callback] - An optional callback to run once all the
+ * functions have completed. This function gets a results array (or object)
+ * containing all the result arguments passed to the `task` callbacks. Invoked
+ * with (err, result).
+ * @return {Promise} a promise, if no callback is passed
+ * @example
+ *
+ * //Using Callbacks
+ * async.series([
+ *     function(callback) {
+ *         setTimeout(function() {
+ *             // do some async task
+ *             callback(null, 'one');
+ *         }, 200);
+ *     },
+ *     function(callback) {
+ *         setTimeout(function() {
+ *             // then do another async task
+ *             callback(null, 'two');
+ *         }, 100);
+ *     }
+ * ], function(err, results) {
+ *     console.log(results);
+ *     // results is equal to ['one','two']
+ * });
+ *
+ * // an example using objects instead of arrays
+ * async.series({
+ *     one: function(callback) {
+ *         setTimeout(function() {
+ *             // do some async task
+ *             callback(null, 1);
+ *         }, 200);
+ *     },
+ *     two: function(callback) {
+ *         setTimeout(function() {
+ *             // then do another async task
+ *             callback(null, 2);
+ *         }, 100);
+ *     }
+ * }, function(err, results) {
+ *     console.log(results);
+ *     // results is equal to: { one: 1, two: 2 }
+ * });
+ *
+ * //Using Promises
+ * async.series([
+ *     function(callback) {
+ *         setTimeout(function() {
+ *             callback(null, 'one');
+ *         }, 200);
+ *     },
+ *     function(callback) {
+ *         setTimeout(function() {
+ *             callback(null, 'two');
+ *         }, 100);
+ *     }
+ * ]).then(results => {
+ *     console.log(results);
+ *     // results is equal to ['one','two']
+ * }).catch(err => {
+ *     console.log(err);
+ * });
+ *
+ * // an example using an object instead of an array
+ * async.series({
+ *     one: function(callback) {
+ *         setTimeout(function() {
+ *             // do some async task
+ *             callback(null, 1);
+ *         }, 200);
+ *     },
+ *     two: function(callback) {
+ *         setTimeout(function() {
+ *             // then do another async task
+ *             callback(null, 2);
+ *         }, 100);
+ *     }
+ * }).then(results => {
+ *     console.log(results);
+ *     // results is equal to: { one: 1, two: 2 }
+ * }).catch(err => {
+ *     console.log(err);
+ * });
+ *
+ * //Using async/await
+ * async () => {
+ *     try {
+ *         let results = await async.series([
+ *             function(callback) {
+ *                 setTimeout(function() {
+ *                     // do some async task
+ *                     callback(null, 'one');
+ *                 }, 200);
+ *             },
+ *             function(callback) {
+ *                 setTimeout(function() {
+ *                     // then do another async task
+ *                     callback(null, 'two');
+ *                 }, 100);
+ *             }
+ *         ]);
+ *         console.log(results);
+ *         // results is equal to ['one','two']
+ *     }
+ *     catch (err) {
+ *         console.log(err);
+ *     }
+ * }
+ *
+ * // an example using an object instead of an array
+ * async () => {
+ *     try {
+ *         let results = await async.parallel({
+ *             one: function(callback) {
+ *                 setTimeout(function() {
+ *                     // do some async task
+ *                     callback(null, 1);
+ *                 }, 200);
+ *             },
+ *            two: function(callback) {
+ *                 setTimeout(function() {
+ *                     // then do another async task
+ *                     callback(null, 2);
+ *                 }, 100);
+ *            }
+ *         });
+ *         console.log(results);
+ *         // results is equal to: { one: 1, two: 2 }
+ *     }
+ *     catch (err) {
+ *         console.log(err);
+ *     }
+ * }
+ *
+ */
+function series(tasks, callback) {
+  return (0, _parallel3.default)(_eachOfSeries2.default, tasks, callback);
+}
+module.exports = exports['default'];
 
 /***/ }),
 
@@ -92461,6 +88294,14 @@ ZipStream.prototype.finalize = function() {
 
 /***/ }),
 
+/***/ 686:
+/***/ ((module) => {
+
+module.exports = eval("require")("../declarations/options");
+
+
+/***/ }),
+
 /***/ 3464:
 /***/ ((__unused_webpack_module, exports) => {
 
@@ -92658,7 +88499,7 @@ module.exports = require("zlib");
 /***/ ((module) => {
 
 "use strict";
-module.exports = {"i8":"3.2.1"};
+module.exports = {"version":"3.7.2"};
 
 /***/ })
 
