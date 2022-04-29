@@ -1,6 +1,5 @@
 {
   "name": "webext-buildtools-chrome-crx-action",
-  "version": "1.0.7",
   "private": false,
   "description": "Build signed crx file for your WebExtension",
   "main": "lib/main.js",
