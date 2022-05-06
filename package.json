@@ -30,7 +30,7 @@
   "dependencies": {
     "@actions/core": "^1.7.0",
     "github-actions-utils": "^1.0.8",
-    "webext-buildtools-chrome-crx-builder": "^1.0.16",
+    "webext-buildtools-chrome-crx-builder": "1.0.16",
     "winston": "^3.7.2"
   },
   "devDependencies": {
