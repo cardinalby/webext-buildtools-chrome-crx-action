@@ -1,11 +1,11 @@
-import { actionInputs as inputs, transformIfSet } from 'github-actions-utils';
+import { actionInputs as inputs } from 'github-actions-utils';
 
 export const actionInputs = {
-    zipFilePath: inputs.getWsPath('zipFilePath', true),
-    crxFilePath: inputs.getWsPath('crxFilePath', true),
+    zipFilePath: inputs.getString('zipFilePath', true),
+    crxFilePath: inputs.getString('crxFilePath', true),
     privateKey: inputs.getString('privateKey', true, true),
 
-    updateXmlPath: inputs.getWsPath('updateXmlPath', false),
+    updateXmlPath: inputs.getString('updateXmlPath', false),
     updateXmlCodebaseUrl: inputs.getString('updateXmlCodebaseUrl', false),
     updateXmlAppId: inputs.getString('updateXmlAppId', false)
 }
