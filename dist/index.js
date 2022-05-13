@@ -10,10 +10,10 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.actionInputs = void 0;
 const github_actions_utils_1 = __nccwpck_require__(8267);
 exports.actionInputs = {
-    zipFilePath: github_actions_utils_1.actionInputs.getWsPath('zipFilePath', true),
-    crxFilePath: github_actions_utils_1.actionInputs.getWsPath('crxFilePath', true),
+    zipFilePath: github_actions_utils_1.actionInputs.getString('zipFilePath', true),
+    crxFilePath: github_actions_utils_1.actionInputs.getString('crxFilePath', true),
     privateKey: github_actions_utils_1.actionInputs.getString('privateKey', true, true),
-    updateXmlPath: github_actions_utils_1.actionInputs.getWsPath('updateXmlPath', false),
+    updateXmlPath: github_actions_utils_1.actionInputs.getString('updateXmlPath', false),
     updateXmlCodebaseUrl: github_actions_utils_1.actionInputs.getString('updateXmlCodebaseUrl', false),
     updateXmlAppId: github_actions_utils_1.actionInputs.getString('updateXmlAppId', false)
 };
@@ -576,10 +576,15 @@ function getIDToken(aud) {
 }
 exports.getIDToken = getIDToken;
 /**
- * Markdown summary exports
+ * Summary exports
  */
-var markdown_summary_1 = __nccwpck_require__(8042);
-Object.defineProperty(exports, "markdownSummary", ({ enumerable: true, get: function () { return markdown_summary_1.markdownSummary; } }));
+var summary_1 = __nccwpck_require__(1327);
+Object.defineProperty(exports, "summary", ({ enumerable: true, get: function () { return summary_1.summary; } }));
+/**
+ * @deprecated use core.summary
+ */
+var summary_2 = __nccwpck_require__(1327);
+Object.defineProperty(exports, "markdownSummary", ({ enumerable: true, get: function () { return summary_2.markdownSummary; } }));
 //# sourceMappingURL=core.js.map
 
 /***/ }),
@@ -630,292 +635,6 @@ function issueCommand(command, message) {
 }
 exports.issueCommand = issueCommand;
 //# sourceMappingURL=file-command.js.map
-
-/***/ }),
-
-/***/ 8042:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
-
-"use strict";
-
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.markdownSummary = exports.SUMMARY_DOCS_URL = exports.SUMMARY_ENV_VAR = void 0;
-const os_1 = __nccwpck_require__(2037);
-const fs_1 = __nccwpck_require__(7147);
-const { access, appendFile, writeFile } = fs_1.promises;
-exports.SUMMARY_ENV_VAR = 'GITHUB_STEP_SUMMARY';
-exports.SUMMARY_DOCS_URL = 'https://docs.github.com/actions/using-workflows/workflow-commands-for-github-actions#adding-a-markdown-summary';
-class MarkdownSummary {
-    constructor() {
-        this._buffer = '';
-    }
-    /**
-     * Finds the summary file path from the environment, rejects if env var is not found or file does not exist
-     * Also checks r/w permissions.
-     *
-     * @returns step summary file path
-     */
-    filePath() {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (this._filePath) {
-                return this._filePath;
-            }
-            const pathFromEnv = process.env[exports.SUMMARY_ENV_VAR];
-            if (!pathFromEnv) {
-                throw new Error(`Unable to find environment variable for $${exports.SUMMARY_ENV_VAR}. Check if your runtime environment supports markdown summaries.`);
-            }
-            try {
-                yield access(pathFromEnv, fs_1.constants.R_OK | fs_1.constants.W_OK);
-            }
-            catch (_a) {
-                throw new Error(`Unable to access summary file: '${pathFromEnv}'. Check if the file has correct read/write permissions.`);
-            }
-            this._filePath = pathFromEnv;
-            return this._filePath;
-        });
-    }
-    /**
-     * Wraps content in an HTML tag, adding any HTML attributes
-     *
-     * @param {string} tag HTML tag to wrap
-     * @param {string | null} content content within the tag
-     * @param {[attribute: string]: string} attrs key-value list of HTML attributes to add
-     *
-     * @returns {string} content wrapped in HTML element
-     */
-    wrap(tag, content, attrs = {}) {
-        const htmlAttrs = Object.entries(attrs)
-            .map(([key, value]) => ` ${key}="${value}"`)
-            .join('');
-        if (!content) {
-            return `<${tag}${htmlAttrs}>`;
-        }
-        return `<${tag}${htmlAttrs}>${content}</${tag}>`;
-    }
-    /**
-     * Writes text in the buffer to the summary buffer file and empties buffer. Will append by default.
-     *
-     * @param {SummaryWriteOptions} [options] (optional) options for write operation
-     *
-     * @returns {Promise<MarkdownSummary>} markdown summary instance
-     */
-    write(options) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const overwrite = !!(options === null || options === void 0 ? void 0 : options.overwrite);
-            const filePath = yield this.filePath();
-            const writeFunc = overwrite ? writeFile : appendFile;
-            yield writeFunc(filePath, this._buffer, { encoding: 'utf8' });
-            return this.emptyBuffer();
-        });
-    }
-    /**
-     * Clears the summary buffer and wipes the summary file
-     *
-     * @returns {MarkdownSummary} markdown summary instance
-     */
-    clear() {
-        return __awaiter(this, void 0, void 0, function* () {
-            return this.emptyBuffer().write({ overwrite: true });
-        });
-    }
-    /**
-     * Returns the current summary buffer as a string
-     *
-     * @returns {string} string of summary buffer
-     */
-    stringify() {
-        return this._buffer;
-    }
-    /**
-     * If the summary buffer is empty
-     *
-     * @returns {boolen} true if the buffer is empty
-     */
-    isEmptyBuffer() {
-        return this._buffer.length === 0;
-    }
-    /**
-     * Resets the summary buffer without writing to summary file
-     *
-     * @returns {MarkdownSummary} markdown summary instance
-     */
-    emptyBuffer() {
-        this._buffer = '';
-        return this;
-    }
-    /**
-     * Adds raw text to the summary buffer
-     *
-     * @param {string} text content to add
-     * @param {boolean} [addEOL=false] (optional) append an EOL to the raw text (default: false)
-     *
-     * @returns {MarkdownSummary} markdown summary instance
-     */
-    addRaw(text, addEOL = false) {
-        this._buffer += text;
-        return addEOL ? this.addEOL() : this;
-    }
-    /**
-     * Adds the operating system-specific end-of-line marker to the buffer
-     *
-     * @returns {MarkdownSummary} markdown summary instance
-     */
-    addEOL() {
-        return this.addRaw(os_1.EOL);
-    }
-    /**
-     * Adds an HTML codeblock to the summary buffer
-     *
-     * @param {string} code content to render within fenced code block
-     * @param {string} lang (optional) language to syntax highlight code
-     *
-     * @returns {MarkdownSummary} markdown summary instance
-     */
-    addCodeBlock(code, lang) {
-        const attrs = Object.assign({}, (lang && { lang }));
-        const element = this.wrap('pre', this.wrap('code', code), attrs);
-        return this.addRaw(element).addEOL();
-    }
-    /**
-     * Adds an HTML list to the summary buffer
-     *
-     * @param {string[]} items list of items to render
-     * @param {boolean} [ordered=false] (optional) if the rendered list should be ordered or not (default: false)
-     *
-     * @returns {MarkdownSummary} markdown summary instance
-     */
-    addList(items, ordered = false) {
-        const tag = ordered ? 'ol' : 'ul';
-        const listItems = items.map(item => this.wrap('li', item)).join('');
-        const element = this.wrap(tag, listItems);
-        return this.addRaw(element).addEOL();
-    }
-    /**
-     * Adds an HTML table to the summary buffer
-     *
-     * @param {SummaryTableCell[]} rows table rows
-     *
-     * @returns {MarkdownSummary} markdown summary instance
-     */
-    addTable(rows) {
-        const tableBody = rows
-            .map(row => {
-            const cells = row
-                .map(cell => {
-                if (typeof cell === 'string') {
-                    return this.wrap('td', cell);
-                }
-                const { header, data, colspan, rowspan } = cell;
-                const tag = header ? 'th' : 'td';
-                const attrs = Object.assign(Object.assign({}, (colspan && { colspan })), (rowspan && { rowspan }));
-                return this.wrap(tag, data, attrs);
-            })
-                .join('');
-            return this.wrap('tr', cells);
-        })
-            .join('');
-        const element = this.wrap('table', tableBody);
-        return this.addRaw(element).addEOL();
-    }
-    /**
-     * Adds a collapsable HTML details element to the summary buffer
-     *
-     * @param {string} label text for the closed state
-     * @param {string} content collapsable content
-     *
-     * @returns {MarkdownSummary} markdown summary instance
-     */
-    addDetails(label, content) {
-        const element = this.wrap('details', this.wrap('summary', label) + content);
-        return this.addRaw(element).addEOL();
-    }
-    /**
-     * Adds an HTML image tag to the summary buffer
-     *
-     * @param {string} src path to the image you to embed
-     * @param {string} alt text description of the image
-     * @param {SummaryImageOptions} options (optional) addition image attributes
-     *
-     * @returns {MarkdownSummary} markdown summary instance
-     */
-    addImage(src, alt, options) {
-        const { width, height } = options || {};
-        const attrs = Object.assign(Object.assign({}, (width && { width })), (height && { height }));
-        const element = this.wrap('img', null, Object.assign({ src, alt }, attrs));
-        return this.addRaw(element).addEOL();
-    }
-    /**
-     * Adds an HTML section heading element
-     *
-     * @param {string} text heading text
-     * @param {number | string} [level=1] (optional) the heading level, default: 1
-     *
-     * @returns {MarkdownSummary} markdown summary instance
-     */
-    addHeading(text, level) {
-        const tag = `h${level}`;
-        const allowedTag = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag)
-            ? tag
-            : 'h1';
-        const element = this.wrap(allowedTag, text);
-        return this.addRaw(element).addEOL();
-    }
-    /**
-     * Adds an HTML thematic break (<hr>) to the summary buffer
-     *
-     * @returns {MarkdownSummary} markdown summary instance
-     */
-    addSeparator() {
-        const element = this.wrap('hr', null);
-        return this.addRaw(element).addEOL();
-    }
-    /**
-     * Adds an HTML line break (<br>) to the summary buffer
-     *
-     * @returns {MarkdownSummary} markdown summary instance
-     */
-    addBreak() {
-        const element = this.wrap('br', null);
-        return this.addRaw(element).addEOL();
-    }
-    /**
-     * Adds an HTML blockquote to the summary buffer
-     *
-     * @param {string} text quote text
-     * @param {string} cite (optional) citation url
-     *
-     * @returns {MarkdownSummary} markdown summary instance
-     */
-    addQuote(text, cite) {
-        const attrs = Object.assign({}, (cite && { cite }));
-        const element = this.wrap('blockquote', text, attrs);
-        return this.addRaw(element).addEOL();
-    }
-    /**
-     * Adds an HTML anchor tag to the summary buffer
-     *
-     * @param {string} text link text/content
-     * @param {string} href hyperlink
-     *
-     * @returns {MarkdownSummary} markdown summary instance
-     */
-    addLink(text, href) {
-        const element = this.wrap('a', text, { href });
-        return this.addRaw(element).addEOL();
-    }
-}
-// singleton export
-exports.markdownSummary = new MarkdownSummary();
-//# sourceMappingURL=markdown-summary.js.map
 
 /***/ }),
 
@@ -1000,6 +719,296 @@ class OidcClient {
 }
 exports.OidcClient = OidcClient;
 //# sourceMappingURL=oidc-utils.js.map
+
+/***/ }),
+
+/***/ 1327:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.summary = exports.markdownSummary = exports.SUMMARY_DOCS_URL = exports.SUMMARY_ENV_VAR = void 0;
+const os_1 = __nccwpck_require__(2037);
+const fs_1 = __nccwpck_require__(7147);
+const { access, appendFile, writeFile } = fs_1.promises;
+exports.SUMMARY_ENV_VAR = 'GITHUB_STEP_SUMMARY';
+exports.SUMMARY_DOCS_URL = 'https://docs.github.com/actions/using-workflows/workflow-commands-for-github-actions#adding-a-job-summary';
+class Summary {
+    constructor() {
+        this._buffer = '';
+    }
+    /**
+     * Finds the summary file path from the environment, rejects if env var is not found or file does not exist
+     * Also checks r/w permissions.
+     *
+     * @returns step summary file path
+     */
+    filePath() {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (this._filePath) {
+                return this._filePath;
+            }
+            const pathFromEnv = process.env[exports.SUMMARY_ENV_VAR];
+            if (!pathFromEnv) {
+                throw new Error(`Unable to find environment variable for $${exports.SUMMARY_ENV_VAR}. Check if your runtime environment supports job summaries.`);
+            }
+            try {
+                yield access(pathFromEnv, fs_1.constants.R_OK | fs_1.constants.W_OK);
+            }
+            catch (_a) {
+                throw new Error(`Unable to access summary file: '${pathFromEnv}'. Check if the file has correct read/write permissions.`);
+            }
+            this._filePath = pathFromEnv;
+            return this._filePath;
+        });
+    }
+    /**
+     * Wraps content in an HTML tag, adding any HTML attributes
+     *
+     * @param {string} tag HTML tag to wrap
+     * @param {string | null} content content within the tag
+     * @param {[attribute: string]: string} attrs key-value list of HTML attributes to add
+     *
+     * @returns {string} content wrapped in HTML element
+     */
+    wrap(tag, content, attrs = {}) {
+        const htmlAttrs = Object.entries(attrs)
+            .map(([key, value]) => ` ${key}="${value}"`)
+            .join('');
+        if (!content) {
+            return `<${tag}${htmlAttrs}>`;
+        }
+        return `<${tag}${htmlAttrs}>${content}</${tag}>`;
+    }
+    /**
+     * Writes text in the buffer to the summary buffer file and empties buffer. Will append by default.
+     *
+     * @param {SummaryWriteOptions} [options] (optional) options for write operation
+     *
+     * @returns {Promise<Summary>} summary instance
+     */
+    write(options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const overwrite = !!(options === null || options === void 0 ? void 0 : options.overwrite);
+            const filePath = yield this.filePath();
+            const writeFunc = overwrite ? writeFile : appendFile;
+            yield writeFunc(filePath, this._buffer, { encoding: 'utf8' });
+            return this.emptyBuffer();
+        });
+    }
+    /**
+     * Clears the summary buffer and wipes the summary file
+     *
+     * @returns {Summary} summary instance
+     */
+    clear() {
+        return __awaiter(this, void 0, void 0, function* () {
+            return this.emptyBuffer().write({ overwrite: true });
+        });
+    }
+    /**
+     * Returns the current summary buffer as a string
+     *
+     * @returns {string} string of summary buffer
+     */
+    stringify() {
+        return this._buffer;
+    }
+    /**
+     * If the summary buffer is empty
+     *
+     * @returns {boolen} true if the buffer is empty
+     */
+    isEmptyBuffer() {
+        return this._buffer.length === 0;
+    }
+    /**
+     * Resets the summary buffer without writing to summary file
+     *
+     * @returns {Summary} summary instance
+     */
+    emptyBuffer() {
+        this._buffer = '';
+        return this;
+    }
+    /**
+     * Adds raw text to the summary buffer
+     *
+     * @param {string} text content to add
+     * @param {boolean} [addEOL=false] (optional) append an EOL to the raw text (default: false)
+     *
+     * @returns {Summary} summary instance
+     */
+    addRaw(text, addEOL = false) {
+        this._buffer += text;
+        return addEOL ? this.addEOL() : this;
+    }
+    /**
+     * Adds the operating system-specific end-of-line marker to the buffer
+     *
+     * @returns {Summary} summary instance
+     */
+    addEOL() {
+        return this.addRaw(os_1.EOL);
+    }
+    /**
+     * Adds an HTML codeblock to the summary buffer
+     *
+     * @param {string} code content to render within fenced code block
+     * @param {string} lang (optional) language to syntax highlight code
+     *
+     * @returns {Summary} summary instance
+     */
+    addCodeBlock(code, lang) {
+        const attrs = Object.assign({}, (lang && { lang }));
+        const element = this.wrap('pre', this.wrap('code', code), attrs);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML list to the summary buffer
+     *
+     * @param {string[]} items list of items to render
+     * @param {boolean} [ordered=false] (optional) if the rendered list should be ordered or not (default: false)
+     *
+     * @returns {Summary} summary instance
+     */
+    addList(items, ordered = false) {
+        const tag = ordered ? 'ol' : 'ul';
+        const listItems = items.map(item => this.wrap('li', item)).join('');
+        const element = this.wrap(tag, listItems);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML table to the summary buffer
+     *
+     * @param {SummaryTableCell[]} rows table rows
+     *
+     * @returns {Summary} summary instance
+     */
+    addTable(rows) {
+        const tableBody = rows
+            .map(row => {
+            const cells = row
+                .map(cell => {
+                if (typeof cell === 'string') {
+                    return this.wrap('td', cell);
+                }
+                const { header, data, colspan, rowspan } = cell;
+                const tag = header ? 'th' : 'td';
+                const attrs = Object.assign(Object.assign({}, (colspan && { colspan })), (rowspan && { rowspan }));
+                return this.wrap(tag, data, attrs);
+            })
+                .join('');
+            return this.wrap('tr', cells);
+        })
+            .join('');
+        const element = this.wrap('table', tableBody);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds a collapsable HTML details element to the summary buffer
+     *
+     * @param {string} label text for the closed state
+     * @param {string} content collapsable content
+     *
+     * @returns {Summary} summary instance
+     */
+    addDetails(label, content) {
+        const element = this.wrap('details', this.wrap('summary', label) + content);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML image tag to the summary buffer
+     *
+     * @param {string} src path to the image you to embed
+     * @param {string} alt text description of the image
+     * @param {SummaryImageOptions} options (optional) addition image attributes
+     *
+     * @returns {Summary} summary instance
+     */
+    addImage(src, alt, options) {
+        const { width, height } = options || {};
+        const attrs = Object.assign(Object.assign({}, (width && { width })), (height && { height }));
+        const element = this.wrap('img', null, Object.assign({ src, alt }, attrs));
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML section heading element
+     *
+     * @param {string} text heading text
+     * @param {number | string} [level=1] (optional) the heading level, default: 1
+     *
+     * @returns {Summary} summary instance
+     */
+    addHeading(text, level) {
+        const tag = `h${level}`;
+        const allowedTag = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag)
+            ? tag
+            : 'h1';
+        const element = this.wrap(allowedTag, text);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML thematic break (<hr>) to the summary buffer
+     *
+     * @returns {Summary} summary instance
+     */
+    addSeparator() {
+        const element = this.wrap('hr', null);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML line break (<br>) to the summary buffer
+     *
+     * @returns {Summary} summary instance
+     */
+    addBreak() {
+        const element = this.wrap('br', null);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML blockquote to the summary buffer
+     *
+     * @param {string} text quote text
+     * @param {string} cite (optional) citation url
+     *
+     * @returns {Summary} summary instance
+     */
+    addQuote(text, cite) {
+        const attrs = Object.assign({}, (cite && { cite }));
+        const element = this.wrap('blockquote', text, attrs);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML anchor tag to the summary buffer
+     *
+     * @param {string} text link text/content
+     * @param {string} href hyperlink
+     *
+     * @returns {Summary} summary instance
+     */
+    addLink(text, href) {
+        const element = this.wrap('a', text, { href });
+        return this.addRaw(element).addEOL();
+    }
+}
+const _summary = new Summary();
+/**
+ * @deprecated use `core.summary`
+ */
+exports.markdownSummary = _summary;
+exports.summary = _summary;
+//# sourceMappingURL=summary.js.map
 
 /***/ }),
 
@@ -25407,7 +25416,7 @@ ZipArchiveEntry.prototype.isZip64 = function() {
 
 /***/ }),
 
-/***/ 9676:
+/***/ 4432:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 /**
@@ -25868,7 +25877,7 @@ module.exports = {
   ArchiveEntry: __nccwpck_require__(2240),
   ZipArchiveEntry: __nccwpck_require__(3179),
   ArchiveOutputStream: __nccwpck_require__(6728),
-  ZipArchiveOutputStream: __nccwpck_require__(9676)
+  ZipArchiveOutputStream: __nccwpck_require__(4432)
 };
 
 /***/ }),
@@ -39198,16 +39207,35 @@ function patch (fs) {
 
   var fs$readdir = fs.readdir
   fs.readdir = readdir
+  var noReaddirOptionVersions = /^v[0-5]\./
   function readdir (path, options, cb) {
     if (typeof options === 'function')
       cb = options, options = null
 
+    var go$readdir = noReaddirOptionVersions.test(process.version)
+      ? function go$readdir (path, options, cb, startTime) {
+        return fs$readdir(path, fs$readdirCallback(
+          path, options, cb, startTime
+        ))
+      }
+      : function go$readdir (path, options, cb, startTime) {
+        return fs$readdir(path, options, fs$readdirCallback(
+          path, options, cb, startTime
+        ))
+      }
+
     return go$readdir(path, options, cb)
 
-    function go$readdir (path, options, cb, startTime) {
-      return fs$readdir(path, options, function (err, files) {
+    function fs$readdirCallback (path, options, cb, startTime) {
+      return function (err, files) {
         if (err && (err.code === 'EMFILE' || err.code === 'ENFILE'))
-          enqueue([go$readdir, [path, options, cb], err, startTime || Date.now(), Date.now()])
+          enqueue([
+            go$readdir,
+            [path, options, cb],
+            err,
+            startTime || Date.now(),
+            Date.now()
+          ])
         else {
           if (files && files.sort)
             files.sort()
@@ -39215,7 +39243,7 @@ function patch (fs) {
           if (typeof cb === 'function')
             cb.call(this, err, files)
         }
-      })
+      }
     }
   }
 
@@ -39639,13 +39667,13 @@ function patch (fs) {
   fs.lstatSync = statFixSync(fs.lstatSync)
 
   // if lchmod/lchown do not exist, then make them no-ops
-  if (!fs.lchmod) {
+  if (fs.chmod && !fs.lchmod) {
     fs.lchmod = function (path, mode, cb) {
       if (cb) process.nextTick(cb)
     }
     fs.lchmodSync = function () {}
   }
-  if (!fs.lchown) {
+  if (fs.chown && !fs.lchown) {
     fs.lchown = function (path, uid, gid, cb) {
       if (cb) process.nextTick(cb)
     }
@@ -39662,32 +39690,38 @@ function patch (fs) {
   // CPU to a busy looping process, which can cause the program causing the lock
   // contention to be starved of CPU by node, so the contention doesn't resolve.
   if (platform === "win32") {
-    fs.rename = (function (fs$rename) { return function (from, to, cb) {
-      var start = Date.now()
-      var backoff = 0;
-      fs$rename(from, to, function CB (er) {
-        if (er
-            && (er.code === "EACCES" || er.code === "EPERM")
-            && Date.now() - start < 60000) {
-          setTimeout(function() {
-            fs.stat(to, function (stater, st) {
-              if (stater && stater.code === "ENOENT")
-                fs$rename(from, to, CB);
-              else
-                cb(er)
-            })
-          }, backoff)
-          if (backoff < 100)
-            backoff += 10;
-          return;
-        }
-        if (cb) cb(er)
-      })
-    }})(fs.rename)
+    fs.rename = typeof fs.rename !== 'function' ? fs.rename
+    : (function (fs$rename) {
+      function rename (from, to, cb) {
+        var start = Date.now()
+        var backoff = 0;
+        fs$rename(from, to, function CB (er) {
+          if (er
+              && (er.code === "EACCES" || er.code === "EPERM")
+              && Date.now() - start < 60000) {
+            setTimeout(function() {
+              fs.stat(to, function (stater, st) {
+                if (stater && stater.code === "ENOENT")
+                  fs$rename(from, to, CB);
+                else
+                  cb(er)
+              })
+            }, backoff)
+            if (backoff < 100)
+              backoff += 10;
+            return;
+          }
+          if (cb) cb(er)
+        })
+      }
+      if (Object.setPrototypeOf) Object.setPrototypeOf(rename, fs$rename)
+      return rename
+    })(fs.rename)
   }
 
   // if read() returns EAGAIN, then just try it again.
-  fs.read = (function (fs$read) {
+  fs.read = typeof fs.read !== 'function' ? fs.read
+  : (function (fs$read) {
     function read (fd, buffer, offset, length, position, callback_) {
       var callback
       if (callback_ && typeof callback_ === 'function') {
@@ -39708,7 +39742,8 @@ function patch (fs) {
     return read
   })(fs.read)
 
-  fs.readSync = (function (fs$readSync) { return function (fd, buffer, offset, length, position) {
+  fs.readSync = typeof fs.readSync !== 'function' ? fs.readSync
+  : (function (fs$readSync) { return function (fd, buffer, offset, length, position) {
     var eagCounter = 0
     while (true) {
       try {
@@ -39767,7 +39802,7 @@ function patch (fs) {
   }
 
   function patchLutimes (fs) {
-    if (constants.hasOwnProperty("O_SYMLINK")) {
+    if (constants.hasOwnProperty("O_SYMLINK") && fs.futimes) {
       fs.lutimes = function (path, at, mt, cb) {
         fs.open(path, constants.O_SYMLINK, function (er, fd) {
           if (er) {
@@ -39801,7 +39836,7 @@ function patch (fs) {
         return ret
       }
 
-    } else {
+    } else if (fs.futimes) {
       fs.lutimes = function (_a, _b, _c, cb) { if (cb) process.nextTick(cb) }
       fs.lutimesSync = function () {}
     }
@@ -39878,8 +39913,10 @@ function patch (fs) {
     return function (target, options) {
       var stats = options ? orig.call(fs, target, options)
         : orig.call(fs, target)
-      if (stats.uid < 0) stats.uid += 0x100000000
-      if (stats.gid < 0) stats.gid += 0x100000000
+      if (stats) {
+        if (stats.uid < 0) stats.uid += 0x100000000
+        if (stats.gid < 0) stats.gid += 0x100000000
+      }
       return stats;
     }
   }
@@ -81755,6 +81792,7 @@ module.exports = __nccwpck_require__(3837).deprecate;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ChromeCrxBuildResult = void 0;
 const webext_buildtools_utils_1 = __nccwpck_require__(696);
 class ChromeCrxBuildResult extends webext_buildtools_utils_1.BaseBuildResult {
 }
@@ -81769,7 +81807,8 @@ exports.ChromeCrxBuildResult = ChromeCrxBuildResult;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const fs = __nccwpck_require__(9751);
+exports.ChromeCrxBuilder = void 0;
+const fs = __nccwpck_require__(5630);
 const webext_buildtools_utils_1 = __nccwpck_require__(696);
 const buildResult_1 = __nccwpck_require__(459);
 const crxWrapper_1 = __nccwpck_require__(9409);
@@ -81849,7 +81888,7 @@ class ChromeCrxBuilder extends webext_buildtools_utils_1.AbstractSimpleBuilder {
                         'Neither manifest or zip buffer are set');
                 }
                 this._logWrapper.info('Manifest input is not set, reading from zip...');
-                this._inputManifest = await webext_buildtools_utils_1.extractManifestFromZipBuffer(this._inputZipBuffer);
+                this._inputManifest = await (0, webext_buildtools_utils_1.extractManifestFromZipBuffer)(this._inputZipBuffer);
                 this._logWrapper.info(`Manifest extracted. Extension name: '${this._inputManifest.name}', ` +
                     `version: ${this._inputManifest.version}`);
             }
@@ -81952,8 +81991,8 @@ class ChromeCrxBuilder extends webext_buildtools_utils_1.AbstractSimpleBuilder {
         return this._crxFileRequirement !== undefined || this._isCrxBufferRequired;
     }
 }
-ChromeCrxBuilder.TARGET_NAME = 'chrome-zip2crx';
 exports.ChromeCrxBuilder = ChromeCrxBuilder;
+ChromeCrxBuilder.TARGET_NAME = 'chrome-zip2crx';
 //# sourceMappingURL=builder.js.map
 
 /***/ }),
@@ -81964,6 +82003,7 @@ exports.ChromeCrxBuilder = ChromeCrxBuilder;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CrxWrapper = void 0;
 ///<reference path="../external_declarations/crx.d.ts"/>
 /**
  * Provides convenient way to interact with 'crx' package
@@ -82003,2274 +82043,29 @@ exports.CrxWrapper = CrxWrapper;
 /***/ }),
 
 /***/ 4581:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
-function __export(m) {
-    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
-}
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const builder_1 = __nccwpck_require__(6245);
 exports["default"] = builder_1.ChromeCrxBuilder;
-__export(__nccwpck_require__(459));
+__exportStar(__nccwpck_require__(459), exports);
 //# sourceMappingURL=index.js.map
-
-/***/ }),
-
-/***/ 3785:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const fs = __nccwpck_require__(7758)
-const path = __nccwpck_require__(1017)
-const mkdirpSync = (__nccwpck_require__(9294).mkdirsSync)
-const utimesSync = (__nccwpck_require__(7594).utimesMillisSync)
-
-const notExist = Symbol('notExist')
-
-function copySync (src, dest, opts) {
-  if (typeof opts === 'function') {
-    opts = {filter: opts}
-  }
-
-  opts = opts || {}
-  opts.clobber = 'clobber' in opts ? !!opts.clobber : true // default to true for now
-  opts.overwrite = 'overwrite' in opts ? !!opts.overwrite : opts.clobber // overwrite falls back to clobber
-
-  // Warn about using preserveTimestamps on 32-bit node
-  if (opts.preserveTimestamps && process.arch === 'ia32') {
-    console.warn(`fs-extra: Using the preserveTimestamps option in 32-bit node is not recommended;\n
-    see https://github.com/jprichardson/node-fs-extra/issues/269`)
-  }
-
-  const destStat = checkPaths(src, dest)
-
-  if (opts.filter && !opts.filter(src, dest)) return
-
-  const destParent = path.dirname(dest)
-  if (!fs.existsSync(destParent)) mkdirpSync(destParent)
-  return startCopy(destStat, src, dest, opts)
-}
-
-function startCopy (destStat, src, dest, opts) {
-  if (opts.filter && !opts.filter(src, dest)) return
-  return getStats(destStat, src, dest, opts)
-}
-
-function getStats (destStat, src, dest, opts) {
-  const statSync = opts.dereference ? fs.statSync : fs.lstatSync
-  const srcStat = statSync(src)
-
-  if (srcStat.isDirectory()) return onDir(srcStat, destStat, src, dest, opts)
-  else if (srcStat.isFile() ||
-           srcStat.isCharacterDevice() ||
-           srcStat.isBlockDevice()) return onFile(srcStat, destStat, src, dest, opts)
-  else if (srcStat.isSymbolicLink()) return onLink(destStat, src, dest, opts)
-}
-
-function onFile (srcStat, destStat, src, dest, opts) {
-  if (destStat === notExist) return copyFile(srcStat, src, dest, opts)
-  return mayCopyFile(srcStat, src, dest, opts)
-}
-
-function mayCopyFile (srcStat, src, dest, opts) {
-  if (opts.overwrite) {
-    fs.unlinkSync(dest)
-    return copyFile(srcStat, src, dest, opts)
-  } else if (opts.errorOnExist) {
-    throw new Error(`'${dest}' already exists`)
-  }
-}
-
-function copyFile (srcStat, src, dest, opts) {
-  if (typeof fs.copyFileSync === 'function') {
-    fs.copyFileSync(src, dest)
-    fs.chmodSync(dest, srcStat.mode)
-    if (opts.preserveTimestamps) {
-      return utimesSync(dest, srcStat.atime, srcStat.mtime)
-    }
-    return
-  }
-  return copyFileFallback(srcStat, src, dest, opts)
-}
-
-function copyFileFallback (srcStat, src, dest, opts) {
-  const BUF_LENGTH = 64 * 1024
-  const _buff = __nccwpck_require__(4703)(BUF_LENGTH)
-
-  const fdr = fs.openSync(src, 'r')
-  const fdw = fs.openSync(dest, 'w', srcStat.mode)
-  let pos = 0
-
-  while (pos < srcStat.size) {
-    const bytesRead = fs.readSync(fdr, _buff, 0, BUF_LENGTH, pos)
-    fs.writeSync(fdw, _buff, 0, bytesRead)
-    pos += bytesRead
-  }
-
-  if (opts.preserveTimestamps) fs.futimesSync(fdw, srcStat.atime, srcStat.mtime)
-
-  fs.closeSync(fdr)
-  fs.closeSync(fdw)
-}
-
-function onDir (srcStat, destStat, src, dest, opts) {
-  if (destStat === notExist) return mkDirAndCopy(srcStat, src, dest, opts)
-  if (destStat && !destStat.isDirectory()) {
-    throw new Error(`Cannot overwrite non-directory '${dest}' with directory '${src}'.`)
-  }
-  return copyDir(src, dest, opts)
-}
-
-function mkDirAndCopy (srcStat, src, dest, opts) {
-  fs.mkdirSync(dest)
-  copyDir(src, dest, opts)
-  return fs.chmodSync(dest, srcStat.mode)
-}
-
-function copyDir (src, dest, opts) {
-  fs.readdirSync(src).forEach(item => copyDirItem(item, src, dest, opts))
-}
-
-function copyDirItem (item, src, dest, opts) {
-  const srcItem = path.join(src, item)
-  const destItem = path.join(dest, item)
-  const destStat = checkPaths(srcItem, destItem)
-  return startCopy(destStat, srcItem, destItem, opts)
-}
-
-function onLink (destStat, src, dest, opts) {
-  let resolvedSrc = fs.readlinkSync(src)
-
-  if (opts.dereference) {
-    resolvedSrc = path.resolve(process.cwd(), resolvedSrc)
-  }
-
-  if (destStat === notExist) {
-    return fs.symlinkSync(resolvedSrc, dest)
-  } else {
-    let resolvedDest
-    try {
-      resolvedDest = fs.readlinkSync(dest)
-    } catch (err) {
-      // dest exists and is a regular file or directory,
-      // Windows may throw UNKNOWN error. If dest already exists,
-      // fs throws error anyway, so no need to guard against it here.
-      if (err.code === 'EINVAL' || err.code === 'UNKNOWN') return fs.symlinkSync(resolvedSrc, dest)
-      throw err
-    }
-    if (opts.dereference) {
-      resolvedDest = path.resolve(process.cwd(), resolvedDest)
-    }
-    if (isSrcSubdir(resolvedSrc, resolvedDest)) {
-      throw new Error(`Cannot copy '${resolvedSrc}' to a subdirectory of itself, '${resolvedDest}'.`)
-    }
-
-    // prevent copy if src is a subdir of dest since unlinking
-    // dest in this case would result in removing src contents
-    // and therefore a broken symlink would be created.
-    if (fs.statSync(dest).isDirectory() && isSrcSubdir(resolvedDest, resolvedSrc)) {
-      throw new Error(`Cannot overwrite '${resolvedDest}' with '${resolvedSrc}'.`)
-    }
-    return copyLink(resolvedSrc, dest)
-  }
-}
-
-function copyLink (resolvedSrc, dest) {
-  fs.unlinkSync(dest)
-  return fs.symlinkSync(resolvedSrc, dest)
-}
-
-// return true if dest is a subdir of src, otherwise false.
-function isSrcSubdir (src, dest) {
-  const srcArray = path.resolve(src).split(path.sep)
-  const destArray = path.resolve(dest).split(path.sep)
-  return srcArray.reduce((acc, current, i) => acc && destArray[i] === current, true)
-}
-
-function checkStats (src, dest) {
-  const srcStat = fs.statSync(src)
-  let destStat
-  try {
-    destStat = fs.statSync(dest)
-  } catch (err) {
-    if (err.code === 'ENOENT') return {srcStat, destStat: notExist}
-    throw err
-  }
-  return {srcStat, destStat}
-}
-
-function checkPaths (src, dest) {
-  const {srcStat, destStat} = checkStats(src, dest)
-  if (destStat.ino && destStat.ino === srcStat.ino) {
-    throw new Error('Source and destination must not be the same.')
-  }
-  if (srcStat.isDirectory() && isSrcSubdir(src, dest)) {
-    throw new Error(`Cannot copy '${src}' to a subdirectory of itself, '${dest}'.`)
-  }
-  return destStat
-}
-
-module.exports = copySync
-
-
-/***/ }),
-
-/***/ 6780:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-module.exports = {
-  copySync: __nccwpck_require__(3785)
-}
-
-
-/***/ }),
-
-/***/ 2457:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const fs = __nccwpck_require__(7758)
-const path = __nccwpck_require__(1017)
-const mkdirp = (__nccwpck_require__(9294).mkdirs)
-const pathExists = (__nccwpck_require__(4995).pathExists)
-const utimes = (__nccwpck_require__(7594).utimesMillis)
-
-const notExist = Symbol('notExist')
-
-function copy (src, dest, opts, cb) {
-  if (typeof opts === 'function' && !cb) {
-    cb = opts
-    opts = {}
-  } else if (typeof opts === 'function') {
-    opts = {filter: opts}
-  }
-
-  cb = cb || function () {}
-  opts = opts || {}
-
-  opts.clobber = 'clobber' in opts ? !!opts.clobber : true // default to true for now
-  opts.overwrite = 'overwrite' in opts ? !!opts.overwrite : opts.clobber // overwrite falls back to clobber
-
-  // Warn about using preserveTimestamps on 32-bit node
-  if (opts.preserveTimestamps && process.arch === 'ia32') {
-    console.warn(`fs-extra: Using the preserveTimestamps option in 32-bit node is not recommended;\n
-    see https://github.com/jprichardson/node-fs-extra/issues/269`)
-  }
-
-  checkPaths(src, dest, (err, destStat) => {
-    if (err) return cb(err)
-    if (opts.filter) return handleFilter(checkParentDir, destStat, src, dest, opts, cb)
-    return checkParentDir(destStat, src, dest, opts, cb)
-  })
-}
-
-function checkParentDir (destStat, src, dest, opts, cb) {
-  const destParent = path.dirname(dest)
-  pathExists(destParent, (err, dirExists) => {
-    if (err) return cb(err)
-    if (dirExists) return startCopy(destStat, src, dest, opts, cb)
-    mkdirp(destParent, err => {
-      if (err) return cb(err)
-      return startCopy(destStat, src, dest, opts, cb)
-    })
-  })
-}
-
-function handleFilter (onInclude, destStat, src, dest, opts, cb) {
-  Promise.resolve(opts.filter(src, dest)).then(include => {
-    if (include) {
-      if (destStat) return onInclude(destStat, src, dest, opts, cb)
-      return onInclude(src, dest, opts, cb)
-    }
-    return cb()
-  }, error => cb(error))
-}
-
-function startCopy (destStat, src, dest, opts, cb) {
-  if (opts.filter) return handleFilter(getStats, destStat, src, dest, opts, cb)
-  return getStats(destStat, src, dest, opts, cb)
-}
-
-function getStats (destStat, src, dest, opts, cb) {
-  const stat = opts.dereference ? fs.stat : fs.lstat
-  stat(src, (err, srcStat) => {
-    if (err) return cb(err)
-
-    if (srcStat.isDirectory()) return onDir(srcStat, destStat, src, dest, opts, cb)
-    else if (srcStat.isFile() ||
-             srcStat.isCharacterDevice() ||
-             srcStat.isBlockDevice()) return onFile(srcStat, destStat, src, dest, opts, cb)
-    else if (srcStat.isSymbolicLink()) return onLink(destStat, src, dest, opts, cb)
-  })
-}
-
-function onFile (srcStat, destStat, src, dest, opts, cb) {
-  if (destStat === notExist) return copyFile(srcStat, src, dest, opts, cb)
-  return mayCopyFile(srcStat, src, dest, opts, cb)
-}
-
-function mayCopyFile (srcStat, src, dest, opts, cb) {
-  if (opts.overwrite) {
-    fs.unlink(dest, err => {
-      if (err) return cb(err)
-      return copyFile(srcStat, src, dest, opts, cb)
-    })
-  } else if (opts.errorOnExist) {
-    return cb(new Error(`'${dest}' already exists`))
-  } else return cb()
-}
-
-function copyFile (srcStat, src, dest, opts, cb) {
-  if (typeof fs.copyFile === 'function') {
-    return fs.copyFile(src, dest, err => {
-      if (err) return cb(err)
-      return setDestModeAndTimestamps(srcStat, dest, opts, cb)
-    })
-  }
-  return copyFileFallback(srcStat, src, dest, opts, cb)
-}
-
-function copyFileFallback (srcStat, src, dest, opts, cb) {
-  const rs = fs.createReadStream(src)
-  rs.on('error', err => cb(err)).once('open', () => {
-    const ws = fs.createWriteStream(dest, { mode: srcStat.mode })
-    ws.on('error', err => cb(err))
-      .on('open', () => rs.pipe(ws))
-      .once('close', () => setDestModeAndTimestamps(srcStat, dest, opts, cb))
-  })
-}
-
-function setDestModeAndTimestamps (srcStat, dest, opts, cb) {
-  fs.chmod(dest, srcStat.mode, err => {
-    if (err) return cb(err)
-    if (opts.preserveTimestamps) {
-      return utimes(dest, srcStat.atime, srcStat.mtime, cb)
-    }
-    return cb()
-  })
-}
-
-function onDir (srcStat, destStat, src, dest, opts, cb) {
-  if (destStat === notExist) return mkDirAndCopy(srcStat, src, dest, opts, cb)
-  if (destStat && !destStat.isDirectory()) {
-    return cb(new Error(`Cannot overwrite non-directory '${dest}' with directory '${src}'.`))
-  }
-  return copyDir(src, dest, opts, cb)
-}
-
-function mkDirAndCopy (srcStat, src, dest, opts, cb) {
-  fs.mkdir(dest, err => {
-    if (err) return cb(err)
-    copyDir(src, dest, opts, err => {
-      if (err) return cb(err)
-      return fs.chmod(dest, srcStat.mode, cb)
-    })
-  })
-}
-
-function copyDir (src, dest, opts, cb) {
-  fs.readdir(src, (err, items) => {
-    if (err) return cb(err)
-    return copyDirItems(items, src, dest, opts, cb)
-  })
-}
-
-function copyDirItems (items, src, dest, opts, cb) {
-  const item = items.pop()
-  if (!item) return cb()
-  return copyDirItem(items, item, src, dest, opts, cb)
-}
-
-function copyDirItem (items, item, src, dest, opts, cb) {
-  const srcItem = path.join(src, item)
-  const destItem = path.join(dest, item)
-  checkPaths(srcItem, destItem, (err, destStat) => {
-    if (err) return cb(err)
-    startCopy(destStat, srcItem, destItem, opts, err => {
-      if (err) return cb(err)
-      return copyDirItems(items, src, dest, opts, cb)
-    })
-  })
-}
-
-function onLink (destStat, src, dest, opts, cb) {
-  fs.readlink(src, (err, resolvedSrc) => {
-    if (err) return cb(err)
-
-    if (opts.dereference) {
-      resolvedSrc = path.resolve(process.cwd(), resolvedSrc)
-    }
-
-    if (destStat === notExist) {
-      return fs.symlink(resolvedSrc, dest, cb)
-    } else {
-      fs.readlink(dest, (err, resolvedDest) => {
-        if (err) {
-          // dest exists and is a regular file or directory,
-          // Windows may throw UNKNOWN error. If dest already exists,
-          // fs throws error anyway, so no need to guard against it here.
-          if (err.code === 'EINVAL' || err.code === 'UNKNOWN') return fs.symlink(resolvedSrc, dest, cb)
-          return cb(err)
-        }
-        if (opts.dereference) {
-          resolvedDest = path.resolve(process.cwd(), resolvedDest)
-        }
-        if (isSrcSubdir(resolvedSrc, resolvedDest)) {
-          return cb(new Error(`Cannot copy '${resolvedSrc}' to a subdirectory of itself, '${resolvedDest}'.`))
-        }
-
-        // do not copy if src is a subdir of dest since unlinking
-        // dest in this case would result in removing src contents
-        // and therefore a broken symlink would be created.
-        if (destStat.isDirectory() && isSrcSubdir(resolvedDest, resolvedSrc)) {
-          return cb(new Error(`Cannot overwrite '${resolvedDest}' with '${resolvedSrc}'.`))
-        }
-        return copyLink(resolvedSrc, dest, cb)
-      })
-    }
-  })
-}
-
-function copyLink (resolvedSrc, dest, cb) {
-  fs.unlink(dest, err => {
-    if (err) return cb(err)
-    return fs.symlink(resolvedSrc, dest, cb)
-  })
-}
-
-// return true if dest is a subdir of src, otherwise false.
-function isSrcSubdir (src, dest) {
-  const srcArray = path.resolve(src).split(path.sep)
-  const destArray = path.resolve(dest).split(path.sep)
-  return srcArray.reduce((acc, current, i) => acc && destArray[i] === current, true)
-}
-
-function checkStats (src, dest, cb) {
-  fs.stat(src, (err, srcStat) => {
-    if (err) return cb(err)
-    fs.stat(dest, (err, destStat) => {
-      if (err) {
-        if (err.code === 'ENOENT') return cb(null, {srcStat, destStat: notExist})
-        return cb(err)
-      }
-      return cb(null, {srcStat, destStat})
-    })
-  })
-}
-
-function checkPaths (src, dest, cb) {
-  checkStats(src, dest, (err, stats) => {
-    if (err) return cb(err)
-    const {srcStat, destStat} = stats
-    if (destStat.ino && destStat.ino === srcStat.ino) {
-      return cb(new Error('Source and destination must not be the same.'))
-    }
-    if (srcStat.isDirectory() && isSrcSubdir(src, dest)) {
-      return cb(new Error(`Cannot copy '${src}' to a subdirectory of itself, '${dest}'.`))
-    }
-    return cb(null, destStat)
-  })
-}
-
-module.exports = copy
-
-
-/***/ }),
-
-/***/ 7791:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const u = (__nccwpck_require__(3744)/* .fromCallback */ .E)
-module.exports = {
-  copy: u(__nccwpck_require__(2457))
-}
-
-
-/***/ }),
-
-/***/ 720:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const u = (__nccwpck_require__(3744)/* .fromCallback */ .E)
-const fs = __nccwpck_require__(7147)
-const path = __nccwpck_require__(1017)
-const mkdir = __nccwpck_require__(9294)
-const remove = __nccwpck_require__(3813)
-
-const emptyDir = u(function emptyDir (dir, callback) {
-  callback = callback || function () {}
-  fs.readdir(dir, (err, items) => {
-    if (err) return mkdir.mkdirs(dir, callback)
-
-    items = items.map(item => path.join(dir, item))
-
-    deleteItem()
-
-    function deleteItem () {
-      const item = items.pop()
-      if (!item) return callback()
-      remove.remove(item, err => {
-        if (err) return callback(err)
-        deleteItem()
-      })
-    }
-  })
-})
-
-function emptyDirSync (dir) {
-  let items
-  try {
-    items = fs.readdirSync(dir)
-  } catch (err) {
-    return mkdir.mkdirsSync(dir)
-  }
-
-  items.forEach(item => {
-    item = path.join(dir, item)
-    remove.removeSync(item)
-  })
-}
-
-module.exports = {
-  emptyDirSync,
-  emptydirSync: emptyDirSync,
-  emptyDir,
-  emptydir: emptyDir
-}
-
-
-/***/ }),
-
-/***/ 8495:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const u = (__nccwpck_require__(3744)/* .fromCallback */ .E)
-const path = __nccwpck_require__(1017)
-const fs = __nccwpck_require__(7758)
-const mkdir = __nccwpck_require__(9294)
-const pathExists = (__nccwpck_require__(4995).pathExists)
-
-function createFile (file, callback) {
-  function makeFile () {
-    fs.writeFile(file, '', err => {
-      if (err) return callback(err)
-      callback()
-    })
-  }
-
-  fs.stat(file, (err, stats) => { // eslint-disable-line handle-callback-err
-    if (!err && stats.isFile()) return callback()
-    const dir = path.dirname(file)
-    pathExists(dir, (err, dirExists) => {
-      if (err) return callback(err)
-      if (dirExists) return makeFile()
-      mkdir.mkdirs(dir, err => {
-        if (err) return callback(err)
-        makeFile()
-      })
-    })
-  })
-}
-
-function createFileSync (file) {
-  let stats
-  try {
-    stats = fs.statSync(file)
-  } catch (e) {}
-  if (stats && stats.isFile()) return
-
-  const dir = path.dirname(file)
-  if (!fs.existsSync(dir)) {
-    mkdir.mkdirsSync(dir)
-  }
-
-  fs.writeFileSync(file, '')
-}
-
-module.exports = {
-  createFile: u(createFile),
-  createFileSync
-}
-
-
-/***/ }),
-
-/***/ 4139:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const file = __nccwpck_require__(8495)
-const link = __nccwpck_require__(744)
-const symlink = __nccwpck_require__(1547)
-
-module.exports = {
-  // file
-  createFile: file.createFile,
-  createFileSync: file.createFileSync,
-  ensureFile: file.createFile,
-  ensureFileSync: file.createFileSync,
-  // link
-  createLink: link.createLink,
-  createLinkSync: link.createLinkSync,
-  ensureLink: link.createLink,
-  ensureLinkSync: link.createLinkSync,
-  // symlink
-  createSymlink: symlink.createSymlink,
-  createSymlinkSync: symlink.createSymlinkSync,
-  ensureSymlink: symlink.createSymlink,
-  ensureSymlinkSync: symlink.createSymlinkSync
-}
-
-
-/***/ }),
-
-/***/ 744:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const u = (__nccwpck_require__(3744)/* .fromCallback */ .E)
-const path = __nccwpck_require__(1017)
-const fs = __nccwpck_require__(7758)
-const mkdir = __nccwpck_require__(9294)
-const pathExists = (__nccwpck_require__(4995).pathExists)
-
-function createLink (srcpath, dstpath, callback) {
-  function makeLink (srcpath, dstpath) {
-    fs.link(srcpath, dstpath, err => {
-      if (err) return callback(err)
-      callback(null)
-    })
-  }
-
-  pathExists(dstpath, (err, destinationExists) => {
-    if (err) return callback(err)
-    if (destinationExists) return callback(null)
-    fs.lstat(srcpath, (err) => {
-      if (err) {
-        err.message = err.message.replace('lstat', 'ensureLink')
-        return callback(err)
-      }
-
-      const dir = path.dirname(dstpath)
-      pathExists(dir, (err, dirExists) => {
-        if (err) return callback(err)
-        if (dirExists) return makeLink(srcpath, dstpath)
-        mkdir.mkdirs(dir, err => {
-          if (err) return callback(err)
-          makeLink(srcpath, dstpath)
-        })
-      })
-    })
-  })
-}
-
-function createLinkSync (srcpath, dstpath) {
-  const destinationExists = fs.existsSync(dstpath)
-  if (destinationExists) return undefined
-
-  try {
-    fs.lstatSync(srcpath)
-  } catch (err) {
-    err.message = err.message.replace('lstat', 'ensureLink')
-    throw err
-  }
-
-  const dir = path.dirname(dstpath)
-  const dirExists = fs.existsSync(dir)
-  if (dirExists) return fs.linkSync(srcpath, dstpath)
-  mkdir.mkdirsSync(dir)
-
-  return fs.linkSync(srcpath, dstpath)
-}
-
-module.exports = {
-  createLink: u(createLink),
-  createLinkSync
-}
-
-
-/***/ }),
-
-/***/ 8635:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const path = __nccwpck_require__(1017)
-const fs = __nccwpck_require__(7758)
-const pathExists = (__nccwpck_require__(4995).pathExists)
-
-/**
- * Function that returns two types of paths, one relative to symlink, and one
- * relative to the current working directory. Checks if path is absolute or
- * relative. If the path is relative, this function checks if the path is
- * relative to symlink or relative to current working directory. This is an
- * initiative to find a smarter `srcpath` to supply when building symlinks.
- * This allows you to determine which path to use out of one of three possible
- * types of source paths. The first is an absolute path. This is detected by
- * `path.isAbsolute()`. When an absolute path is provided, it is checked to
- * see if it exists. If it does it's used, if not an error is returned
- * (callback)/ thrown (sync). The other two options for `srcpath` are a
- * relative url. By default Node's `fs.symlink` works by creating a symlink
- * using `dstpath` and expects the `srcpath` to be relative to the newly
- * created symlink. If you provide a `srcpath` that does not exist on the file
- * system it results in a broken symlink. To minimize this, the function
- * checks to see if the 'relative to symlink' source file exists, and if it
- * does it will use it. If it does not, it checks if there's a file that
- * exists that is relative to the current working directory, if does its used.
- * This preserves the expectations of the original fs.symlink spec and adds
- * the ability to pass in `relative to current working direcotry` paths.
- */
-
-function symlinkPaths (srcpath, dstpath, callback) {
-  if (path.isAbsolute(srcpath)) {
-    return fs.lstat(srcpath, (err) => {
-      if (err) {
-        err.message = err.message.replace('lstat', 'ensureSymlink')
-        return callback(err)
-      }
-      return callback(null, {
-        'toCwd': srcpath,
-        'toDst': srcpath
-      })
-    })
-  } else {
-    const dstdir = path.dirname(dstpath)
-    const relativeToDst = path.join(dstdir, srcpath)
-    return pathExists(relativeToDst, (err, exists) => {
-      if (err) return callback(err)
-      if (exists) {
-        return callback(null, {
-          'toCwd': relativeToDst,
-          'toDst': srcpath
-        })
-      } else {
-        return fs.lstat(srcpath, (err) => {
-          if (err) {
-            err.message = err.message.replace('lstat', 'ensureSymlink')
-            return callback(err)
-          }
-          return callback(null, {
-            'toCwd': srcpath,
-            'toDst': path.relative(dstdir, srcpath)
-          })
-        })
-      }
-    })
-  }
-}
-
-function symlinkPathsSync (srcpath, dstpath) {
-  let exists
-  if (path.isAbsolute(srcpath)) {
-    exists = fs.existsSync(srcpath)
-    if (!exists) throw new Error('absolute srcpath does not exist')
-    return {
-      'toCwd': srcpath,
-      'toDst': srcpath
-    }
-  } else {
-    const dstdir = path.dirname(dstpath)
-    const relativeToDst = path.join(dstdir, srcpath)
-    exists = fs.existsSync(relativeToDst)
-    if (exists) {
-      return {
-        'toCwd': relativeToDst,
-        'toDst': srcpath
-      }
-    } else {
-      exists = fs.existsSync(srcpath)
-      if (!exists) throw new Error('relative srcpath does not exist')
-      return {
-        'toCwd': srcpath,
-        'toDst': path.relative(dstdir, srcpath)
-      }
-    }
-  }
-}
-
-module.exports = {
-  symlinkPaths,
-  symlinkPathsSync
-}
-
-
-/***/ }),
-
-/***/ 4432:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const fs = __nccwpck_require__(7758)
-
-function symlinkType (srcpath, type, callback) {
-  callback = (typeof type === 'function') ? type : callback
-  type = (typeof type === 'function') ? false : type
-  if (type) return callback(null, type)
-  fs.lstat(srcpath, (err, stats) => {
-    if (err) return callback(null, 'file')
-    type = (stats && stats.isDirectory()) ? 'dir' : 'file'
-    callback(null, type)
-  })
-}
-
-function symlinkTypeSync (srcpath, type) {
-  let stats
-
-  if (type) return type
-  try {
-    stats = fs.lstatSync(srcpath)
-  } catch (e) {
-    return 'file'
-  }
-  return (stats && stats.isDirectory()) ? 'dir' : 'file'
-}
-
-module.exports = {
-  symlinkType,
-  symlinkTypeSync
-}
-
-
-/***/ }),
-
-/***/ 1547:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const u = (__nccwpck_require__(3744)/* .fromCallback */ .E)
-const path = __nccwpck_require__(1017)
-const fs = __nccwpck_require__(7758)
-const _mkdirs = __nccwpck_require__(9294)
-const mkdirs = _mkdirs.mkdirs
-const mkdirsSync = _mkdirs.mkdirsSync
-
-const _symlinkPaths = __nccwpck_require__(8635)
-const symlinkPaths = _symlinkPaths.symlinkPaths
-const symlinkPathsSync = _symlinkPaths.symlinkPathsSync
-
-const _symlinkType = __nccwpck_require__(4432)
-const symlinkType = _symlinkType.symlinkType
-const symlinkTypeSync = _symlinkType.symlinkTypeSync
-
-const pathExists = (__nccwpck_require__(4995).pathExists)
-
-function createSymlink (srcpath, dstpath, type, callback) {
-  callback = (typeof type === 'function') ? type : callback
-  type = (typeof type === 'function') ? false : type
-
-  pathExists(dstpath, (err, destinationExists) => {
-    if (err) return callback(err)
-    if (destinationExists) return callback(null)
-    symlinkPaths(srcpath, dstpath, (err, relative) => {
-      if (err) return callback(err)
-      srcpath = relative.toDst
-      symlinkType(relative.toCwd, type, (err, type) => {
-        if (err) return callback(err)
-        const dir = path.dirname(dstpath)
-        pathExists(dir, (err, dirExists) => {
-          if (err) return callback(err)
-          if (dirExists) return fs.symlink(srcpath, dstpath, type, callback)
-          mkdirs(dir, err => {
-            if (err) return callback(err)
-            fs.symlink(srcpath, dstpath, type, callback)
-          })
-        })
-      })
-    })
-  })
-}
-
-function createSymlinkSync (srcpath, dstpath, type) {
-  const destinationExists = fs.existsSync(dstpath)
-  if (destinationExists) return undefined
-
-  const relative = symlinkPathsSync(srcpath, dstpath)
-  srcpath = relative.toDst
-  type = symlinkTypeSync(relative.toCwd, type)
-  const dir = path.dirname(dstpath)
-  const exists = fs.existsSync(dir)
-  if (exists) return fs.symlinkSync(srcpath, dstpath, type)
-  mkdirsSync(dir)
-  return fs.symlinkSync(srcpath, dstpath, type)
-}
-
-module.exports = {
-  createSymlink: u(createSymlink),
-  createSymlinkSync
-}
-
-
-/***/ }),
-
-/***/ 5053:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-// This is adapted from https://github.com/normalize/mz
-// Copyright (c) 2014-2016 Jonathan Ong me@jongleberry.com and Contributors
-const u = (__nccwpck_require__(3744)/* .fromCallback */ .E)
-const fs = __nccwpck_require__(7758)
-
-const api = [
-  'access',
-  'appendFile',
-  'chmod',
-  'chown',
-  'close',
-  'copyFile',
-  'fchmod',
-  'fchown',
-  'fdatasync',
-  'fstat',
-  'fsync',
-  'ftruncate',
-  'futimes',
-  'lchown',
-  'lchmod',
-  'link',
-  'lstat',
-  'mkdir',
-  'mkdtemp',
-  'open',
-  'readFile',
-  'readdir',
-  'readlink',
-  'realpath',
-  'rename',
-  'rmdir',
-  'stat',
-  'symlink',
-  'truncate',
-  'unlink',
-  'utimes',
-  'writeFile'
-].filter(key => {
-  // Some commands are not available on some systems. Ex:
-  // fs.copyFile was added in Node.js v8.5.0
-  // fs.mkdtemp was added in Node.js v5.10.0
-  // fs.lchown is not available on at least some Linux
-  return typeof fs[key] === 'function'
-})
-
-// Export all keys:
-Object.keys(fs).forEach(key => {
-  if (key === 'promises') {
-    // fs.promises is a getter property that triggers ExperimentalWarning
-    // Don't re-export it here, the getter is defined in "lib/index.js"
-    return
-  }
-  exports[key] = fs[key]
-})
-
-// Universalify async methods:
-api.forEach(method => {
-  exports[method] = u(fs[method])
-})
-
-// We differ from mz/fs in that we still ship the old, broken, fs.exists()
-// since we are a drop-in replacement for the native module
-exports.exists = function (filename, callback) {
-  if (typeof callback === 'function') {
-    return fs.exists(filename, callback)
-  }
-  return new Promise(resolve => {
-    return fs.exists(filename, resolve)
-  })
-}
-
-// fs.read() & fs.write need special treatment due to multiple callback args
-
-exports.read = function (fd, buffer, offset, length, position, callback) {
-  if (typeof callback === 'function') {
-    return fs.read(fd, buffer, offset, length, position, callback)
-  }
-  return new Promise((resolve, reject) => {
-    fs.read(fd, buffer, offset, length, position, (err, bytesRead, buffer) => {
-      if (err) return reject(err)
-      resolve({ bytesRead, buffer })
-    })
-  })
-}
-
-// Function signature can be
-// fs.write(fd, buffer[, offset[, length[, position]]], callback)
-// OR
-// fs.write(fd, string[, position[, encoding]], callback)
-// We need to handle both cases, so we use ...args
-exports.write = function (fd, buffer, ...args) {
-  if (typeof args[args.length - 1] === 'function') {
-    return fs.write(fd, buffer, ...args)
-  }
-
-  return new Promise((resolve, reject) => {
-    fs.write(fd, buffer, ...args, (err, bytesWritten, buffer) => {
-      if (err) return reject(err)
-      resolve({ bytesWritten, buffer })
-    })
-  })
-}
-
-
-/***/ }),
-
-/***/ 9751:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-module.exports = Object.assign(
-  {},
-  // Export promiseified graceful-fs:
-  __nccwpck_require__(5053),
-  // Export extra methods:
-  __nccwpck_require__(6780),
-  __nccwpck_require__(7791),
-  __nccwpck_require__(720),
-  __nccwpck_require__(4139),
-  __nccwpck_require__(3233),
-  __nccwpck_require__(9294),
-  __nccwpck_require__(2698),
-  __nccwpck_require__(8291),
-  __nccwpck_require__(4038),
-  __nccwpck_require__(4995),
-  __nccwpck_require__(3813)
-)
-
-// Export fs.promises as a getter property so that we don't trigger
-// ExperimentalWarning before fs.promises is actually accessed.
-const fs = __nccwpck_require__(7147)
-if (Object.getOwnPropertyDescriptor(fs, 'promises')) {
-  Object.defineProperty(module.exports, "promises", ({
-    get () { return fs.promises }
-  }))
-}
-
-
-/***/ }),
-
-/***/ 3233:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const u = (__nccwpck_require__(3744)/* .fromCallback */ .E)
-const jsonFile = __nccwpck_require__(908)
-
-jsonFile.outputJson = u(__nccwpck_require__(5519))
-jsonFile.outputJsonSync = __nccwpck_require__(1427)
-// aliases
-jsonFile.outputJSON = jsonFile.outputJson
-jsonFile.outputJSONSync = jsonFile.outputJsonSync
-jsonFile.writeJSON = jsonFile.writeJson
-jsonFile.writeJSONSync = jsonFile.writeJsonSync
-jsonFile.readJSON = jsonFile.readJson
-jsonFile.readJSONSync = jsonFile.readJsonSync
-
-module.exports = jsonFile
-
-
-/***/ }),
-
-/***/ 908:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const u = (__nccwpck_require__(3744)/* .fromCallback */ .E)
-const jsonFile = __nccwpck_require__(40)
-
-module.exports = {
-  // jsonfile exports
-  readJson: u(jsonFile.readFile),
-  readJsonSync: jsonFile.readFileSync,
-  writeJson: u(jsonFile.writeFile),
-  writeJsonSync: jsonFile.writeFileSync
-}
-
-
-/***/ }),
-
-/***/ 1427:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const fs = __nccwpck_require__(7758)
-const path = __nccwpck_require__(1017)
-const mkdir = __nccwpck_require__(9294)
-const jsonFile = __nccwpck_require__(908)
-
-function outputJsonSync (file, data, options) {
-  const dir = path.dirname(file)
-
-  if (!fs.existsSync(dir)) {
-    mkdir.mkdirsSync(dir)
-  }
-
-  jsonFile.writeJsonSync(file, data, options)
-}
-
-module.exports = outputJsonSync
-
-
-/***/ }),
-
-/***/ 5519:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const path = __nccwpck_require__(1017)
-const mkdir = __nccwpck_require__(9294)
-const pathExists = (__nccwpck_require__(4995).pathExists)
-const jsonFile = __nccwpck_require__(908)
-
-function outputJson (file, data, options, callback) {
-  if (typeof options === 'function') {
-    callback = options
-    options = {}
-  }
-
-  const dir = path.dirname(file)
-
-  pathExists(dir, (err, itDoes) => {
-    if (err) return callback(err)
-    if (itDoes) return jsonFile.writeJson(file, data, options, callback)
-
-    mkdir.mkdirs(dir, err => {
-      if (err) return callback(err)
-      jsonFile.writeJson(file, data, options, callback)
-    })
-  })
-}
-
-module.exports = outputJson
-
-
-/***/ }),
-
-/***/ 9294:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-const u = (__nccwpck_require__(3744)/* .fromCallback */ .E)
-const mkdirs = u(__nccwpck_require__(6639))
-const mkdirsSync = __nccwpck_require__(1972)
-
-module.exports = {
-  mkdirs,
-  mkdirsSync,
-  // alias
-  mkdirp: mkdirs,
-  mkdirpSync: mkdirsSync,
-  ensureDir: mkdirs,
-  ensureDirSync: mkdirsSync
-}
-
-
-/***/ }),
-
-/***/ 1972:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const fs = __nccwpck_require__(7758)
-const path = __nccwpck_require__(1017)
-const invalidWin32Path = (__nccwpck_require__(4535).invalidWin32Path)
-
-const o777 = parseInt('0777', 8)
-
-function mkdirsSync (p, opts, made) {
-  if (!opts || typeof opts !== 'object') {
-    opts = { mode: opts }
-  }
-
-  let mode = opts.mode
-  const xfs = opts.fs || fs
-
-  if (process.platform === 'win32' && invalidWin32Path(p)) {
-    const errInval = new Error(p + ' contains invalid WIN32 path characters.')
-    errInval.code = 'EINVAL'
-    throw errInval
-  }
-
-  if (mode === undefined) {
-    mode = o777 & (~process.umask())
-  }
-  if (!made) made = null
-
-  p = path.resolve(p)
-
-  try {
-    xfs.mkdirSync(p, mode)
-    made = made || p
-  } catch (err0) {
-    if (err0.code === 'ENOENT') {
-      if (path.dirname(p) === p) throw err0
-      made = mkdirsSync(path.dirname(p), opts, made)
-      mkdirsSync(p, opts, made)
-    } else {
-      // In the case of any other error, just see if there's a dir there
-      // already. If so, then hooray!  If not, then something is borked.
-      let stat
-      try {
-        stat = xfs.statSync(p)
-      } catch (err1) {
-        throw err0
-      }
-      if (!stat.isDirectory()) throw err0
-    }
-  }
-
-  return made
-}
-
-module.exports = mkdirsSync
-
-
-/***/ }),
-
-/***/ 6639:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const fs = __nccwpck_require__(7758)
-const path = __nccwpck_require__(1017)
-const invalidWin32Path = (__nccwpck_require__(4535).invalidWin32Path)
-
-const o777 = parseInt('0777', 8)
-
-function mkdirs (p, opts, callback, made) {
-  if (typeof opts === 'function') {
-    callback = opts
-    opts = {}
-  } else if (!opts || typeof opts !== 'object') {
-    opts = { mode: opts }
-  }
-
-  if (process.platform === 'win32' && invalidWin32Path(p)) {
-    const errInval = new Error(p + ' contains invalid WIN32 path characters.')
-    errInval.code = 'EINVAL'
-    return callback(errInval)
-  }
-
-  let mode = opts.mode
-  const xfs = opts.fs || fs
-
-  if (mode === undefined) {
-    mode = o777 & (~process.umask())
-  }
-  if (!made) made = null
-
-  callback = callback || function () {}
-  p = path.resolve(p)
-
-  xfs.mkdir(p, mode, er => {
-    if (!er) {
-      made = made || p
-      return callback(null, made)
-    }
-    switch (er.code) {
-      case 'ENOENT':
-        if (path.dirname(p) === p) return callback(er)
-        mkdirs(path.dirname(p), opts, (er, made) => {
-          if (er) callback(er, made)
-          else mkdirs(p, opts, callback, made)
-        })
-        break
-
-      // In the case of any other error, just see if there's a dir
-      // there already.  If so, then hooray!  If not, then something
-      // is borked.
-      default:
-        xfs.stat(p, (er2, stat) => {
-          // if the stat fails, then that's super weird.
-          // let the original error be the failure reason.
-          if (er2 || !stat.isDirectory()) callback(er, made)
-          else callback(null, made)
-        })
-        break
-    }
-  })
-}
-
-module.exports = mkdirs
-
-
-/***/ }),
-
-/***/ 4535:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const path = __nccwpck_require__(1017)
-
-// get drive on windows
-function getRootPath (p) {
-  p = path.normalize(path.resolve(p)).split(path.sep)
-  if (p.length > 0) return p[0]
-  return null
-}
-
-// http://stackoverflow.com/a/62888/10333 contains more accurate
-// TODO: expand to include the rest
-const INVALID_PATH_CHARS = /[<>:"|?*]/
-
-function invalidWin32Path (p) {
-  const rp = getRootPath(p)
-  p = p.replace(rp, '')
-  return INVALID_PATH_CHARS.test(p)
-}
-
-module.exports = {
-  getRootPath,
-  invalidWin32Path
-}
-
-
-/***/ }),
-
-/***/ 2698:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const fs = __nccwpck_require__(7758)
-const path = __nccwpck_require__(1017)
-const copySync = (__nccwpck_require__(6780).copySync)
-const removeSync = (__nccwpck_require__(3813).removeSync)
-const mkdirpSync = (__nccwpck_require__(9294).mkdirsSync)
-const buffer = __nccwpck_require__(4703)
-
-function moveSync (src, dest, options) {
-  options = options || {}
-  const overwrite = options.overwrite || options.clobber || false
-
-  src = path.resolve(src)
-  dest = path.resolve(dest)
-
-  if (src === dest) return fs.accessSync(src)
-
-  if (isSrcSubdir(src, dest)) throw new Error(`Cannot move '${src}' into itself '${dest}'.`)
-
-  mkdirpSync(path.dirname(dest))
-  tryRenameSync()
-
-  function tryRenameSync () {
-    if (overwrite) {
-      try {
-        return fs.renameSync(src, dest)
-      } catch (err) {
-        if (err.code === 'ENOTEMPTY' || err.code === 'EEXIST' || err.code === 'EPERM') {
-          removeSync(dest)
-          options.overwrite = false // just overwriteed it, no need to do it again
-          return moveSync(src, dest, options)
-        }
-
-        if (err.code !== 'EXDEV') throw err
-        return moveSyncAcrossDevice(src, dest, overwrite)
-      }
-    } else {
-      try {
-        fs.linkSync(src, dest)
-        return fs.unlinkSync(src)
-      } catch (err) {
-        if (err.code === 'EXDEV' || err.code === 'EISDIR' || err.code === 'EPERM' || err.code === 'ENOTSUP') {
-          return moveSyncAcrossDevice(src, dest, overwrite)
-        }
-        throw err
-      }
-    }
-  }
-}
-
-function moveSyncAcrossDevice (src, dest, overwrite) {
-  const stat = fs.statSync(src)
-
-  if (stat.isDirectory()) {
-    return moveDirSyncAcrossDevice(src, dest, overwrite)
-  } else {
-    return moveFileSyncAcrossDevice(src, dest, overwrite)
-  }
-}
-
-function moveFileSyncAcrossDevice (src, dest, overwrite) {
-  const BUF_LENGTH = 64 * 1024
-  const _buff = buffer(BUF_LENGTH)
-
-  const flags = overwrite ? 'w' : 'wx'
-
-  const fdr = fs.openSync(src, 'r')
-  const stat = fs.fstatSync(fdr)
-  const fdw = fs.openSync(dest, flags, stat.mode)
-  let pos = 0
-
-  while (pos < stat.size) {
-    const bytesRead = fs.readSync(fdr, _buff, 0, BUF_LENGTH, pos)
-    fs.writeSync(fdw, _buff, 0, bytesRead)
-    pos += bytesRead
-  }
-
-  fs.closeSync(fdr)
-  fs.closeSync(fdw)
-  return fs.unlinkSync(src)
-}
-
-function moveDirSyncAcrossDevice (src, dest, overwrite) {
-  const options = {
-    overwrite: false
-  }
-
-  if (overwrite) {
-    removeSync(dest)
-    tryCopySync()
-  } else {
-    tryCopySync()
-  }
-
-  function tryCopySync () {
-    copySync(src, dest, options)
-    return removeSync(src)
-  }
-}
-
-// return true if dest is a subdir of src, otherwise false.
-// extract dest base dir and check if that is the same as src basename
-function isSrcSubdir (src, dest) {
-  try {
-    return fs.statSync(src).isDirectory() &&
-           src !== dest &&
-           dest.indexOf(src) > -1 &&
-           dest.split(path.dirname(src) + path.sep)[1].split(path.sep)[0] === path.basename(src)
-  } catch (e) {
-    return false
-  }
-}
-
-module.exports = {
-  moveSync
-}
-
-
-/***/ }),
-
-/***/ 8291:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const u = (__nccwpck_require__(3744)/* .fromCallback */ .E)
-const fs = __nccwpck_require__(7758)
-const path = __nccwpck_require__(1017)
-const copy = (__nccwpck_require__(7791).copy)
-const remove = (__nccwpck_require__(3813).remove)
-const mkdirp = (__nccwpck_require__(9294).mkdirp)
-const pathExists = (__nccwpck_require__(4995).pathExists)
-
-function move (src, dest, opts, cb) {
-  if (typeof opts === 'function') {
-    cb = opts
-    opts = {}
-  }
-
-  const overwrite = opts.overwrite || opts.clobber || false
-
-  src = path.resolve(src)
-  dest = path.resolve(dest)
-
-  if (src === dest) return fs.access(src, cb)
-
-  fs.stat(src, (err, st) => {
-    if (err) return cb(err)
-
-    if (st.isDirectory() && isSrcSubdir(src, dest)) {
-      return cb(new Error(`Cannot move '${src}' to a subdirectory of itself, '${dest}'.`))
-    }
-    mkdirp(path.dirname(dest), err => {
-      if (err) return cb(err)
-      return doRename(src, dest, overwrite, cb)
-    })
-  })
-}
-
-function doRename (src, dest, overwrite, cb) {
-  if (overwrite) {
-    return remove(dest, err => {
-      if (err) return cb(err)
-      return rename(src, dest, overwrite, cb)
-    })
-  }
-  pathExists(dest, (err, destExists) => {
-    if (err) return cb(err)
-    if (destExists) return cb(new Error('dest already exists.'))
-    return rename(src, dest, overwrite, cb)
-  })
-}
-
-function rename (src, dest, overwrite, cb) {
-  fs.rename(src, dest, err => {
-    if (!err) return cb()
-    if (err.code !== 'EXDEV') return cb(err)
-    return moveAcrossDevice(src, dest, overwrite, cb)
-  })
-}
-
-function moveAcrossDevice (src, dest, overwrite, cb) {
-  const opts = {
-    overwrite,
-    errorOnExist: true
-  }
-
-  copy(src, dest, opts, err => {
-    if (err) return cb(err)
-    return remove(src, cb)
-  })
-}
-
-function isSrcSubdir (src, dest) {
-  const srcArray = src.split(path.sep)
-  const destArray = dest.split(path.sep)
-
-  return srcArray.reduce((acc, current, i) => {
-    return acc && destArray[i] === current
-  }, true)
-}
-
-module.exports = {
-  move: u(move)
-}
-
-
-/***/ }),
-
-/***/ 4038:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const u = (__nccwpck_require__(3744)/* .fromCallback */ .E)
-const fs = __nccwpck_require__(7758)
-const path = __nccwpck_require__(1017)
-const mkdir = __nccwpck_require__(9294)
-const pathExists = (__nccwpck_require__(4995).pathExists)
-
-function outputFile (file, data, encoding, callback) {
-  if (typeof encoding === 'function') {
-    callback = encoding
-    encoding = 'utf8'
-  }
-
-  const dir = path.dirname(file)
-  pathExists(dir, (err, itDoes) => {
-    if (err) return callback(err)
-    if (itDoes) return fs.writeFile(file, data, encoding, callback)
-
-    mkdir.mkdirs(dir, err => {
-      if (err) return callback(err)
-
-      fs.writeFile(file, data, encoding, callback)
-    })
-  })
-}
-
-function outputFileSync (file, ...args) {
-  const dir = path.dirname(file)
-  if (fs.existsSync(dir)) {
-    return fs.writeFileSync(file, ...args)
-  }
-  mkdir.mkdirsSync(dir)
-  fs.writeFileSync(file, ...args)
-}
-
-module.exports = {
-  outputFile: u(outputFile),
-  outputFileSync
-}
-
-
-/***/ }),
-
-/***/ 4995:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-const u = (__nccwpck_require__(3744)/* .fromPromise */ .p)
-const fs = __nccwpck_require__(5053)
-
-function pathExists (path) {
-  return fs.access(path).then(() => true).catch(() => false)
-}
-
-module.exports = {
-  pathExists: u(pathExists),
-  pathExistsSync: fs.existsSync
-}
-
-
-/***/ }),
-
-/***/ 3813:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const u = (__nccwpck_require__(3744)/* .fromCallback */ .E)
-const rimraf = __nccwpck_require__(4644)
-
-module.exports = {
-  remove: u(rimraf),
-  removeSync: rimraf.sync
-}
-
-
-/***/ }),
-
-/***/ 4644:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const fs = __nccwpck_require__(7758)
-const path = __nccwpck_require__(1017)
-const assert = __nccwpck_require__(9491)
-
-const isWindows = (process.platform === 'win32')
-
-function defaults (options) {
-  const methods = [
-    'unlink',
-    'chmod',
-    'stat',
-    'lstat',
-    'rmdir',
-    'readdir'
-  ]
-  methods.forEach(m => {
-    options[m] = options[m] || fs[m]
-    m = m + 'Sync'
-    options[m] = options[m] || fs[m]
-  })
-
-  options.maxBusyTries = options.maxBusyTries || 3
-}
-
-function rimraf (p, options, cb) {
-  let busyTries = 0
-
-  if (typeof options === 'function') {
-    cb = options
-    options = {}
-  }
-
-  assert(p, 'rimraf: missing path')
-  assert.strictEqual(typeof p, 'string', 'rimraf: path should be a string')
-  assert.strictEqual(typeof cb, 'function', 'rimraf: callback function required')
-  assert(options, 'rimraf: invalid options argument provided')
-  assert.strictEqual(typeof options, 'object', 'rimraf: options should be object')
-
-  defaults(options)
-
-  rimraf_(p, options, function CB (er) {
-    if (er) {
-      if ((er.code === 'EBUSY' || er.code === 'ENOTEMPTY' || er.code === 'EPERM') &&
-          busyTries < options.maxBusyTries) {
-        busyTries++
-        const time = busyTries * 100
-        // try again, with the same exact callback as this one.
-        return setTimeout(() => rimraf_(p, options, CB), time)
-      }
-
-      // already gone
-      if (er.code === 'ENOENT') er = null
-    }
-
-    cb(er)
-  })
-}
-
-// Two possible strategies.
-// 1. Assume it's a file.  unlink it, then do the dir stuff on EPERM or EISDIR
-// 2. Assume it's a directory.  readdir, then do the file stuff on ENOTDIR
-//
-// Both result in an extra syscall when you guess wrong.  However, there
-// are likely far more normal files in the world than directories.  This
-// is based on the assumption that a the average number of files per
-// directory is >= 1.
-//
-// If anyone ever complains about this, then I guess the strategy could
-// be made configurable somehow.  But until then, YAGNI.
-function rimraf_ (p, options, cb) {
-  assert(p)
-  assert(options)
-  assert(typeof cb === 'function')
-
-  // sunos lets the root user unlink directories, which is... weird.
-  // so we have to lstat here and make sure it's not a dir.
-  options.lstat(p, (er, st) => {
-    if (er && er.code === 'ENOENT') {
-      return cb(null)
-    }
-
-    // Windows can EPERM on stat.  Life is suffering.
-    if (er && er.code === 'EPERM' && isWindows) {
-      return fixWinEPERM(p, options, er, cb)
-    }
-
-    if (st && st.isDirectory()) {
-      return rmdir(p, options, er, cb)
-    }
-
-    options.unlink(p, er => {
-      if (er) {
-        if (er.code === 'ENOENT') {
-          return cb(null)
-        }
-        if (er.code === 'EPERM') {
-          return (isWindows)
-            ? fixWinEPERM(p, options, er, cb)
-            : rmdir(p, options, er, cb)
-        }
-        if (er.code === 'EISDIR') {
-          return rmdir(p, options, er, cb)
-        }
-      }
-      return cb(er)
-    })
-  })
-}
-
-function fixWinEPERM (p, options, er, cb) {
-  assert(p)
-  assert(options)
-  assert(typeof cb === 'function')
-  if (er) {
-    assert(er instanceof Error)
-  }
-
-  options.chmod(p, 0o666, er2 => {
-    if (er2) {
-      cb(er2.code === 'ENOENT' ? null : er)
-    } else {
-      options.stat(p, (er3, stats) => {
-        if (er3) {
-          cb(er3.code === 'ENOENT' ? null : er)
-        } else if (stats.isDirectory()) {
-          rmdir(p, options, er, cb)
-        } else {
-          options.unlink(p, cb)
-        }
-      })
-    }
-  })
-}
-
-function fixWinEPERMSync (p, options, er) {
-  let stats
-
-  assert(p)
-  assert(options)
-  if (er) {
-    assert(er instanceof Error)
-  }
-
-  try {
-    options.chmodSync(p, 0o666)
-  } catch (er2) {
-    if (er2.code === 'ENOENT') {
-      return
-    } else {
-      throw er
-    }
-  }
-
-  try {
-    stats = options.statSync(p)
-  } catch (er3) {
-    if (er3.code === 'ENOENT') {
-      return
-    } else {
-      throw er
-    }
-  }
-
-  if (stats.isDirectory()) {
-    rmdirSync(p, options, er)
-  } else {
-    options.unlinkSync(p)
-  }
-}
-
-function rmdir (p, options, originalEr, cb) {
-  assert(p)
-  assert(options)
-  if (originalEr) {
-    assert(originalEr instanceof Error)
-  }
-  assert(typeof cb === 'function')
-
-  // try to rmdir first, and only readdir on ENOTEMPTY or EEXIST (SunOS)
-  // if we guessed wrong, and it's not a directory, then
-  // raise the original error.
-  options.rmdir(p, er => {
-    if (er && (er.code === 'ENOTEMPTY' || er.code === 'EEXIST' || er.code === 'EPERM')) {
-      rmkids(p, options, cb)
-    } else if (er && er.code === 'ENOTDIR') {
-      cb(originalEr)
-    } else {
-      cb(er)
-    }
-  })
-}
-
-function rmkids (p, options, cb) {
-  assert(p)
-  assert(options)
-  assert(typeof cb === 'function')
-
-  options.readdir(p, (er, files) => {
-    if (er) return cb(er)
-
-    let n = files.length
-    let errState
-
-    if (n === 0) return options.rmdir(p, cb)
-
-    files.forEach(f => {
-      rimraf(path.join(p, f), options, er => {
-        if (errState) {
-          return
-        }
-        if (er) return cb(errState = er)
-        if (--n === 0) {
-          options.rmdir(p, cb)
-        }
-      })
-    })
-  })
-}
-
-// this looks simpler, and is strictly *faster*, but will
-// tie up the JavaScript thread and fail on excessively
-// deep directory trees.
-function rimrafSync (p, options) {
-  let st
-
-  options = options || {}
-  defaults(options)
-
-  assert(p, 'rimraf: missing path')
-  assert.strictEqual(typeof p, 'string', 'rimraf: path should be a string')
-  assert(options, 'rimraf: missing options')
-  assert.strictEqual(typeof options, 'object', 'rimraf: options should be object')
-
-  try {
-    st = options.lstatSync(p)
-  } catch (er) {
-    if (er.code === 'ENOENT') {
-      return
-    }
-
-    // Windows can EPERM on stat.  Life is suffering.
-    if (er.code === 'EPERM' && isWindows) {
-      fixWinEPERMSync(p, options, er)
-    }
-  }
-
-  try {
-    // sunos lets the root user unlink directories, which is... weird.
-    if (st && st.isDirectory()) {
-      rmdirSync(p, options, null)
-    } else {
-      options.unlinkSync(p)
-    }
-  } catch (er) {
-    if (er.code === 'ENOENT') {
-      return
-    } else if (er.code === 'EPERM') {
-      return isWindows ? fixWinEPERMSync(p, options, er) : rmdirSync(p, options, er)
-    } else if (er.code !== 'EISDIR') {
-      throw er
-    }
-    rmdirSync(p, options, er)
-  }
-}
-
-function rmdirSync (p, options, originalEr) {
-  assert(p)
-  assert(options)
-  if (originalEr) {
-    assert(originalEr instanceof Error)
-  }
-
-  try {
-    options.rmdirSync(p)
-  } catch (er) {
-    if (er.code === 'ENOTDIR') {
-      throw originalEr
-    } else if (er.code === 'ENOTEMPTY' || er.code === 'EEXIST' || er.code === 'EPERM') {
-      rmkidsSync(p, options)
-    } else if (er.code !== 'ENOENT') {
-      throw er
-    }
-  }
-}
-
-function rmkidsSync (p, options) {
-  assert(p)
-  assert(options)
-  options.readdirSync(p).forEach(f => rimrafSync(path.join(p, f), options))
-
-  if (isWindows) {
-    // We only end up here once we got ENOTEMPTY at least once, and
-    // at this point, we are guaranteed to have removed all the kids.
-    // So, we know that it won't be ENOENT or ENOTDIR or anything else.
-    // try really hard to delete stuff on windows, because it has a
-    // PROFOUNDLY annoying habit of not closing handles promptly when
-    // files are deleted, resulting in spurious ENOTEMPTY errors.
-    const startTime = Date.now()
-    do {
-      try {
-        const ret = options.rmdirSync(p, options)
-        return ret
-      } catch (er) { }
-    } while (Date.now() - startTime < 500) // give up after 500ms
-  } else {
-    const ret = options.rmdirSync(p, options)
-    return ret
-  }
-}
-
-module.exports = rimraf
-rimraf.sync = rimrafSync
-
-
-/***/ }),
-
-/***/ 4703:
-/***/ ((module) => {
-
-"use strict";
-
-/* eslint-disable node/no-deprecated-api */
-module.exports = function (size) {
-  if (typeof Buffer.allocUnsafe === 'function') {
-    try {
-      return Buffer.allocUnsafe(size)
-    } catch (e) {
-      return new Buffer(size)
-    }
-  }
-  return new Buffer(size)
-}
-
-
-/***/ }),
-
-/***/ 7594:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-
-const fs = __nccwpck_require__(7758)
-const os = __nccwpck_require__(2037)
-const path = __nccwpck_require__(1017)
-
-// HFS, ext{2,3}, FAT do not, Node.js v0.10 does not
-function hasMillisResSync () {
-  let tmpfile = path.join('millis-test-sync' + Date.now().toString() + Math.random().toString().slice(2))
-  tmpfile = path.join(os.tmpdir(), tmpfile)
-
-  // 550 millis past UNIX epoch
-  const d = new Date(1435410243862)
-  fs.writeFileSync(tmpfile, 'https://github.com/jprichardson/node-fs-extra/pull/141')
-  const fd = fs.openSync(tmpfile, 'r+')
-  fs.futimesSync(fd, d, d)
-  fs.closeSync(fd)
-  return fs.statSync(tmpfile).mtime > 1435410243000
-}
-
-function hasMillisRes (callback) {
-  let tmpfile = path.join('millis-test' + Date.now().toString() + Math.random().toString().slice(2))
-  tmpfile = path.join(os.tmpdir(), tmpfile)
-
-  // 550 millis past UNIX epoch
-  const d = new Date(1435410243862)
-  fs.writeFile(tmpfile, 'https://github.com/jprichardson/node-fs-extra/pull/141', err => {
-    if (err) return callback(err)
-    fs.open(tmpfile, 'r+', (err, fd) => {
-      if (err) return callback(err)
-      fs.futimes(fd, d, d, err => {
-        if (err) return callback(err)
-        fs.close(fd, err => {
-          if (err) return callback(err)
-          fs.stat(tmpfile, (err, stats) => {
-            if (err) return callback(err)
-            callback(null, stats.mtime > 1435410243000)
-          })
-        })
-      })
-    })
-  })
-}
-
-function timeRemoveMillis (timestamp) {
-  if (typeof timestamp === 'number') {
-    return Math.floor(timestamp / 1000) * 1000
-  } else if (timestamp instanceof Date) {
-    return new Date(Math.floor(timestamp.getTime() / 1000) * 1000)
-  } else {
-    throw new Error('fs-extra: timeRemoveMillis() unknown parameter type')
-  }
-}
-
-function utimesMillis (path, atime, mtime, callback) {
-  // if (!HAS_MILLIS_RES) return fs.utimes(path, atime, mtime, callback)
-  fs.open(path, 'r+', (err, fd) => {
-    if (err) return callback(err)
-    fs.futimes(fd, atime, mtime, futimesErr => {
-      fs.close(fd, closeErr => {
-        if (callback) callback(futimesErr || closeErr)
-      })
-    })
-  })
-}
-
-function utimesMillisSync (path, atime, mtime) {
-  const fd = fs.openSync(path, 'r+')
-  fs.futimesSync(fd, atime, mtime)
-  return fs.closeSync(fd)
-}
-
-module.exports = {
-  hasMillisRes,
-  hasMillisResSync,
-  timeRemoveMillis,
-  utimesMillis,
-  utimesMillisSync
-}
-
-
-/***/ }),
-
-/***/ 40:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-var _fs
-try {
-  _fs = __nccwpck_require__(7758)
-} catch (_) {
-  _fs = __nccwpck_require__(7147)
-}
-
-function readFile (file, options, callback) {
-  if (callback == null) {
-    callback = options
-    options = {}
-  }
-
-  if (typeof options === 'string') {
-    options = {encoding: options}
-  }
-
-  options = options || {}
-  var fs = options.fs || _fs
-
-  var shouldThrow = true
-  if ('throws' in options) {
-    shouldThrow = options.throws
-  }
-
-  fs.readFile(file, options, function (err, data) {
-    if (err) return callback(err)
-
-    data = stripBom(data)
-
-    var obj
-    try {
-      obj = JSON.parse(data, options ? options.reviver : null)
-    } catch (err2) {
-      if (shouldThrow) {
-        err2.message = file + ': ' + err2.message
-        return callback(err2)
-      } else {
-        return callback(null, null)
-      }
-    }
-
-    callback(null, obj)
-  })
-}
-
-function readFileSync (file, options) {
-  options = options || {}
-  if (typeof options === 'string') {
-    options = {encoding: options}
-  }
-
-  var fs = options.fs || _fs
-
-  var shouldThrow = true
-  if ('throws' in options) {
-    shouldThrow = options.throws
-  }
-
-  try {
-    var content = fs.readFileSync(file, options)
-    content = stripBom(content)
-    return JSON.parse(content, options.reviver)
-  } catch (err) {
-    if (shouldThrow) {
-      err.message = file + ': ' + err.message
-      throw err
-    } else {
-      return null
-    }
-  }
-}
-
-function stringify (obj, options) {
-  var spaces
-  var EOL = '\n'
-  if (typeof options === 'object' && options !== null) {
-    if (options.spaces) {
-      spaces = options.spaces
-    }
-    if (options.EOL) {
-      EOL = options.EOL
-    }
-  }
-
-  var str = JSON.stringify(obj, options ? options.replacer : null, spaces)
-
-  return str.replace(/\n/g, EOL) + EOL
-}
-
-function writeFile (file, obj, options, callback) {
-  if (callback == null) {
-    callback = options
-    options = {}
-  }
-  options = options || {}
-  var fs = options.fs || _fs
-
-  var str = ''
-  try {
-    str = stringify(obj, options)
-  } catch (err) {
-    // Need to return whether a callback was passed or not
-    if (callback) callback(err, null)
-    return
-  }
-
-  fs.writeFile(file, str, options, callback)
-}
-
-function writeFileSync (file, obj, options) {
-  options = options || {}
-  var fs = options.fs || _fs
-
-  var str = stringify(obj, options)
-  // not sure if fs.writeFileSync returns anything, but just in case
-  return fs.writeFileSync(file, str, options)
-}
-
-function stripBom (content) {
-  // we do this because JSON.parse would convert it to a utf8 string if encoding wasn't specified
-  if (Buffer.isBuffer(content)) content = content.toString('utf8')
-  content = content.replace(/^\uFEFF/, '')
-  return content
-}
-
-var jsonfile = {
-  readFile: readFile,
-  readFileSync: readFileSync,
-  writeFile: writeFile,
-  writeFileSync: writeFileSync
-}
-
-module.exports = jsonfile
-
-
-/***/ }),
-
-/***/ 3744:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-
-exports.E = function (fn) {
-  return Object.defineProperty(function () {
-    if (typeof arguments[arguments.length - 1] === 'function') fn.apply(this, arguments)
-    else {
-      return new Promise((resolve, reject) => {
-        arguments[arguments.length] = (err, res) => {
-          if (err) return reject(err)
-          resolve(res)
-        }
-        arguments.length++
-        fn.apply(this, arguments)
-      })
-    }
-  }, 'name', { value: fn.name })
-}
-
-exports.p = function (fn) {
-  return Object.defineProperty(function () {
-    const cb = arguments[arguments.length - 1]
-    if (typeof cb !== 'function') return fn.apply(this, arguments)
-    else fn.apply(this, arguments).then(r => cb(null, r), cb)
-  }, 'name', { value: fn.name })
-}
-
 
 /***/ }),
 
