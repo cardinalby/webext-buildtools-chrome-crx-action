@@ -1,0 +1,21 @@
+name: "build-test"
+on:
+  pull_request:
+
+jobs:
+  test:
+    env:
+      PACKED_JS_PATH: 'dist/index.js'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Use Node.js 16
+        uses: actions/setup-node@v1
+        with:
+          node-version: 16
+      - name: Install dependencies
+        run: npm install
+      - name: Build
+        run: npm run build
+      - name: Test
+        run: npm run test
