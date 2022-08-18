@@ -29,7 +29,7 @@
   "author": "cardinalby",
   "license": "MIT",
   "dependencies": {
-    "@actions/core": "^1.8.0",
+    "@actions/core": "^1.9.1",
     "github-actions-utils": "^1.0.8",
     "webext-buildtools-chrome-crx-builder": "1.0.18",
     "winston": "^3.7.2"
