@@ -802,6 +802,71 @@ exports.toPlatformPath = toPlatformPath;
 
 /***/ }),
 
+/***/ 2981:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.toPlatformPath = exports.toWin32Path = exports.toPosixPath = void 0;
+const path = __importStar(__nccwpck_require__(1017));
+/**
+ * toPosixPath converts the given path to the posix form. On Windows, \\ will be
+ * replaced with /.
+ *
+ * @param pth. Path to transform.
+ * @return string Posix path.
+ */
+function toPosixPath(pth) {
+    return pth.replace(/[\\]/g, '/');
+}
+exports.toPosixPath = toPosixPath;
+/**
+ * toWin32Path converts the given path to the win32 form. On Linux, / will be
+ * replaced with \\.
+ *
+ * @param pth. Path to transform.
+ * @return string Win32 path.
+ */
+function toWin32Path(pth) {
+    return pth.replace(/[/]/g, '\\');
+}
+exports.toWin32Path = toWin32Path;
+/**
+ * toPlatformPath converts the given path to a platform-specific path. It does
+ * this by replacing instances of / and \ with the platform-specific path
+ * separator.
+ *
+ * @param pth The path to platformize.
+ * @return string The platform-specific path.
+ */
+function toPlatformPath(pth) {
+    return pth.replace(/[/\\]/g, path.sep);
+}
+exports.toPlatformPath = toPlatformPath;
+//# sourceMappingURL=path-utils.js.map
+
+/***/ }),
+
 /***/ 1327:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -1844,6 +1909,15 @@ const lowercaseKeys = (obj) => Object.keys(obj).reduce((c, k) => ((c[k.toLowerCa
 
 "use strict";
 
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.checkBypass = exports.getProxyUrl = void 0;
 function getProxyUrl(reqUrl) {
@@ -3021,7 +3095,7 @@ var diagnostics = create(function dev(namespace, options) {
   if (!dev.enabled(namespace) && !(options.force || dev.force)) {
     return dev.nope(options);
   }
-  
+
   return dev.yep(options);
 });
 
@@ -15178,7 +15252,7 @@ exports = module.exports = function (bufOrEm, eventName) {
     if (Buffer.isBuffer(bufOrEm)) {
         return exports.parse(bufOrEm);
     }
-    
+
     var s = exports.stream();
     if (bufOrEm && bufOrEm.pipe) {
         bufOrEm.pipe(s);
@@ -15187,7 +15261,7 @@ exports = module.exports = function (bufOrEm, eventName) {
         bufOrEm.on(eventName || 'data', function (buf) {
             s.write(buf);
         });
-        
+
         bufOrEm.on('end', function () {
             s.end();
         });
@@ -15197,7 +15271,7 @@ exports = module.exports = function (bufOrEm, eventName) {
 
 exports.stream = function (input) {
     if (input) return exports.apply(null, arguments);
-    
+
     var pending = null;
     function getBytes (bytes, cb, skip) {
         pending = {
@@ -15210,7 +15284,7 @@ exports.stream = function (input) {
         };
         dispatch();
     }
-    
+
     var offset = null;
     function dispatch () {
         if (!pending) {
@@ -15222,7 +15296,7 @@ exports.stream = function (input) {
         }
         else {
             var bytes = offset + pending.bytes;
-            
+
             if (buffers.length >= bytes) {
                 var buf;
                 if (offset == null) {
@@ -15237,7 +15311,7 @@ exports.stream = function (input) {
                     }
                     offset = bytes;
                 }
-                
+
                 if (pending.skip) {
                     pending.cb();
                 }
@@ -15247,10 +15321,10 @@ exports.stream = function (input) {
             }
         }
     }
-    
+
     function builder (saw) {
         function next () { if (!done) saw.next() }
-        
+
         var self = words(function (bytes, cb) {
             return function (name) {
                 getBytes(bytes, function (buf) {
@@ -15259,16 +15333,16 @@ exports.stream = function (input) {
                 });
             };
         });
-        
+
         self.tap = function (cb) {
             saw.nest(cb, vars.store);
         };
-        
+
         self.into = function (key, cb) {
             if (!vars.get(key)) vars.set(key, {});
             var parent = vars;
             vars = Vars(parent.get(key));
-            
+
             saw.nest(function () {
                 cb.apply(this, arguments);
                 this.tap(function () {
@@ -15276,15 +15350,15 @@ exports.stream = function (input) {
                 });
             }, vars.store);
         };
-        
+
         self.flush = function () {
             vars.store = {};
             next();
         };
-        
+
         self.loop = function (cb) {
             var end = false;
-            
+
             saw.nest(false, function loop () {
                 this.vars = vars.store;
                 cb.call(this, function () {
@@ -15297,28 +15371,28 @@ exports.stream = function (input) {
                 }.bind(this));
             }, vars.store);
         };
-        
+
         self.buffer = function (name, bytes) {
             if (typeof bytes === 'string') {
                 bytes = vars.get(bytes);
             }
-            
+
             getBytes(bytes, function (buf) {
                 vars.set(name, buf);
                 next();
             });
         };
-        
+
         self.skip = function (bytes) {
             if (typeof bytes === 'string') {
                 bytes = vars.get(bytes);
             }
-            
+
             getBytes(bytes, function () {
                 next();
             });
         };
-        
+
         self.scan = function find (name, search) {
             if (typeof search === 'string') {
                 search = new Buffer(search);
@@ -15326,7 +15400,7 @@ exports.stream = function (input) {
             else if (!Buffer.isBuffer(search)) {
                 throw new Error('search must be a Buffer or a string');
             }
-            
+
             var taken = 0;
             pending = function () {
                 var pos = buffers.indexOf(search, offset + taken);
@@ -15356,7 +15430,7 @@ exports.stream = function (input) {
             };
             dispatch();
         };
-        
+
         self.peek = function (cb) {
             offset = 0;
             saw.nest(function () {
@@ -15366,32 +15440,32 @@ exports.stream = function (input) {
                 });
             });
         };
-        
+
         return self;
     };
-    
+
     var stream = Chainsaw.light(builder);
     stream.writable = true;
-    
+
     var buffers = Buffers();
-    
+
     stream.write = function (buf) {
         buffers.push(buf);
         dispatch();
     };
-    
+
     var vars = Vars();
-    
+
     var done = false, caughtEnd = false;
     stream.end = function () {
         caughtEnd = true;
     };
-    
+
     stream.pipe = Stream.prototype.pipe;
     Object.getOwnPropertyNames(EventEmitter.prototype).forEach(function (name) {
         stream[name] = EventEmitter.prototype[name];
     });
-    
+
     return stream;
 };
 
@@ -15409,16 +15483,16 @@ exports.parse = function parse (buffer) {
             return self;
         };
     });
-    
+
     var offset = 0;
     var vars = Vars();
     self.vars = vars.store;
-    
+
     self.tap = function (cb) {
         cb.call(self, vars.store);
         return self;
     };
-    
+
     self.into = function (key, cb) {
         if (!vars.get(key)) {
             vars.set(key, {});
@@ -15429,7 +15503,7 @@ exports.parse = function parse (buffer) {
         vars = parent;
         return self;
     };
-    
+
     self.loop = function (cb) {
         var end = false;
         var ender = function () { end = true };
@@ -15438,7 +15512,7 @@ exports.parse = function parse (buffer) {
         }
         return self;
     };
-    
+
     self.buffer = function (name, size) {
         if (typeof size === 'string') {
             size = vars.get(size);
@@ -15446,19 +15520,19 @@ exports.parse = function parse (buffer) {
         var buf = buffer.slice(offset, Math.min(buffer.length, offset + size));
         offset += size;
         vars.set(name, buf);
-        
+
         return self;
     };
-    
+
     self.skip = function (bytes) {
         if (typeof bytes === 'string') {
             bytes = vars.get(bytes);
         }
         offset += bytes;
-        
+
         return self;
     };
-    
+
     self.scan = function (name, search) {
         if (typeof search === 'string') {
             search = new Buffer(search);
@@ -15467,7 +15541,7 @@ exports.parse = function parse (buffer) {
             throw new Error('search must be a Buffer or a string');
         }
         vars.set(name, null);
-        
+
         // simple but slow string search
         for (var i = 0; i + offset <= buffer.length - search.length + 1; i++) {
             for (
@@ -15477,28 +15551,28 @@ exports.parse = function parse (buffer) {
             );
             if (j === search.length) break;
         }
-        
+
         vars.set(name, buffer.slice(offset, offset + i));
         offset += i + search.length;
         return self;
     };
-    
+
     self.peek = function (cb) {
         var was = offset;
         cb.call(self, vars.store);
         offset = was;
         return self;
     };
-    
+
     self.flush = function () {
         vars.store = {};
         return self;
     };
-    
+
     self.eof = function () {
         return offset >= buffer.length;
     };
-    
+
     return self;
 };
 
@@ -15540,29 +15614,29 @@ function decodeLEs (bytes) {
 
 function words (decode) {
     var self = {};
-    
+
     [ 1, 2, 4, 8 ].forEach(function (bytes) {
         var bits = bytes * 8;
-        
+
         self['word' + bits + 'le']
         = self['word' + bits + 'lu']
         = decode(bytes, decodeLEu);
-        
+
         self['word' + bits + 'ls']
         = decode(bytes, decodeLEs);
-        
+
         self['word' + bits + 'be']
         = self['word' + bits + 'bu']
         = decode(bytes, decodeBEu);
-        
+
         self['word' + bits + 'bs']
         = decode(bytes, decodeBEs);
     });
-    
+
     // word8be(n) == word8le(n) for all n
     self.word8 = self.word8u = self.word8be;
     self.word8s = self.word8bs;
-    
+
     return self;
 }
 
@@ -15588,7 +15662,7 @@ module.exports = function (store) {
             return node[key] = value;
         }
     }
-    
+
     var vars = {
         get : function (name) {
             return getset(name);
@@ -19677,28 +19751,28 @@ __nccwpck_require__(1156)(Promise, PromiseArray, apiRejection);
 __nccwpck_require__(2223)(Promise, INTERNAL);
 __nccwpck_require__(838)(Promise, INTERNAL);
 __nccwpck_require__(5490)(Promise);
-                                                         
-    util.toFastProperties(Promise);                                          
-    util.toFastProperties(Promise.prototype);                                
-    function fillTypes(value) {                                              
-        var p = new Promise(INTERNAL);                                       
-        p._fulfillmentHandler0 = value;                                      
-        p._rejectionHandler0 = value;                                        
-        p._promise0 = value;                                                 
-        p._receiver0 = value;                                                
-    }                                                                        
-    // Complete slack tracking, opt out of field-type tracking and           
-    // stabilize map                                                         
-    fillTypes({a: 1});                                                       
-    fillTypes({b: 2});                                                       
-    fillTypes({c: 3});                                                       
-    fillTypes(1);                                                            
-    fillTypes(function(){});                                                 
-    fillTypes(undefined);                                                    
-    fillTypes(false);                                                        
-    fillTypes(new Promise(INTERNAL));                                        
-    debug.setBounds(Async.firstLineError, util.lastLineError);               
-    return Promise;                                                          
+
+    util.toFastProperties(Promise);
+    util.toFastProperties(Promise.prototype);
+    function fillTypes(value) {
+        var p = new Promise(INTERNAL);
+        p._fulfillmentHandler0 = value;
+        p._rejectionHandler0 = value;
+        p._promise0 = value;
+        p._receiver0 = value;
+    }
+    // Complete slack tracking, opt out of field-type tracking and
+    // stabilize map
+    fillTypes({a: 1});
+    fillTypes({b: 2});
+    fillTypes({c: 3});
+    fillTypes(1);
+    fillTypes(function(){});
+    fillTypes(undefined);
+    fillTypes(false);
+    fillTypes(new Promise(INTERNAL));
+    debug.setBounds(Async.firstLineError, util.lastLineError);
+    return Promise;
 
 };
 
@@ -20521,8 +20595,8 @@ function ReductionPromiseArray(promises, fn, initialValue, _each) {
 util.inherits(ReductionPromiseArray, PromiseArray);
 
 ReductionPromiseArray.prototype._gotAccum = function(accum) {
-    if (this._eachValues !== undefined && 
-        this._eachValues !== null && 
+    if (this._eachValues !== undefined &&
+        this._eachValues !== null &&
         accum !== INTERNAL) {
         this._eachValues.push(accum);
     }
@@ -22297,7 +22371,7 @@ Buffers.prototype.push = function () {
             throw new TypeError('Tried to push a non-buffer');
         }
     }
-    
+
     for (var i = 0; i < arguments.length; i++) {
         var buf = arguments[i];
         this.buffers.push(buf);
@@ -22312,7 +22386,7 @@ Buffers.prototype.unshift = function () {
             throw new TypeError('Tried to unshift a non-buffer');
         }
     }
-    
+
     for (var i = 0; i < arguments.length; i++) {
         var buf = arguments[i];
         this.buffers.unshift(buf);
@@ -22329,46 +22403,46 @@ Buffers.prototype.splice = function (i, howMany) {
     var buffers = this.buffers;
     var index = i >= 0 ? i : this.length - i;
     var reps = [].slice.call(arguments, 2);
-    
+
     if (howMany === undefined) {
         howMany = this.length - index;
     }
     else if (howMany > this.length - index) {
         howMany = this.length - index;
     }
-    
+
     for (var i = 0; i < reps.length; i++) {
         this.length += reps[i].length;
     }
-    
+
     var removed = new Buffers();
     var bytes = 0;
-    
+
     var startBytes = 0;
     for (
         var ii = 0;
         ii < buffers.length && startBytes + buffers[ii].length < index;
         ii ++
     ) { startBytes += buffers[ii].length }
-    
+
     if (index - startBytes > 0) {
         var start = index - startBytes;
-        
+
         if (start + howMany < buffers[ii].length) {
             removed.push(buffers[ii].slice(start, start + howMany));
-            
+
             var orig = buffers[ii];
             //var buf = new Buffer(orig.length - howMany);
             var buf0 = new Buffer(start);
             for (var i = 0; i < start; i++) {
                 buf0[i] = orig[i];
             }
-            
+
             var buf1 = new Buffer(orig.length - start - howMany);
             for (var i = start + howMany; i < orig.length; i++) {
                 buf1[ i - howMany - start ] = orig[i]
             }
-            
+
             if (reps.length > 0) {
                 var reps_ = reps.slice();
                 reps_.unshift(buf0);
@@ -22389,17 +22463,17 @@ Buffers.prototype.splice = function (i, howMany) {
             ii ++;
         }
     }
-    
+
     if (reps.length > 0) {
         buffers.splice.apply(buffers, [ ii, 0 ].concat(reps));
         ii += reps.length;
     }
-    
+
     while (removed.length < howMany) {
         var buf = buffers[ii];
         var len = buf.length;
         var take = Math.min(len, howMany - removed.length);
-        
+
         if (take === len) {
             removed.push(buf);
             buffers.splice(ii, 1);
@@ -22409,42 +22483,42 @@ Buffers.prototype.splice = function (i, howMany) {
             buffers[ii] = buffers[ii].slice(take);
         }
     }
-    
+
     this.length -= removed.length;
-    
+
     return removed;
 };
- 
+
 Buffers.prototype.slice = function (i, j) {
     var buffers = this.buffers;
     if (j === undefined) j = this.length;
     if (i === undefined) i = 0;
-    
+
     if (j > this.length) j = this.length;
-    
+
     var startBytes = 0;
     for (
         var si = 0;
         si < buffers.length && startBytes + buffers[si].length <= i;
         si ++
     ) { startBytes += buffers[si].length }
-    
+
     var target = new Buffer(j - i);
-    
+
     var ti = 0;
     for (var ii = si; ti < j - i && ii < buffers.length; ii++) {
         var len = buffers[ii].length;
-        
+
         var start = ti === 0 ? i - startBytes : 0;
         var end = ti + len >= j - i
             ? Math.min(start + (j - i) - ti, len)
             : len
         ;
-        
+
         buffers[ii].copy(target, ti, start, end);
         ti += end - start;
     }
-    
+
     return target;
 };
 
@@ -29278,7 +29352,7 @@ module.exports = {
  * https://github.com/archiverjs/node-crc32-stream/blob/master/LICENSE-MIT
  */
 
- 
+
 
 const {Transform} = __nccwpck_require__(1642);
 
@@ -65853,18 +65927,18 @@ function mkdirP (p, opts, f, made) {
     else if (!opts || typeof opts !== 'object') {
         opts = { mode: opts };
     }
-    
+
     var mode = opts.mode;
     var xfs = opts.fs || fs;
-    
+
     if (mode === undefined) {
         mode = _0777
     }
     if (!made) made = null;
-    
+
     var cb = f || /* istanbul ignore next */ function () {};
     p = path.resolve(p);
-    
+
     xfs.mkdir(p, mode, function (er) {
         if (!er) {
             made = made || p;
@@ -65900,10 +65974,10 @@ mkdirP.sync = function sync (p, opts, made) {
     if (!opts || typeof opts !== 'object') {
         opts = { mode: opts };
     }
-    
+
     var mode = opts.mode;
     var xfs = opts.fs || fs;
-    
+
     if (mode === undefined) {
         mode = _0777
     }
@@ -66302,9 +66376,9 @@ module.exports = (function () {
         if (!formats.detectAndImport(this.keyPair, keyData, format) && format === undefined) {
             throw Error("Key format must be specified");
         }
-        
+
         this.$cache = {};
-        
+
         return this;
     };
 
@@ -67554,7 +67628,7 @@ module.exports = {
 
 /*
  * Basic JavaScript BN library - subset useful for RSA encryption.
- * 
+ *
  * Copyright (c) 2003-2005  Tom Wu
  * All Rights Reserved.
  *
@@ -67569,9 +67643,9 @@ module.exports = {
  * The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
  *
- * THE SOFTWARE IS PROVIDED "AS-IS" AND WITHOUT WARRANTY OF ANY KIND, 
- * EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY 
- * WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.  
+ * THE SOFTWARE IS PROVIDED "AS-IS" AND WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY
+ * WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
  *
  * IN NO EVENT SHALL TOM WU BE LIABLE FOR ANY SPECIAL, INCIDENTAL,
  * INDIRECT OR CONSEQUENTIAL DAMAGES OF ANY KIND, OR ANY DAMAGES WHATSOEVER
@@ -67666,7 +67740,7 @@ function am3(i, x, w, j, c, n) {
     return c;
 }
 
-// We need to select the fastest one that works in this environment. 
+// We need to select the fastest one that works in this environment.
 //if (j_lm && (navigator.appName == "Microsoft Internet Explorer")) {
 //	BigInteger.prototype.am = am2;
 //	dbits = 30;
@@ -69100,7 +69174,7 @@ module.exports = BigInteger;
 
 /*
  * RSA Encryption / Decryption with PKCS1 v2 Padding.
- * 
+ *
  * Copyright (c) 2003-2005  Tom Wu
  * All Rights Reserved.
  *
@@ -69115,9 +69189,9 @@ module.exports = BigInteger;
  * The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
  *
- * THE SOFTWARE IS PROVIDED "AS-IS" AND WITHOUT WARRANTY OF ANY KIND, 
- * EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY 
- * WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.  
+ * THE SOFTWARE IS PROVIDED "AS-IS" AND WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY
+ * WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
  *
  * IN NO EVENT SHALL TOM WU BE LIABLE FOR ANY SPECIAL, INCIDENTAL,
  * INDIRECT OR CONSEQUENTIAL DAMAGES OF ANY KIND, OR ANY DAMAGES WHATSOEVER
@@ -77462,19 +77536,19 @@ Traverse.prototype.deepEqual = function (obj) {
             'deepEqual requires exactly one object to compare against'
         );
     }
-    
+
     var equal = true;
     var node = obj;
-    
+
     this.forEach(function (y) {
         var notEqual = (function () {
             equal = false;
             //this.stop();
             return undefined;
         }).bind(this);
-        
+
         //if (node === undefined || node === null) return notEqual();
-        
+
         if (!this.isRoot) {
         /*
             if (!Object.hasOwnProperty.call(node, this.key)) {
@@ -77484,17 +77558,17 @@ Traverse.prototype.deepEqual = function (obj) {
             if (typeof node !== 'object') return notEqual();
             node = node[this.key];
         }
-        
+
         var x = node;
-        
+
         this.post(function () {
             node = x;
         });
-        
+
         var toS = function (o) {
             return Object.prototype.toString.call(o);
         };
-        
+
         if (this.circular) {
             if (Traverse(obj).get(this.circular.path) !== x) notEqual();
         }
@@ -77543,14 +77617,14 @@ Traverse.prototype.deepEqual = function (obj) {
             }
         }
     });
-    
+
     return equal;
 };
 
 Traverse.prototype.paths = function () {
     var acc = [];
     this.forEach(function (x) {
-        acc.push(this.path); 
+        acc.push(this.path);
     });
     return acc;
 };
@@ -77565,24 +77639,24 @@ Traverse.prototype.nodes = function () {
 
 Traverse.prototype.clone = function () {
     var parents = [], nodes = [];
-    
+
     return (function clone (src) {
         for (var i = 0; i < parents.length; i++) {
             if (parents[i] === src) {
                 return nodes[i];
             }
         }
-        
+
         if (typeof src === 'object' && src !== null) {
             var dst = copy(src);
-            
+
             parents.push(src);
             nodes.push(dst);
-            
+
             Object.keys(src).forEach(function (key) {
                 dst[key] = clone(src[key]);
             });
-            
+
             parents.pop();
             nodes.pop();
             return dst;
@@ -77597,11 +77671,11 @@ function walk (root, cb, immutable) {
     var path = [];
     var parents = [];
     var alive = true;
-    
+
     return (function walker (node_) {
         var node = immutable ? copy(node_) : node_;
         var modifiers = {};
-        
+
         var state = {
             node : node,
             node_ : node_,
@@ -77634,12 +77708,12 @@ function walk (root, cb, immutable) {
             post : function (f) { modifiers.post = f },
             stop : function () { alive = false }
         };
-        
+
         if (!alive) return state;
-        
+
         if (typeof node === 'object' && node !== null) {
             state.isLeaf = Object.keys(node).length == 0;
-            
+
             for (var i = 0; i < parents.length; i++) {
                 if (parents[i].node_ === node_) {
                     state.circular = parents[i];
@@ -77650,42 +77724,42 @@ function walk (root, cb, immutable) {
         else {
             state.isLeaf = true;
         }
-        
+
         state.notLeaf = !state.isLeaf;
         state.notRoot = !state.isRoot;
-        
+
         // use return values to update if defined
         var ret = cb.call(state, state.node);
         if (ret !== undefined && state.update) state.update(ret);
         if (modifiers.before) modifiers.before.call(state, state.node);
-        
+
         if (typeof state.node == 'object'
         && state.node !== null && !state.circular) {
             parents.push(state);
-            
+
             var keys = Object.keys(state.node);
             keys.forEach(function (key, i) {
                 path.push(key);
-                
+
                 if (modifiers.pre) modifiers.pre.call(state, state.node[key], key);
-                
+
                 var child = walker(state.node[key]);
                 if (immutable && Object.hasOwnProperty.call(state.node, key)) {
                     state.node[key] = child.node;
                 }
-                
+
                 child.isLast = i == keys.length - 1;
                 child.isFirst = i == 0;
-                
+
                 if (modifiers.post) modifiers.post.call(state, child);
-                
+
                 path.pop();
             });
             parents.pop();
         }
-        
+
         if (modifiers.after) modifiers.after.call(state, state.node);
-        
+
         return state;
     })(root).node;
 }
@@ -77701,7 +77775,7 @@ Object.keys(Traverse.prototype).forEach(function (key) {
 function copy (src) {
     if (typeof src === 'object' && src !== null) {
         var dst;
-        
+
         if (Array.isArray(src)) {
             dst = [];
         }
@@ -77720,7 +77794,7 @@ function copy (src) {
         else {
             dst = Object.create(Object.getPrototypeOf(src));
         }
-        
+
         Object.keys(src).forEach(function (key) {
             dst[key] = src[key];
         });
@@ -78379,7 +78453,7 @@ module.exports = function(entry) {
         resolve(Buffer.concat(chunks));
       })
       .on('error',reject);
-        
+
     bufferStream._transform = function(d,e,cb) {
       chunks.push(d);
       cb();
@@ -78420,7 +78494,7 @@ function crc(ch,crc) {
     generateTable();
 
   if (ch.charCodeAt)
-    ch = ch.charCodeAt(0);        
+    ch = ch.charCodeAt(0);
 
   return (bigInt(crc).shiftRight(8).and(0xffffff)).xor(table[bigInt(crc).xor(ch).and(0xff)]).value;
 }
@@ -78434,7 +78508,7 @@ function Decrypt() {
   this.key2 = 878082192;
 }
 
-Decrypt.prototype.update = function(h) {            
+Decrypt.prototype.update = function(h) {
   this.key0 = crc(h,this.key0);
   this.key1 = bigInt(this.key0).and(255).and(4294967295).add(this.key1)
   this.key1 = bigInt(this.key1).multiply(134775813).add(1).and(4294967295).value;
@@ -78490,7 +78564,7 @@ function NoopStream() {
 util.inherits(NoopStream,Stream.Transform);
 
 NoopStream.prototype._transform = function(d,e,cb) { cb() ;};
-  
+
 module.exports = NoopStream;
 
 /***/ }),
@@ -78671,7 +78745,7 @@ module.exports = function centralDirectory(source, options) {
       };
 
       vars.files = Promise.mapSeries(Array(vars.numberOfRecords),function() {
-        return records.pull(46).then(function(data) {    
+        return records.pull(46).then(function(data) {
           var vars = binary.parse(data)
             .word32lu('signature')
             .word16lu('versionMadeBy')
@@ -79042,7 +79116,7 @@ PullStream.prototype.stream = function(eof,includeEof) {
         if (self.buffer.length === 0 || (eof.length && self.buffer.length <= eof.length)) cb();
       });
     }
-    
+
     if (!done) {
       if (self.finished && !this.__ended) {
         self.removeListener('chunk',pull);
@@ -79050,7 +79124,7 @@ PullStream.prototype.stream = function(eof,includeEof) {
         this.__ended = true;
         return;
       }
-      
+
     } else {
       self.removeListener('chunk',pull);
       p.end();
@@ -79082,7 +79156,7 @@ PullStream.prototype.pull = function(eof,includeEof) {
     buffer = Buffer.concat([buffer,d]);
     cb();
   };
-  
+
   var rejectHandler;
   var pullStreamRejectHandler;
   return new Promise(function(resolve,reject) {
@@ -79161,7 +79235,7 @@ function Extract (opts) {
     .on('finish',function() {
       extract.emit('close');
     });
-  
+
   extract.promise = function() {
     return new Promise(function(resolve, reject) {
       extract.on('close', resolve);
@@ -82604,6 +82678,652 @@ exports["default"] = _default;
 
 /***/ }),
 
+/***/ 5840:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+  value: true
+}));
+Object.defineProperty(exports, "v1", ({
+  enumerable: true,
+  get: function () {
+    return _v.default;
+  }
+}));
+Object.defineProperty(exports, "v3", ({
+  enumerable: true,
+  get: function () {
+    return _v2.default;
+  }
+}));
+Object.defineProperty(exports, "v4", ({
+  enumerable: true,
+  get: function () {
+    return _v3.default;
+  }
+}));
+Object.defineProperty(exports, "v5", ({
+  enumerable: true,
+  get: function () {
+    return _v4.default;
+  }
+}));
+Object.defineProperty(exports, "NIL", ({
+  enumerable: true,
+  get: function () {
+    return _nil.default;
+  }
+}));
+Object.defineProperty(exports, "version", ({
+  enumerable: true,
+  get: function () {
+    return _version.default;
+  }
+}));
+Object.defineProperty(exports, "validate", ({
+  enumerable: true,
+  get: function () {
+    return _validate.default;
+  }
+}));
+Object.defineProperty(exports, "stringify", ({
+  enumerable: true,
+  get: function () {
+    return _stringify.default;
+  }
+}));
+Object.defineProperty(exports, "parse", ({
+  enumerable: true,
+  get: function () {
+    return _parse.default;
+  }
+}));
+
+var _v = _interopRequireDefault(__nccwpck_require__(8628));
+
+var _v2 = _interopRequireDefault(__nccwpck_require__(6409));
+
+var _v3 = _interopRequireDefault(__nccwpck_require__(5122));
+
+var _v4 = _interopRequireDefault(__nccwpck_require__(9120));
+
+var _nil = _interopRequireDefault(__nccwpck_require__(5332));
+
+var _version = _interopRequireDefault(__nccwpck_require__(1595));
+
+var _validate = _interopRequireDefault(__nccwpck_require__(6900));
+
+var _stringify = _interopRequireDefault(__nccwpck_require__(8950));
+
+var _parse = _interopRequireDefault(__nccwpck_require__(2746));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/***/ }),
+
+/***/ 4569:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+  value: true
+}));
+exports["default"] = void 0;
+
+var _crypto = _interopRequireDefault(__nccwpck_require__(6113));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function md5(bytes) {
+  if (Array.isArray(bytes)) {
+    bytes = Buffer.from(bytes);
+  } else if (typeof bytes === 'string') {
+    bytes = Buffer.from(bytes, 'utf8');
+  }
+
+  return _crypto.default.createHash('md5').update(bytes).digest();
+}
+
+var _default = md5;
+exports["default"] = _default;
+
+/***/ }),
+
+/***/ 5332:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+  value: true
+}));
+exports["default"] = void 0;
+var _default = '00000000-0000-0000-0000-000000000000';
+exports["default"] = _default;
+
+/***/ }),
+
+/***/ 2746:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+  value: true
+}));
+exports["default"] = void 0;
+
+var _validate = _interopRequireDefault(__nccwpck_require__(6900));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function parse(uuid) {
+  if (!(0, _validate.default)(uuid)) {
+    throw TypeError('Invalid UUID');
+  }
+
+  let v;
+  const arr = new Uint8Array(16); // Parse ########-....-....-....-............
+
+  arr[0] = (v = parseInt(uuid.slice(0, 8), 16)) >>> 24;
+  arr[1] = v >>> 16 & 0xff;
+  arr[2] = v >>> 8 & 0xff;
+  arr[3] = v & 0xff; // Parse ........-####-....-....-............
+
+  arr[4] = (v = parseInt(uuid.slice(9, 13), 16)) >>> 8;
+  arr[5] = v & 0xff; // Parse ........-....-####-....-............
+
+  arr[6] = (v = parseInt(uuid.slice(14, 18), 16)) >>> 8;
+  arr[7] = v & 0xff; // Parse ........-....-....-####-............
+
+  arr[8] = (v = parseInt(uuid.slice(19, 23), 16)) >>> 8;
+  arr[9] = v & 0xff; // Parse ........-....-....-....-############
+  // (Use "/" to avoid 32-bit truncation when bit-shifting high-order bytes)
+
+  arr[10] = (v = parseInt(uuid.slice(24, 36), 16)) / 0x10000000000 & 0xff;
+  arr[11] = v / 0x100000000 & 0xff;
+  arr[12] = v >>> 24 & 0xff;
+  arr[13] = v >>> 16 & 0xff;
+  arr[14] = v >>> 8 & 0xff;
+  arr[15] = v & 0xff;
+  return arr;
+}
+
+var _default = parse;
+exports["default"] = _default;
+
+/***/ }),
+
+/***/ 814:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+  value: true
+}));
+exports["default"] = void 0;
+var _default = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000)$/i;
+exports["default"] = _default;
+
+/***/ }),
+
+/***/ 807:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+  value: true
+}));
+exports["default"] = rng;
+
+var _crypto = _interopRequireDefault(__nccwpck_require__(6113));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+const rnds8Pool = new Uint8Array(256); // # of random values to pre-allocate
+
+let poolPtr = rnds8Pool.length;
+
+function rng() {
+  if (poolPtr > rnds8Pool.length - 16) {
+    _crypto.default.randomFillSync(rnds8Pool);
+
+    poolPtr = 0;
+  }
+
+  return rnds8Pool.slice(poolPtr, poolPtr += 16);
+}
+
+/***/ }),
+
+/***/ 5274:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+  value: true
+}));
+exports["default"] = void 0;
+
+var _crypto = _interopRequireDefault(__nccwpck_require__(6113));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function sha1(bytes) {
+  if (Array.isArray(bytes)) {
+    bytes = Buffer.from(bytes);
+  } else if (typeof bytes === 'string') {
+    bytes = Buffer.from(bytes, 'utf8');
+  }
+
+  return _crypto.default.createHash('sha1').update(bytes).digest();
+}
+
+var _default = sha1;
+exports["default"] = _default;
+
+/***/ }),
+
+/***/ 8950:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+  value: true
+}));
+exports["default"] = void 0;
+
+var _validate = _interopRequireDefault(__nccwpck_require__(6900));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Convert array of 16 byte values to UUID string format of the form:
+ * XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+ */
+const byteToHex = [];
+
+for (let i = 0; i < 256; ++i) {
+  byteToHex.push((i + 0x100).toString(16).substr(1));
+}
+
+function stringify(arr, offset = 0) {
+  // Note: Be careful editing this code!  It's been tuned for performance
+  // and works in ways you may not expect. See https://github.com/uuidjs/uuid/pull/434
+  const uuid = (byteToHex[arr[offset + 0]] + byteToHex[arr[offset + 1]] + byteToHex[arr[offset + 2]] + byteToHex[arr[offset + 3]] + '-' + byteToHex[arr[offset + 4]] + byteToHex[arr[offset + 5]] + '-' + byteToHex[arr[offset + 6]] + byteToHex[arr[offset + 7]] + '-' + byteToHex[arr[offset + 8]] + byteToHex[arr[offset + 9]] + '-' + byteToHex[arr[offset + 10]] + byteToHex[arr[offset + 11]] + byteToHex[arr[offset + 12]] + byteToHex[arr[offset + 13]] + byteToHex[arr[offset + 14]] + byteToHex[arr[offset + 15]]).toLowerCase(); // Consistency check for valid UUID.  If this throws, it's likely due to one
+  // of the following:
+  // - One or more input array values don't map to a hex octet (leading to
+  // "undefined" in the uuid)
+  // - Invalid input values for the RFC `version` or `variant` fields
+
+  if (!(0, _validate.default)(uuid)) {
+    throw TypeError('Stringified UUID is invalid');
+  }
+
+  return uuid;
+}
+
+var _default = stringify;
+exports["default"] = _default;
+
+/***/ }),
+
+/***/ 8628:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+  value: true
+}));
+exports["default"] = void 0;
+
+var _rng = _interopRequireDefault(__nccwpck_require__(807));
+
+var _stringify = _interopRequireDefault(__nccwpck_require__(8950));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+// **`v1()` - Generate time-based UUID**
+//
+// Inspired by https://github.com/LiosK/UUID.js
+// and http://docs.python.org/library/uuid.html
+let _nodeId;
+
+let _clockseq; // Previous uuid creation time
+
+
+let _lastMSecs = 0;
+let _lastNSecs = 0; // See https://github.com/uuidjs/uuid for API details
+
+function v1(options, buf, offset) {
+  let i = buf && offset || 0;
+  const b = buf || new Array(16);
+  options = options || {};
+  let node = options.node || _nodeId;
+  let clockseq = options.clockseq !== undefined ? options.clockseq : _clockseq; // node and clockseq need to be initialized to random values if they're not
+  // specified.  We do this lazily to minimize issues related to insufficient
+  // system entropy.  See #189
+
+  if (node == null || clockseq == null) {
+    const seedBytes = options.random || (options.rng || _rng.default)();
+
+    if (node == null) {
+      // Per 4.5, create and 48-bit node id, (47 random bits + multicast bit = 1)
+      node = _nodeId = [seedBytes[0] | 0x01, seedBytes[1], seedBytes[2], seedBytes[3], seedBytes[4], seedBytes[5]];
+    }
+
+    if (clockseq == null) {
+      // Per 4.2.2, randomize (14 bit) clockseq
+      clockseq = _clockseq = (seedBytes[6] << 8 | seedBytes[7]) & 0x3fff;
+    }
+  } // UUID timestamps are 100 nano-second units since the Gregorian epoch,
+  // (1582-10-15 00:00).  JSNumbers aren't precise enough for this, so
+  // time is handled internally as 'msecs' (integer milliseconds) and 'nsecs'
+  // (100-nanoseconds offset from msecs) since unix epoch, 1970-01-01 00:00.
+
+
+  let msecs = options.msecs !== undefined ? options.msecs : Date.now(); // Per 4.2.1.2, use count of uuid's generated during the current clock
+  // cycle to simulate higher resolution clock
+
+  let nsecs = options.nsecs !== undefined ? options.nsecs : _lastNSecs + 1; // Time since last uuid creation (in msecs)
+
+  const dt = msecs - _lastMSecs + (nsecs - _lastNSecs) / 10000; // Per 4.2.1.2, Bump clockseq on clock regression
+
+  if (dt < 0 && options.clockseq === undefined) {
+    clockseq = clockseq + 1 & 0x3fff;
+  } // Reset nsecs if clock regresses (new clockseq) or we've moved onto a new
+  // time interval
+
+
+  if ((dt < 0 || msecs > _lastMSecs) && options.nsecs === undefined) {
+    nsecs = 0;
+  } // Per 4.2.1.2 Throw error if too many uuids are requested
+
+
+  if (nsecs >= 10000) {
+    throw new Error("uuid.v1(): Can't create more than 10M uuids/sec");
+  }
+
+  _lastMSecs = msecs;
+  _lastNSecs = nsecs;
+  _clockseq = clockseq; // Per 4.1.4 - Convert from unix epoch to Gregorian epoch
+
+  msecs += 12219292800000; // `time_low`
+
+  const tl = ((msecs & 0xfffffff) * 10000 + nsecs) % 0x100000000;
+  b[i++] = tl >>> 24 & 0xff;
+  b[i++] = tl >>> 16 & 0xff;
+  b[i++] = tl >>> 8 & 0xff;
+  b[i++] = tl & 0xff; // `time_mid`
+
+  const tmh = msecs / 0x100000000 * 10000 & 0xfffffff;
+  b[i++] = tmh >>> 8 & 0xff;
+  b[i++] = tmh & 0xff; // `time_high_and_version`
+
+  b[i++] = tmh >>> 24 & 0xf | 0x10; // include version
+
+  b[i++] = tmh >>> 16 & 0xff; // `clock_seq_hi_and_reserved` (Per 4.2.2 - include variant)
+
+  b[i++] = clockseq >>> 8 | 0x80; // `clock_seq_low`
+
+  b[i++] = clockseq & 0xff; // `node`
+
+  for (let n = 0; n < 6; ++n) {
+    b[i + n] = node[n];
+  }
+
+  return buf || (0, _stringify.default)(b);
+}
+
+var _default = v1;
+exports["default"] = _default;
+
+/***/ }),
+
+/***/ 6409:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+  value: true
+}));
+exports["default"] = void 0;
+
+var _v = _interopRequireDefault(__nccwpck_require__(5998));
+
+var _md = _interopRequireDefault(__nccwpck_require__(4569));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+const v3 = (0, _v.default)('v3', 0x30, _md.default);
+var _default = v3;
+exports["default"] = _default;
+
+/***/ }),
+
+/***/ 5998:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+  value: true
+}));
+exports["default"] = _default;
+exports.URL = exports.DNS = void 0;
+
+var _stringify = _interopRequireDefault(__nccwpck_require__(8950));
+
+var _parse = _interopRequireDefault(__nccwpck_require__(2746));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function stringToBytes(str) {
+  str = unescape(encodeURIComponent(str)); // UTF8 escape
+
+  const bytes = [];
+
+  for (let i = 0; i < str.length; ++i) {
+    bytes.push(str.charCodeAt(i));
+  }
+
+  return bytes;
+}
+
+const DNS = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+exports.DNS = DNS;
+const URL = '6ba7b811-9dad-11d1-80b4-00c04fd430c8';
+exports.URL = URL;
+
+function _default(name, version, hashfunc) {
+  function generateUUID(value, namespace, buf, offset) {
+    if (typeof value === 'string') {
+      value = stringToBytes(value);
+    }
+
+    if (typeof namespace === 'string') {
+      namespace = (0, _parse.default)(namespace);
+    }
+
+    if (namespace.length !== 16) {
+      throw TypeError('Namespace must be array-like (16 iterable integer values, 0-255)');
+    } // Compute hash of namespace and value, Per 4.3
+    // Future: Use spread syntax when supported on all platforms, e.g. `bytes =
+    // hashfunc([...namespace, ... value])`
+
+
+    let bytes = new Uint8Array(16 + value.length);
+    bytes.set(namespace);
+    bytes.set(value, namespace.length);
+    bytes = hashfunc(bytes);
+    bytes[6] = bytes[6] & 0x0f | version;
+    bytes[8] = bytes[8] & 0x3f | 0x80;
+
+    if (buf) {
+      offset = offset || 0;
+
+      for (let i = 0; i < 16; ++i) {
+        buf[offset + i] = bytes[i];
+      }
+
+      return buf;
+    }
+
+    return (0, _stringify.default)(bytes);
+  } // Function#name is not settable on some platforms (#270)
+
+
+  try {
+    generateUUID.name = name; // eslint-disable-next-line no-empty
+  } catch (err) {} // For CommonJS default export support
+
+
+  generateUUID.DNS = DNS;
+  generateUUID.URL = URL;
+  return generateUUID;
+}
+
+/***/ }),
+
+/***/ 5122:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+  value: true
+}));
+exports["default"] = void 0;
+
+var _rng = _interopRequireDefault(__nccwpck_require__(807));
+
+var _stringify = _interopRequireDefault(__nccwpck_require__(8950));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function v4(options, buf, offset) {
+  options = options || {};
+
+  const rnds = options.random || (options.rng || _rng.default)(); // Per 4.4, set bits for version and `clock_seq_hi_and_reserved`
+
+
+  rnds[6] = rnds[6] & 0x0f | 0x40;
+  rnds[8] = rnds[8] & 0x3f | 0x80; // Copy bytes to buffer, if provided
+
+  if (buf) {
+    offset = offset || 0;
+
+    for (let i = 0; i < 16; ++i) {
+      buf[offset + i] = rnds[i];
+    }
+
+    return buf;
+  }
+
+  return (0, _stringify.default)(rnds);
+}
+
+var _default = v4;
+exports["default"] = _default;
+
+/***/ }),
+
+/***/ 9120:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+  value: true
+}));
+exports["default"] = void 0;
+
+var _v = _interopRequireDefault(__nccwpck_require__(5998));
+
+var _sha = _interopRequireDefault(__nccwpck_require__(5274));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+const v5 = (0, _v.default)('v5', 0x50, _sha.default);
+var _default = v5;
+exports["default"] = _default;
+
+/***/ }),
+
+/***/ 6900:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+  value: true
+}));
+exports["default"] = void 0;
+
+var _regex = _interopRequireDefault(__nccwpck_require__(814));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function validate(uuid) {
+  return typeof uuid === 'string' && _regex.default.test(uuid);
+}
+
+var _default = validate;
+exports["default"] = _default;
+
+/***/ }),
+
+/***/ 1595:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({
+  value: true
+}));
+exports["default"] = void 0;
+
+var _validate = _interopRequireDefault(__nccwpck_require__(6900));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function version(uuid) {
+  if (!(0, _validate.default)(uuid)) {
+    throw TypeError('Invalid UUID');
+  }
+
+  return parseInt(uuid.substr(14, 1), 16);
+}
+
+var _default = version;
+exports["default"] = _default;
+
+/***/ }),
+
 /***/ 459:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -82746,9 +83466,9 @@ class ChromeCrxBuilder extends webext_buildtools_utils_1.AbstractSimpleBuilder {
     async buildUpdateXml(result, crxWrapper) {
         const updateXmlBuffer = crxWrapper.generateUpdateXML(
         // @ts-ignore
-        this._inputManifest.version, 
+        this._inputManifest.version,
         // @ts-ignore
-        this._options.updateXml.codebaseUrl, 
+        this._options.updateXml.codebaseUrl,
         // @ts-ignore
         this._options.updateXml.appId);
         if (this._isUpdateXmlBufferRequired) {
@@ -85573,7 +86293,7 @@ class Logger extends Transform {
     if (!this._readableState.pipes) {
       // eslint-disable-next-line no-console
       console.error(
-        '[winston] Attempt to write logs with no transports %j',
+        '[winston] Attempt to write logs with no transports, which can increase memory usage: %j',
         info
       );
     }
@@ -87497,7 +88217,7 @@ module.exports = class Http extends TransportStream {
     req.on('response', res => (
       res.on('end', () => callback(null, res)).resume()
     ));
-    req.end(Buffer.from(jsonStringify(options), 'utf8'));
+    req.end(Buffer.from(jsonStringify(options, this.options.replacer), 'utf8'));
   }
 };
 
@@ -89345,7 +90065,7 @@ module.exports = require("zlib");
 /***/ ((module) => {
 
 "use strict";
-module.exports = {"version":"3.7.2"};
+module.exports = {"version":"3.8.1"};
 
 /***/ })
 
@@ -89353,7 +90073,7 @@ module.exports = {"version":"3.7.2"};
 /************************************************************************/
 /******/ 	// The module cache
 /******/ 	var __webpack_module_cache__ = {};
-/******/ 	
+/******/
 /******/ 	// The require function
 /******/ 	function __nccwpck_require__(moduleId) {
 /******/ 		// Check if module is in cache
@@ -89367,7 +90087,7 @@ module.exports = {"version":"3.7.2"};
 /******/ 			loaded: false,
 /******/ 			exports: {}
 /******/ 		};
-/******/ 	
+/******/
 /******/ 		// Execute the module function
 /******/ 		var threw = true;
 /******/ 		try {
@@ -89376,14 +90096,14 @@ module.exports = {"version":"3.7.2"};
 /******/ 		} finally {
 /******/ 			if(threw) delete __webpack_module_cache__[moduleId];
 /******/ 		}
-/******/ 	
+/******/
 /******/ 		// Flag the module as loaded
 /******/ 		module.loaded = true;
-/******/ 	
+/******/
 /******/ 		// Return the exports of the module
 /******/ 		return module.exports;
 /******/ 	}
-/******/ 	
+/******/
 /************************************************************************/
 /******/ 	/* webpack/runtime/node module decorator */
 /******/ 	(() => {
@@ -89393,18 +90113,18 @@ module.exports = {"version":"3.7.2"};
 /******/ 			return module;
 /******/ 		};
 /******/ 	})();
-/******/ 	
+/******/
 /******/ 	/* webpack/runtime/compat */
-/******/ 	
+/******/
 /******/ 	if (typeof __nccwpck_require__ !== 'undefined') __nccwpck_require__.ab = __dirname + "/";
-/******/ 	
+/******/
 /************************************************************************/
-/******/ 	
+/******/
 /******/ 	// startup
 /******/ 	// Load entry module and return exports
 /******/ 	// This entry module is referenced by other modules so it can't be inlined
 /******/ 	var __webpack_exports__ = __nccwpck_require__(3109);
 /******/ 	module.exports = __webpack_exports__;
-/******/ 	
+/******/
 /******/ })()
 ;

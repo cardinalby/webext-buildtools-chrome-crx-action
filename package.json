@@ -7,7 +7,8 @@
     "build": "tsc",
     "test": "jest",
     "pack": "ncc build",
-    "all": "npm run build && npm run pack"
+    "all": "npm run build && npm run pack",
+    "mergePushMasterToV2": "git fetch . master:v2 && git push origin v2"
   },
   "repository": {
     "type": "git",
@@ -32,18 +33,18 @@
     "@actions/core": "^1.9.1",
     "github-actions-utils": "^1.0.8",
     "webext-buildtools-chrome-crx-builder": "1.0.18",
-    "winston": "^3.7.2"
+    "winston": "^3.8.1"
   },
   "devDependencies": {
     "webext-buildtools-builder-types": "^1.0.11",
-    "@types/node": "^16.11.32",
-    "@vercel/ncc": "^0.33.4",
-    "typescript": "^4.6.4",
-    "@types/jest": "^27.5.0",
-    "jest": "^28.1.0",
-    "ts-jest": "^28.0.1",
-    "github-action-ts-run-api": "^2.1.1",
-    "zip-a-folder": "^1.1.3",
+    "@types/node": "^16.11.51",
+    "@vercel/ncc": "^0.34.0",
+    "typescript": "^4.7.4",
+    "@types/jest": "^28.1.7",
+    "jest": "^28.1.3",
+    "ts-jest": "^28.0.8",
+    "github-action-ts-run-api": "^2.2.2",
+    "zip-a-folder": "^1.1.5",
     "fs-extra": "^10.1.0",
     "@types/fs-extra": "^9.0.13"
   }
