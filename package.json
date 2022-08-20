@@ -27,7 +27,7 @@
   "author": "cardinalby",
   "license": "MIT",
   "dependencies": {
-    "@actions/core": "^1.2.0",
+    "@actions/core": "^1.9.1",
     "github-actions-utils": "^1.0.7",
     "webext-buildtools-dir-reader-mw": "^1.0.9",
     "webext-buildtools-chrome-crx-builder": "^1.0.8",
@@ -37,7 +37,7 @@
     "@types/archiver": "^3.1.0",
     "webext-buildtools-builder-types": "^1.0.8",
     "@types/node": "^12.7.12",
-    "@zeit/ncc": "^0.20.5",
+    "@vercel/ncc": "^0.34.0",
     "typescript": "^3.6.4"
   }
 }
