@@ -27,7 +27,7 @@
   "author": "cardinalby",
   "license": "MIT",
   "dependencies": {
-    "@actions/core": "^1.9.1",
+    "@actions/core": "^1.10.0",
     "github-actions-utils": "^1.0.7",
     "webext-buildtools-dir-reader-mw": "^1.0.9",
     "webext-buildtools-chrome-crx-builder": "^1.0.8",
