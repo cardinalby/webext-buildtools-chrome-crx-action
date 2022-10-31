@@ -1,5 +1,5 @@
-import {RunTarget, RunOptions} from "github-action-ts-run-api";
-import path from "path";
+import {RunTarget, RunOptions, deleteAllFakedDirs} from "github-action-ts-run-api";
+import * as path from "path";
 import {PathLike} from "fs";
 import * as crypto from "crypto";
 import { zip } from 'zip-a-folder';
@@ -44,6 +44,7 @@ describe('webext-buildtools-chrome-crx-action', () => {
     afterAll(() => {
         rm(privateKeyFilePath);
         rm(zipFilePath);
+        deleteAllFakedDirs()
     })
 
     test.each([
@@ -70,5 +71,6 @@ describe('webext-buildtools-chrome-crx-action', () => {
             if (requireUpdateXml) {
                 expect(fs.existsSync(updateXmlFilePath)).toBeTruthy();
             }
+            expect(res.warnings).toHaveLength(0);
         })
 })
